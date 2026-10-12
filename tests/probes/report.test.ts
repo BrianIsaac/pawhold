@@ -57,7 +57,7 @@ const run = (verdict: "pass" | "fail", over: Partial<ProbeRun> = {}): ProbeRun =
   buyer: [],
   notes: [],
   cleanup: {
-    rows: [{ authorizationId: "A1", status: "CAPTURED", kept: null, ok: true }],
+    rows: [{ orderId: "O1", authorizationId: "A1", status: "CAPTURED", kept: null, ok: true }],
     clean: true,
   },
   ...over,
@@ -93,7 +93,7 @@ describe("the probe report's sections", () => {
       outcome: null,
       error: "Error: buyer approval failed",
       cleanup: {
-        rows: [{ authorizationId: "A9", status: "CREATED", kept: null, ok: false }],
+        rows: [{ orderId: "O9", authorizationId: "A9", status: "CREATED", kept: null, ok: false }],
         clean: false,
       },
     });

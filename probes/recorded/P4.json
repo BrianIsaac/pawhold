@@ -1,17 +1,17 @@
 {
   "probe": "P4",
-  "startedAt": "2026-10-12T11:21:07.620Z",
-  "endedAt": "2026-10-12T11:21:32.294Z",
+  "startedAt": "2026-10-12T11:28:37.394Z",
+  "endedAt": "2026-10-12T11:28:56.736Z",
   "options": {
     "holds": []
   },
   "outcome": {
     "verdict": "pass",
-    "summary": "After £60.00 was captured not final, the void of 77107805GR5727745 succeeded; it reads VOIDED and the capture stands COMPLETED.",
+    "summary": "After £60.00 was captured not final, the void of 0N675279VG0451619 succeeded; it reads VOIDED and the capture stands COMPLETED.",
     "observations": {
-      "order": "67K27674RL399420B",
-      "authorization": "77107805GR5727745",
-      "capture": "8JX50319M8872615L",
+      "order": "0DL42256MK4131510",
+      "authorization": "0N675279VG0451619",
+      "capture": "21J293543R1598356",
       "capture status": "COMPLETED",
       "authorisation status between": "PARTIALLY_CAPTURED",
       "void answered": "VOIDED",
@@ -25,22 +25,22 @@
   "error": null,
   "exchanges": [
     {
-      "at": "2026-10-12T11:21:07.622Z",
+      "at": "2026-10-12T11:28:37.394Z",
       "method": "POST",
       "path": "/v1/oauth2/token",
       "requestId": null,
       "sentHeaders": {},
       "requestBody": null,
-      "ms": 1773,
+      "ms": 345,
       "status": 200,
-      "debugId": "f78623263e3b2",
+      "debugId": "ca495c319df7d",
       "responseBody": null
     },
     {
-      "at": "2026-10-12T11:21:09.397Z",
+      "at": "2026-10-12T11:28:37.740Z",
       "method": "POST",
       "path": "/v2/checkout/orders",
-      "requestId": "d5a640a5-78af-879c-9358-9e4f1a16cc62",
+      "requestId": "fec89070-b79f-86d6-9cfb-ac39c92262b2",
       "sentHeaders": {
         "prefer": "return=representation"
       },
@@ -70,11 +70,11 @@
           }
         }
       },
-      "ms": 1600,
+      "ms": 698,
       "status": 200,
-      "debugId": "f128298badfb4",
+      "debugId": "ca495c31c0947",
       "responseBody": {
-        "id": "67K27674RL399420B",
+        "id": "0DL42256MK4131510",
         "intent": "AUTHORIZE",
         "status": "PAYER_ACTION_REQUIRED",
         "payment_source": {
@@ -100,12 +100,12 @@
         ],
         "links": [
           {
-            "href": "https://api.sandbox.paypal.com/v2/checkout/orders/67K27674RL399420B",
+            "href": "https://api.sandbox.paypal.com/v2/checkout/orders/0DL42256MK4131510",
             "rel": "self",
             "method": "GET"
           },
           {
-            "href": "https://www.sandbox.paypal.com/checkoutnow?token=67K27674RL399420B",
+            "href": "https://www.sandbox.paypal.com/checkoutnow?token=0DL42256MK4131510",
             "rel": "payer-action",
             "method": "GET"
           }
@@ -113,19 +113,19 @@
       }
     },
     {
-      "at": "2026-10-12T11:21:21.342Z",
+      "at": "2026-10-12T11:28:49.039Z",
       "method": "POST",
-      "path": "/v2/checkout/orders/67K27674RL399420B/authorize",
-      "requestId": "04f1b94f-7810-860b-9a93-f1703d277349",
+      "path": "/v2/checkout/orders/0DL42256MK4131510/authorize",
+      "requestId": "5fff2aae-21e8-8474-a902-3a28837eacef",
       "sentHeaders": {
         "prefer": "return=representation"
       },
       "requestBody": {},
-      "ms": 1783,
+      "ms": 2669,
       "status": 201,
-      "debugId": "f485741fb84b9",
+      "debugId": "ca495c3648ede",
       "responseBody": {
-        "id": "67K27674RL399420B",
+        "id": "0DL42256MK4131510",
         "intent": "AUTHORIZE",
         "status": "COMPLETED",
         "payment_source": {
@@ -159,7 +159,7 @@
               "authorizations": [
                 {
                   "status": "CREATED",
-                  "id": "77107805GR5727745",
+                  "id": "0N675279VG0451619",
                   "amount": {
                     "currency_code": "GBP",
                     "value": "100.00"
@@ -172,36 +172,36 @@
                       "UNAUTHORIZED_TRANSACTION"
                     ]
                   },
-                  "expiration_time": "2026-11-10T11:21:22Z",
+                  "expiration_time": "2026-11-10T11:28:50Z",
                   "links": [
                     {
-                      "href": "https://api.sandbox.paypal.com/v2/payments/authorizations/77107805GR5727745",
+                      "href": "https://api.sandbox.paypal.com/v2/payments/authorizations/0N675279VG0451619",
                       "rel": "self",
                       "method": "GET"
                     },
                     {
-                      "href": "https://api.sandbox.paypal.com/v2/payments/authorizations/77107805GR5727745/capture",
+                      "href": "https://api.sandbox.paypal.com/v2/payments/authorizations/0N675279VG0451619/capture",
                       "rel": "capture",
                       "method": "POST"
                     },
                     {
-                      "href": "https://api.sandbox.paypal.com/v2/payments/authorizations/77107805GR5727745/void",
+                      "href": "https://api.sandbox.paypal.com/v2/payments/authorizations/0N675279VG0451619/void",
                       "rel": "void",
                       "method": "POST"
                     },
                     {
-                      "href": "https://api.sandbox.paypal.com/v2/payments/authorizations/77107805GR5727745/reauthorize",
+                      "href": "https://api.sandbox.paypal.com/v2/payments/authorizations/0N675279VG0451619/reauthorize",
                       "rel": "reauthorize",
                       "method": "POST"
                     },
                     {
-                      "href": "https://api.sandbox.paypal.com/v2/checkout/orders/67K27674RL399420B",
+                      "href": "https://api.sandbox.paypal.com/v2/checkout/orders/0DL42256MK4131510",
                       "rel": "up",
                       "method": "GET"
                     }
                   ],
-                  "create_time": "2026-10-12T11:21:22Z",
-                  "update_time": "2026-10-12T11:21:22Z"
+                  "create_time": "2026-10-12T11:28:50Z",
+                  "update_time": "2026-10-12T11:28:50Z"
                 }
               ]
             }
@@ -215,11 +215,11 @@
             "country_code": "GB"
           }
         },
-        "create_time": "2026-10-12T11:21:10Z",
-        "update_time": "2026-10-12T11:21:22Z",
+        "create_time": "2026-10-12T11:28:38Z",
+        "update_time": "2026-10-12T11:28:50Z",
         "links": [
           {
-            "href": "https://api.sandbox.paypal.com/v2/checkout/orders/67K27674RL399420B",
+            "href": "https://api.sandbox.paypal.com/v2/checkout/orders/0DL42256MK4131510",
             "rel": "self",
             "method": "GET"
           }
@@ -227,10 +227,10 @@
       }
     },
     {
-      "at": "2026-10-12T11:21:23.126Z",
+      "at": "2026-10-12T11:28:51.708Z",
       "method": "POST",
-      "path": "/v2/payments/authorizations/77107805GR5727745/capture",
-      "requestId": "d70f72a2-cbb3-8990-93d5-3b6034177fcf",
+      "path": "/v2/payments/authorizations/0N675279VG0451619/capture",
+      "requestId": "9c1fc910-2a8b-85f9-a651-94fb34bcedab",
       "sentHeaders": {
         "prefer": "return=representation"
       },
@@ -241,11 +241,11 @@
           "value": "60.00"
         }
       },
-      "ms": 2487,
+      "ms": 1314,
       "status": 201,
-      "debugId": "f6806323eecb4",
+      "debugId": "ca495c373cee4",
       "responseBody": {
-        "id": "8JX50319M8872615L",
+        "id": "21J293543R1598356",
         "amount": {
           "currency_code": "GBP",
           "value": "60.00"
@@ -275,21 +275,21 @@
         },
         "custom_id": "pawhold-probe-p4",
         "status": "COMPLETED",
-        "create_time": "2026-10-12T11:21:25Z",
-        "update_time": "2026-10-12T11:21:25Z",
+        "create_time": "2026-10-12T11:28:52Z",
+        "update_time": "2026-10-12T11:28:52Z",
         "links": [
           {
-            "href": "https://api.sandbox.paypal.com/v2/payments/captures/8JX50319M8872615L",
+            "href": "https://api.sandbox.paypal.com/v2/payments/captures/21J293543R1598356",
             "rel": "self",
             "method": "GET"
           },
           {
-            "href": "https://api.sandbox.paypal.com/v2/payments/captures/8JX50319M8872615L/refund",
+            "href": "https://api.sandbox.paypal.com/v2/payments/captures/21J293543R1598356/refund",
             "rel": "refund",
             "method": "POST"
           },
           {
-            "href": "https://api.sandbox.paypal.com/v2/payments/authorizations/77107805GR5727745",
+            "href": "https://api.sandbox.paypal.com/v2/payments/authorizations/0N675279VG0451619",
             "rel": "up",
             "method": "GET"
           }
@@ -297,17 +297,17 @@
       }
     },
     {
-      "at": "2026-10-12T11:21:25.618Z",
+      "at": "2026-10-12T11:28:53.022Z",
       "method": "GET",
-      "path": "/v2/payments/authorizations/77107805GR5727745",
+      "path": "/v2/payments/authorizations/0N675279VG0451619",
       "requestId": null,
       "sentHeaders": {},
       "requestBody": null,
-      "ms": 1014,
+      "ms": 454,
       "status": 200,
-      "debugId": "f51368912a10f",
+      "debugId": "ca495c37b9c11",
       "responseBody": {
-        "id": "77107805GR5727745",
+        "id": "0N675279VG0451619",
         "status": "PARTIALLY_CAPTURED",
         "amount": {
           "currency_code": "GBP",
@@ -323,39 +323,39 @@
         },
         "supplementary_data": {
           "related_ids": {
-            "order_id": "67K27674RL399420B"
+            "order_id": "0DL42256MK4131510"
           }
         },
         "payee": {
           "email_address": "<redacted>",
           "merchant_id": "<redacted>"
         },
-        "expiration_time": "2026-11-10T11:21:22Z",
-        "create_time": "2026-10-12T11:21:22Z",
-        "update_time": "2026-10-12T11:21:25Z",
+        "expiration_time": "2026-11-10T11:28:50Z",
+        "create_time": "2026-10-12T11:28:50Z",
+        "update_time": "2026-10-12T11:28:52Z",
         "links": [
           {
-            "href": "https://api.sandbox.paypal.com/v2/payments/authorizations/77107805GR5727745",
+            "href": "https://api.sandbox.paypal.com/v2/payments/authorizations/0N675279VG0451619",
             "rel": "self",
             "method": "GET"
           },
           {
-            "href": "https://api.sandbox.paypal.com/v2/payments/authorizations/77107805GR5727745/capture",
+            "href": "https://api.sandbox.paypal.com/v2/payments/authorizations/0N675279VG0451619/capture",
             "rel": "capture",
             "method": "POST"
           },
           {
-            "href": "https://api.sandbox.paypal.com/v2/payments/authorizations/77107805GR5727745/void",
+            "href": "https://api.sandbox.paypal.com/v2/payments/authorizations/0N675279VG0451619/void",
             "rel": "void",
             "method": "POST"
           },
           {
-            "href": "https://api.sandbox.paypal.com/v2/payments/authorizations/77107805GR5727745/reauthorize",
+            "href": "https://api.sandbox.paypal.com/v2/payments/authorizations/0N675279VG0451619/reauthorize",
             "rel": "reauthorize",
             "method": "POST"
           },
           {
-            "href": "https://api.sandbox.paypal.com/v2/checkout/orders/67K27674RL399420B",
+            "href": "https://api.sandbox.paypal.com/v2/checkout/orders/0DL42256MK4131510",
             "rel": "up",
             "method": "GET"
           }
@@ -363,19 +363,19 @@
       }
     },
     {
-      "at": "2026-10-12T11:21:26.632Z",
+      "at": "2026-10-12T11:28:53.476Z",
       "method": "POST",
-      "path": "/v2/payments/authorizations/77107805GR5727745/void",
-      "requestId": "aee0441f-08b5-8f0f-825a-63bda87b38e9",
+      "path": "/v2/payments/authorizations/0N675279VG0451619/void",
+      "requestId": "8de7c4ac-806e-8182-ae92-72c546577415",
       "sentHeaders": {
         "prefer": "return=representation"
       },
       "requestBody": null,
-      "ms": 1108,
+      "ms": 913,
       "status": 200,
-      "debugId": "f241389ed380a",
+      "debugId": "ca495c37e6e71",
       "responseBody": {
-        "id": "77107805GR5727745",
+        "id": "0N675279VG0451619",
         "status": "VOIDED",
         "amount": {
           "currency_code": "GBP",
@@ -388,12 +388,12 @@
             "UNAUTHORIZED_TRANSACTION"
           ]
         },
-        "expiration_time": "2026-11-10T03:21:22-08:00",
-        "create_time": "2026-10-12T04:21:22-07:00",
-        "update_time": "2026-10-12T04:21:27-07:00",
+        "expiration_time": "2026-11-10T03:28:50-08:00",
+        "create_time": "2026-10-12T04:28:50-07:00",
+        "update_time": "2026-10-12T04:28:54-07:00",
         "links": [
           {
-            "href": "https://api.sandbox.paypal.com/v2/payments/authorizations/77107805GR5727745",
+            "href": "https://api.sandbox.paypal.com/v2/payments/authorizations/0N675279VG0451619",
             "rel": "self",
             "method": "GET"
           }
@@ -401,17 +401,17 @@
       }
     },
     {
-      "at": "2026-10-12T11:21:27.740Z",
+      "at": "2026-10-12T11:28:54.389Z",
       "method": "GET",
-      "path": "/v2/payments/authorizations/77107805GR5727745",
+      "path": "/v2/payments/authorizations/0N675279VG0451619",
       "requestId": null,
       "sentHeaders": {},
       "requestBody": null,
-      "ms": 1224,
+      "ms": 471,
       "status": 200,
-      "debugId": "f248910d45d17",
+      "debugId": "ca495c3841b97",
       "responseBody": {
-        "id": "77107805GR5727745",
+        "id": "0N675279VG0451619",
         "status": "VOIDED",
         "amount": {
           "currency_code": "GBP",
@@ -427,39 +427,39 @@
         },
         "supplementary_data": {
           "related_ids": {
-            "order_id": "67K27674RL399420B"
+            "order_id": "0DL42256MK4131510"
           }
         },
         "payee": {
           "email_address": "<redacted>",
           "merchant_id": "<redacted>"
         },
-        "expiration_time": "2026-11-10T11:21:22Z",
-        "create_time": "2026-10-12T11:21:22Z",
-        "update_time": "2026-10-12T11:21:27Z",
+        "expiration_time": "2026-11-10T11:28:50Z",
+        "create_time": "2026-10-12T11:28:50Z",
+        "update_time": "2026-10-12T11:28:54Z",
         "links": [
           {
-            "href": "https://api.sandbox.paypal.com/v2/payments/authorizations/77107805GR5727745",
+            "href": "https://api.sandbox.paypal.com/v2/payments/authorizations/0N675279VG0451619",
             "rel": "self",
             "method": "GET"
           },
           {
-            "href": "https://api.sandbox.paypal.com/v2/payments/authorizations/77107805GR5727745/capture",
+            "href": "https://api.sandbox.paypal.com/v2/payments/authorizations/0N675279VG0451619/capture",
             "rel": "capture",
             "method": "POST"
           },
           {
-            "href": "https://api.sandbox.paypal.com/v2/payments/authorizations/77107805GR5727745/void",
+            "href": "https://api.sandbox.paypal.com/v2/payments/authorizations/0N675279VG0451619/void",
             "rel": "void",
             "method": "POST"
           },
           {
-            "href": "https://api.sandbox.paypal.com/v2/payments/authorizations/77107805GR5727745/reauthorize",
+            "href": "https://api.sandbox.paypal.com/v2/payments/authorizations/0N675279VG0451619/reauthorize",
             "rel": "reauthorize",
             "method": "POST"
           },
           {
-            "href": "https://api.sandbox.paypal.com/v2/checkout/orders/67K27674RL399420B",
+            "href": "https://api.sandbox.paypal.com/v2/checkout/orders/0DL42256MK4131510",
             "rel": "up",
             "method": "GET"
           }
@@ -467,17 +467,17 @@
       }
     },
     {
-      "at": "2026-10-12T11:21:28.964Z",
+      "at": "2026-10-12T11:28:54.861Z",
       "method": "GET",
-      "path": "/v2/payments/captures/8JX50319M8872615L",
+      "path": "/v2/payments/captures/21J293543R1598356",
       "requestId": null,
       "sentHeaders": {},
       "requestBody": null,
-      "ms": 1256,
+      "ms": 929,
       "status": 200,
-      "debugId": "f3502501184eb",
+      "debugId": "ca495c3871dd7",
       "responseBody": {
-        "id": "8JX50319M8872615L",
+        "id": "21J293543R1598356",
         "amount": {
           "currency_code": "GBP",
           "value": "60.00"
@@ -509,29 +509,29 @@
         "status": "COMPLETED",
         "supplementary_data": {
           "related_ids": {
-            "order_id": "67K27674RL399420B",
-            "authorization_id": "77107805GR5727745"
+            "order_id": "0DL42256MK4131510",
+            "authorization_id": "0N675279VG0451619"
           }
         },
         "payee": {
           "email_address": "<redacted>",
           "merchant_id": "<redacted>"
         },
-        "create_time": "2026-10-12T11:21:25Z",
-        "update_time": "2026-10-12T11:21:25Z",
+        "create_time": "2026-10-12T11:28:52Z",
+        "update_time": "2026-10-12T11:28:52Z",
         "links": [
           {
-            "href": "https://api.sandbox.paypal.com/v2/payments/captures/8JX50319M8872615L",
+            "href": "https://api.sandbox.paypal.com/v2/payments/captures/21J293543R1598356",
             "rel": "self",
             "method": "GET"
           },
           {
-            "href": "https://api.sandbox.paypal.com/v2/payments/captures/8JX50319M8872615L/refund",
+            "href": "https://api.sandbox.paypal.com/v2/payments/captures/21J293543R1598356/refund",
             "rel": "refund",
             "method": "POST"
           },
           {
-            "href": "https://api.sandbox.paypal.com/v2/payments/authorizations/77107805GR5727745",
+            "href": "https://api.sandbox.paypal.com/v2/payments/authorizations/0N675279VG0451619",
             "rel": "up",
             "method": "GET"
           }
@@ -539,17 +539,17 @@
       }
     },
     {
-      "at": "2026-10-12T11:21:30.221Z",
+      "at": "2026-10-12T11:28:55.790Z",
       "method": "GET",
-      "path": "/v2/payments/authorizations/77107805GR5727745",
+      "path": "/v2/payments/authorizations/0N675279VG0451619",
       "requestId": null,
       "sentHeaders": {},
       "requestBody": null,
-      "ms": 1444,
+      "ms": 473,
       "status": 200,
-      "debugId": "f278506610fe4",
+      "debugId": "ca495c38cea35",
       "responseBody": {
-        "id": "77107805GR5727745",
+        "id": "0N675279VG0451619",
         "status": "VOIDED",
         "amount": {
           "currency_code": "GBP",
@@ -565,39 +565,39 @@
         },
         "supplementary_data": {
           "related_ids": {
-            "order_id": "67K27674RL399420B"
+            "order_id": "0DL42256MK4131510"
           }
         },
         "payee": {
           "email_address": "<redacted>",
           "merchant_id": "<redacted>"
         },
-        "expiration_time": "2026-11-10T11:21:22Z",
-        "create_time": "2026-10-12T11:21:22Z",
-        "update_time": "2026-10-12T11:21:27Z",
+        "expiration_time": "2026-11-10T11:28:50Z",
+        "create_time": "2026-10-12T11:28:50Z",
+        "update_time": "2026-10-12T11:28:54Z",
         "links": [
           {
-            "href": "https://api.sandbox.paypal.com/v2/payments/authorizations/77107805GR5727745",
+            "href": "https://api.sandbox.paypal.com/v2/payments/authorizations/0N675279VG0451619",
             "rel": "self",
             "method": "GET"
           },
           {
-            "href": "https://api.sandbox.paypal.com/v2/payments/authorizations/77107805GR5727745/capture",
+            "href": "https://api.sandbox.paypal.com/v2/payments/authorizations/0N675279VG0451619/capture",
             "rel": "capture",
             "method": "POST"
           },
           {
-            "href": "https://api.sandbox.paypal.com/v2/payments/authorizations/77107805GR5727745/void",
+            "href": "https://api.sandbox.paypal.com/v2/payments/authorizations/0N675279VG0451619/void",
             "rel": "void",
             "method": "POST"
           },
           {
-            "href": "https://api.sandbox.paypal.com/v2/payments/authorizations/77107805GR5727745/reauthorize",
+            "href": "https://api.sandbox.paypal.com/v2/payments/authorizations/0N675279VG0451619/reauthorize",
             "rel": "reauthorize",
             "method": "POST"
           },
           {
-            "href": "https://api.sandbox.paypal.com/v2/checkout/orders/67K27674RL399420B",
+            "href": "https://api.sandbox.paypal.com/v2/checkout/orders/0DL42256MK4131510",
             "rel": "up",
             "method": "GET"
           }
@@ -605,17 +605,17 @@
       }
     },
     {
-      "at": "2026-10-12T11:21:31.665Z",
+      "at": "2026-10-12T11:28:56.263Z",
       "method": "GET",
-      "path": "/v2/payments/authorizations/77107805GR5727745",
+      "path": "/v2/payments/authorizations/0N675279VG0451619",
       "requestId": null,
       "sentHeaders": {},
       "requestBody": null,
-      "ms": 628,
+      "ms": 473,
       "status": 200,
-      "debugId": "f53029143385e",
+      "debugId": "ca495c38fdcaf",
       "responseBody": {
-        "id": "77107805GR5727745",
+        "id": "0N675279VG0451619",
         "status": "VOIDED",
         "amount": {
           "currency_code": "GBP",
@@ -631,39 +631,39 @@
         },
         "supplementary_data": {
           "related_ids": {
-            "order_id": "67K27674RL399420B"
+            "order_id": "0DL42256MK4131510"
           }
         },
         "payee": {
           "email_address": "<redacted>",
           "merchant_id": "<redacted>"
         },
-        "expiration_time": "2026-11-10T11:21:22Z",
-        "create_time": "2026-10-12T11:21:22Z",
-        "update_time": "2026-10-12T11:21:27Z",
+        "expiration_time": "2026-11-10T11:28:50Z",
+        "create_time": "2026-10-12T11:28:50Z",
+        "update_time": "2026-10-12T11:28:54Z",
         "links": [
           {
-            "href": "https://api.sandbox.paypal.com/v2/payments/authorizations/77107805GR5727745",
+            "href": "https://api.sandbox.paypal.com/v2/payments/authorizations/0N675279VG0451619",
             "rel": "self",
             "method": "GET"
           },
           {
-            "href": "https://api.sandbox.paypal.com/v2/payments/authorizations/77107805GR5727745/capture",
+            "href": "https://api.sandbox.paypal.com/v2/payments/authorizations/0N675279VG0451619/capture",
             "rel": "capture",
             "method": "POST"
           },
           {
-            "href": "https://api.sandbox.paypal.com/v2/payments/authorizations/77107805GR5727745/void",
+            "href": "https://api.sandbox.paypal.com/v2/payments/authorizations/0N675279VG0451619/void",
             "rel": "void",
             "method": "POST"
           },
           {
-            "href": "https://api.sandbox.paypal.com/v2/payments/authorizations/77107805GR5727745/reauthorize",
+            "href": "https://api.sandbox.paypal.com/v2/payments/authorizations/0N675279VG0451619/reauthorize",
             "rel": "reauthorize",
             "method": "POST"
           },
           {
-            "href": "https://api.sandbox.paypal.com/v2/checkout/orders/67K27674RL399420B",
+            "href": "https://api.sandbox.paypal.com/v2/checkout/orders/0DL42256MK4131510",
             "rel": "up",
             "method": "GET"
           }
@@ -675,8 +675,8 @@
     {
       "kind": "approval",
       "value": {
-        "startedAt": "2026-10-12T11:21:11.056Z",
-        "seconds": 10.3,
+        "startedAt": "2026-10-12T11:28:38.482Z",
+        "seconds": 10.5,
         "signedIn": true,
         "funding": "BALANCEGBP",
         "notice": "There may be additional fees like shipping or tax. You agree to pay up to £125.00 GBP. You’ll see the final amount when you return to the merchant."
@@ -685,14 +685,15 @@
   ],
   "notes": [
     {
-      "at": "2026-10-12T11:21:21.342Z",
-      "text": "order 67K27674RL399420B approved by the buyer"
+      "at": "2026-10-12T11:28:49.039Z",
+      "text": "order 0DL42256MK4131510 approved by the buyer"
     }
   ],
   "cleanup": {
     "rows": [
       {
-        "authorizationId": "77107805GR5727745",
+        "orderId": "0DL42256MK4131510",
+        "authorizationId": "0N675279VG0451619",
         "status": "VOIDED",
         "kept": null,
         "ok": true

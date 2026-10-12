@@ -130,6 +130,7 @@ export async function replay(
     buyer: replayBuyer(recorded.buyer),
     options: recorded.options,
     now: () => new Date(recorded.startedAt),
+    retryDelayMs: 0,
   });
   return { run, unserved: served.remaining() };
 }

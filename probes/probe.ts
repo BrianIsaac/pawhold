@@ -11,6 +11,7 @@ import {
   authorizeOrder,
   createAuthorizeOrder,
   getAuthorization,
+  getOrder,
   onlyAuthorization,
   voidAuthorization,
 } from "./paypal";
@@ -82,26 +83,47 @@ export interface Probe {
   run(context: ProbeContext): Promise<ProbeOutcome>;
 }
 
-/** An authorisation a run made, and whether it is left standing on purpose. */
+/**
+ * An order a run made and the authorisation it holds, and whether that is
+ * left standing on purpose. The order is recorded before it is authorised,
+ * so an authorisation whose answer was lost is still found and closed.
+ */
 export interface HeldAuthorization {
   readonly hold: string;
   readonly orderId: string;
-  readonly authorizationId: string;
+  /** The authorisation, or null until the authorise call has answered. */
+  authorizationId: string | null;
   /** Why it is left standing (P5 (b)), or null when the run must close it. */
   kept: string | null;
 }
 
-/** The authorisations one run made, for the clean-up and its check. */
+/** The orders and authorisations one run made, for the clean-up and its check. */
 export class HoldLedger {
   readonly entries: HeldAuthorization[] = [];
 
   /**
-   * Records an authorisation the run made.
+   * Records an order about to be authorised.
    *
-   * @param entry - The hold's name, its order and its authorisation.
+   * @param hold - The hold's name within the run.
+   * @param orderId - The order.
    */
-  add(entry: Omit<HeldAuthorization, "kept">): void {
-    this.entries.push({ ...entry, kept: null });
+  order(hold: string, orderId: string): void {
+    this.entries.push({ hold, orderId, authorizationId: null, kept: null });
+  }
+
+  /**
+   * Records the authorisation an order's authorise call answered with.
+   *
+   * @param orderId - The order.
+   * @param authorizationId - Its authorisation.
+   * @throws Error when the run did not record the order.
+   */
+  authorised(orderId: string, authorizationId: string): void {
+    const entry = this.entries.find((e) => e.orderId === orderId);
+    if (!entry) {
+      throw new Error(`order ${orderId} was not recorded by this run`);
+    }
+    entry.authorizationId = authorizationId;
   }
 
   /**
@@ -186,13 +208,14 @@ export async function makeWalletHold(
   });
   await approve(approvalUrl(created));
   context.note(`order ${created.id} approved by the buyer`);
+  context.holds.order(hold, created.id);
   const authorised = await authorizeOrder(
     context.client,
     created.id,
     context.requestId(hold, "order.authorize"),
   );
   const authorization = onlyAuthorization(authorised);
-  context.holds.add({ hold, orderId: created.id, authorizationId: authorization.id });
+  context.holds.authorised(created.id, authorization.id);
   return { orderId: created.id, authorization };
 }
 
@@ -201,7 +224,10 @@ const CLOSED = new Set(["CAPTURED", "VOIDED", "DENIED", "EXPIRED"]);
 
 /** One row of the clean-up check. */
 export interface CleanRow {
-  readonly authorizationId: string;
+  readonly orderId: string;
+  /** The authorisation, or null when the order was never authorised. */
+  readonly authorizationId: string | null;
+  /** The authorisation's status, or the order's when it holds none. */
   readonly status: string;
   readonly kept: string | null;
   readonly ok: boolean;
@@ -214,15 +240,43 @@ export interface CleanCheck {
 }
 
 /**
+ * Finds the authorisation of an order whose authorise call did not answer,
+ * by reading the order.
+ *
+ * @param client - The sandbox client.
+ * @param entry - The ledger's entry; its authorisation is filled in when found.
+ * @returns The order's status when it holds no authorisation, else null.
+ */
+async function resolveAuthorization(
+  client: PayPalClient,
+  entry: HeldAuthorization,
+): Promise<string | null> {
+  if (entry.authorizationId !== null) {
+    return null;
+  }
+  const read = await getOrder(client, entry.orderId);
+  const found = (read.purchase_units ?? []).flatMap((u) => u.payments?.authorizations ?? []);
+  if (found[0]) {
+    entry.authorizationId = found[0].id;
+    return null;
+  }
+  return read.status;
+}
+
+/**
  * Closes whatever the run left open that it was not told to keep: voids each
- * authorisation still `CREATED` or `PARTIALLY_CAPTURED`. A probe that ended
- * early (a refusal, an error) is closed here; a probe that ended as designed
- * has nothing to close.
+ * authorisation still `CREATED` or `PARTIALLY_CAPTURED`, including one whose
+ * authorise call lost its answer. A probe that ended early (a refusal, an
+ * error) is closed here; a probe that ended as designed has nothing to close.
  *
  * @param context - The run's context.
  */
 export async function releaseLeftovers(context: ProbeContext): Promise<void> {
   for (const entry of context.holds.entries.filter((e) => e.kept === null)) {
+    await resolveAuthorization(context.client, entry);
+    if (entry.authorizationId === null) {
+      continue;
+    }
     const read = await getAuthorization(context.client, entry.authorizationId);
     if (CLOSED.has(read.status)) {
       continue;
@@ -248,6 +302,7 @@ export async function releaseLeftovers(context: ProbeContext): Promise<void> {
 /**
  * Lists the run's authorisations as PayPal now states them and asserts each
  * is captured or voided, or is a hold kept on purpose and still `CREATED`.
+ * An order never authorised holds nothing and passes.
  *
  * @param client - The sandbox client.
  * @param holds - The run's ledger.
@@ -256,9 +311,26 @@ export async function releaseLeftovers(context: ProbeContext): Promise<void> {
 export async function checkClean(client: PayPalClient, holds: HoldLedger): Promise<CleanCheck> {
   const rows: CleanRow[] = [];
   for (const entry of holds.entries) {
+    const orderStatus = await resolveAuthorization(client, entry);
+    if (entry.authorizationId === null) {
+      rows.push({
+        orderId: entry.orderId,
+        authorizationId: null,
+        status: `order ${orderStatus ?? "unread"}, not authorised`,
+        kept: entry.kept,
+        ok: true,
+      });
+      continue;
+    }
     const { status } = await getAuthorization(client, entry.authorizationId);
     const ok = entry.kept === null ? CLOSED.has(status) : status === "CREATED";
-    rows.push({ authorizationId: entry.authorizationId, status, kept: entry.kept, ok });
+    rows.push({
+      orderId: entry.orderId,
+      authorizationId: entry.authorizationId,
+      status,
+      kept: entry.kept,
+      ok,
+    });
   }
   return { rows, clean: rows.every((r) => r.ok) };
 }

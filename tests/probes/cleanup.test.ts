@@ -47,6 +47,21 @@ function scripted(exchanges: Exchange[]) {
   return { client, remaining: served.remaining };
 }
 
+/**
+ * A ledger of orders O1, O2, ... authorised as the ids given.
+ *
+ * @param ids - The authorisations.
+ * @returns The ledger.
+ */
+function ledger(ids: string[]): HoldLedger {
+  const holds = new HoldLedger();
+  ids.forEach((id, i) => {
+    holds.order(`h${i}`, `O${i + 1}`);
+    holds.authorised(`O${i + 1}`, id);
+  });
+  return holds;
+}
+
 describe("the clean-up check", () => {
   it("passes captured and voided authorisations and a kept hold still CREATED", async () => {
     const { client } = scripted([
@@ -54,10 +69,7 @@ describe("the clean-up check", () => {
       read("A2", "VOIDED"),
       read("A3", "CREATED"),
     ]);
-    const holds = new HoldLedger();
-    holds.add({ hold: "a", orderId: "O1", authorizationId: "A1" });
-    holds.add({ hold: "b", orderId: "O2", authorizationId: "A2" });
-    holds.add({ hold: "c", orderId: "O3", authorizationId: "A3" });
+    const holds = ledger(["A1", "A2", "A3"]);
     holds.keep("A3", "P5 (b) on or after 17 October 2026");
 
     const check = await checkClean(client, holds);
@@ -72,9 +84,7 @@ describe("the clean-up check", () => {
 
   it("fails an authorisation still open, and a kept hold that was captured", async () => {
     const { client } = scripted([read("A1", "PARTIALLY_CAPTURED"), read("A2", "CAPTURED")]);
-    const holds = new HoldLedger();
-    holds.add({ hold: "a", orderId: "O1", authorizationId: "A1" });
-    holds.add({ hold: "b", orderId: "O2", authorizationId: "A2" });
+    const holds = ledger(["A1", "A2"]);
     holds.keep("A2", "P5 (b)");
 
     const check = await checkClean(client, holds);
@@ -85,6 +95,30 @@ describe("the clean-up check", () => {
 
   it("refuses to keep an authorisation the run did not make", () => {
     expect(() => new HoldLedger().keep("ZZZ", "P5 (b)")).toThrow(/was not made by this run/);
+  });
+
+  it("finds an authorisation whose authorise call lost its answer, and passes an order never authorised", async () => {
+    const { client, remaining } = scripted([
+      answer("GET", "/v2/checkout/orders/O1", 200, {
+        id: "O1",
+        status: "COMPLETED",
+        purchase_units: [{ payments: { authorizations: [{ id: "A1", status: "VOIDED" }] } }],
+      }),
+      read("A1", "VOIDED"),
+      answer("GET", "/v2/checkout/orders/O2", 200, { id: "O2", status: "APPROVED" }),
+    ]);
+    const holds = new HoldLedger();
+    holds.order("a", "O1");
+    holds.order("b", "O2");
+
+    const check = await checkClean(client, holds);
+
+    expect(remaining()).toBe(0);
+    expect(check.clean).toBe(true);
+    expect(check.rows.map((r) => [r.orderId, r.authorizationId, r.status])).toEqual([
+      ["O1", "A1", "VOIDED"],
+      ["O2", null, "order APPROVED, not authorised"],
+    ]);
   });
 });
 
@@ -106,10 +140,10 @@ describe("the clean-up of a run that ended early", () => {
       { holds: [] },
       () => new Date("2026-10-12T11:00:00Z"),
     );
-    context.holds.add({ hold: "a", orderId: "O1", authorizationId: "A1" });
-    context.holds.add({ hold: "b", orderId: "O2", authorizationId: "A2" });
-    context.holds.add({ hold: "c", orderId: "O3", authorizationId: "A3" });
-    context.holds.add({ hold: "d", orderId: "O4", authorizationId: "A4" });
+    for (const [i, id] of ["A1", "A2", "A3", "A4"].entries()) {
+      context.holds.order(`h${i}`, `O${i + 1}`);
+      context.holds.authorised(`O${i + 1}`, id);
+    }
     context.holds.keep("A4", "P5 (b)");
 
     await releaseLeftovers(context);

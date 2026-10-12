@@ -130,7 +130,7 @@ function renderRun(run: ProbeRun, index: number, of: number): string[] {
       `Clean-up check: ${run.cleanup.clean ? "clean" : "NOT CLEAN"}${run.cleanup.rows.length === 0 ? " (no authorisation made)" : ""}`,
       ...run.cleanup.rows.map(
         (r) =>
-          `- \`${r.authorizationId}\` ${r.status}${r.kept ? ` (kept: ${r.kept})` : ""}${r.ok ? "" : " NOT CLOSED"}`,
+          `- ${r.authorizationId ? `\`${r.authorizationId}\`` : `order \`${r.orderId}\``} ${r.status}${r.kept ? ` (kept: ${r.kept})` : ""}${r.ok ? "" : " NOT CLOSED"}`,
       ),
     );
   } else {

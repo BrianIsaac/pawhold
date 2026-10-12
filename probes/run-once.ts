@@ -12,6 +12,7 @@ import {
   releaseLeftovers,
 } from "./probe";
 import { type Exchange, recordingFetch } from "./recorder";
+import { retryingFetch } from "./retry";
 
 /** What the buyer's browser did in a run, in order. */
 export type BuyerEvent =
@@ -43,13 +44,18 @@ export interface RunDependencies {
   readonly buyer: Buyer;
   readonly options: ProbeOptions;
   readonly now?: () => Date;
+  /** The wait before retrying a request that got no answer; 2 s by default. */
+  readonly retryDelayMs?: number;
 }
+
+/** How long the probes wait for PayPal on one request, retries included. */
+const PROBE_TIMEOUT_MS = 90_000;
 
 /**
  * Runs a probe once: the probe, then the clean-up of anything it left open
  * that it was not told to keep, then the check that lists every
  * authorisation the run made as PayPal now states it. Every PayPal exchange
- * and every browser step is recorded.
+ * (each attempt of a retried one) and every browser step is recorded.
  *
  * @param probe - The probe.
  * @param deps - Credentials, the fetch, the buyer, the options.
@@ -63,7 +69,11 @@ export async function runOnce(probe: Probe, deps: RunDependencies): Promise<Prob
     clientId: deps.clientId,
     clientSecret: deps.clientSecret,
     environment: "sandbox",
-    fetch: recordingFetch(deps.fetch, exchanges, () => now().getTime()),
+    timeoutMs: PROBE_TIMEOUT_MS,
+    fetch: retryingFetch(
+      recordingFetch(deps.fetch, exchanges, () => now().getTime()),
+      { attempts: 4, delayMs: deps.retryDelayMs ?? 2_000 },
+    ),
   });
   const { context, notes } = createContext(
     client,
