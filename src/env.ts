@@ -28,6 +28,10 @@ export const webhookEnvironment = z.object({
     .transform((value) => value === "true"),
 });
 
+export const openaiEnvironment = z.object({
+  OPENAI_API_KEY: z.string().min(1),
+});
+
 export const sessionEnvironment = z.object({
   SESSION_SECRET: z.string().min(32),
 });
