@@ -56,12 +56,23 @@ export const webhookVerification = pgEnum("webhook_verification", ["signature", 
 
 const createdAt = () => timestamp("created_at", { withTimezone: true }).notNull().defaultNow();
 
-export const practice = pgTable("practice", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  name: text("name").notNull(),
-  kind: practiceKind("kind").notNull(),
-  createdAt: createdAt(),
-});
+export const practice = pgTable(
+  "practice",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    name: text("name").notNull(),
+    kind: practiceKind("kind").notNull(),
+    createdAt: createdAt(),
+    /**
+     * The Order's Monetary Threshold as this practice applies it, in pence
+     * including VAT: £500 unless the practice sets another (plan 3.3).
+     */
+    monetaryThresholdPence: integer("monetary_threshold_pence").notNull().default(50_000),
+  },
+  (table) => [
+    check("practice_monetary_threshold_positive", sql`${table.monetaryThresholdPence} > 0`),
+  ],
+);
 
 export const session = pgTable(
   "session",

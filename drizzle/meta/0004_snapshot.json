@@ -1,0 +1,1257 @@
+{
+  "id": "0dbd99ae-69e8-459f-a439-4a59d69a0831",
+  "prevId": "21386850-6ea1-4e56-8018-6496cf1f9a78",
+  "version": "7",
+  "dialect": "postgresql",
+  "tables": {
+    "public.audit_event": {
+      "name": "audit_event",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "bigint",
+          "primaryKey": true,
+          "notNull": true,
+          "identity": {
+            "type": "always",
+            "name": "audit_event_id_seq",
+            "schema": "public",
+            "increment": "1",
+            "startWith": "1",
+            "minValue": "1",
+            "maxValue": "9223372036854775807",
+            "cache": "1",
+            "cycle": false
+          }
+        },
+        "occurred_at": {
+          "name": "occurred_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "clock_timestamp()"
+        },
+        "practice_id": {
+          "name": "practice_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "case_id": {
+          "name": "case_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "actor": {
+          "name": "actor",
+          "type": "audit_actor",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "action": {
+          "name": "action",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "money_state_before": {
+          "name": "money_state_before",
+          "type": "money_state",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "money_state_after": {
+          "name": "money_state_after",
+          "type": "money_state",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "amount_pence": {
+          "name": "amount_pence",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "currency_code": {
+          "name": "currency_code",
+          "type": "char(3)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "paypal_order_id": {
+          "name": "paypal_order_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "paypal_authorization_id": {
+          "name": "paypal_authorization_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "paypal_capture_id": {
+          "name": "paypal_capture_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "paypal_refund_id": {
+          "name": "paypal_refund_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "paypal_debug_id": {
+          "name": "paypal_debug_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "webhook_event_id": {
+          "name": "webhook_event_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "webhook_verified": {
+          "name": "webhook_verified",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "model_id": {
+          "name": "model_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "model_input_sha256": {
+          "name": "model_input_sha256",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "model_output": {
+          "name": "model_output",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "detail": {
+          "name": "detail",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'::jsonb"
+        }
+      },
+      "indexes": {
+        "audit_event_case_id_idx": {
+          "name": "audit_event_case_id_idx",
+          "columns": [
+            {
+              "expression": "case_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "audit_event_practice_id_idx": {
+          "name": "audit_event_practice_id_idx",
+          "columns": [
+            {
+              "expression": "practice_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "audit_event_practice_id_practice_id_fk": {
+          "name": "audit_event_practice_id_practice_id_fk",
+          "tableFrom": "audit_event",
+          "tableTo": "practice",
+          "columnsFrom": [
+            "practice_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "audit_event_webhook_event_id_webhook_event_event_id_fk": {
+          "name": "audit_event_webhook_event_id_webhook_event_event_id_fk",
+          "tableFrom": "audit_event",
+          "tableTo": "webhook_event",
+          "columnsFrom": [
+            "webhook_event_id"
+          ],
+          "columnsTo": [
+            "event_id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "audit_event_case_in_practice_fk": {
+          "name": "audit_event_case_in_practice_fk",
+          "tableFrom": "audit_event",
+          "tableTo": "patient_case",
+          "columnsFrom": [
+            "case_id",
+            "practice_id"
+          ],
+          "columnsTo": [
+            "id",
+            "practice_id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "audit_event_action_shape": {
+          "name": "audit_event_action_shape",
+          "value": "\"audit_event\".\"action\" ~ '^[a-z][a-z_]*(\\.[a-z][a-z_]*)*$'"
+        },
+        "audit_event_amount_with_currency": {
+          "name": "audit_event_amount_with_currency",
+          "value": "(\"audit_event\".\"amount_pence\" is null) = (\"audit_event\".\"currency_code\" is null)"
+        },
+        "audit_event_amount_non_negative": {
+          "name": "audit_event_amount_non_negative",
+          "value": "\"audit_event\".\"amount_pence\" is null or \"audit_event\".\"amount_pence\" >= 0"
+        },
+        "audit_event_currency_code": {
+          "name": "audit_event_currency_code",
+          "value": "\"audit_event\".\"currency_code\" is null or \"audit_event\".\"currency_code\" in ('GBP', 'USD')"
+        },
+        "audit_event_case_needs_practice": {
+          "name": "audit_event_case_needs_practice",
+          "value": "\"audit_event\".\"case_id\" is null or \"audit_event\".\"practice_id\" is not null"
+        },
+        "audit_event_model_step_complete": {
+          "name": "audit_event_model_step_complete",
+          "value": "(\"audit_event\".\"model_id\" is null and \"audit_event\".\"model_input_sha256\" is null and \"audit_event\".\"model_output\" is null)\n        or (\"audit_event\".\"model_id\" is not null and \"audit_event\".\"model_input_sha256\" is not null)"
+        },
+        "audit_event_model_input_sha256": {
+          "name": "audit_event_model_input_sha256",
+          "value": "\"audit_event\".\"model_input_sha256\" is null or \"audit_event\".\"model_input_sha256\" ~ '^[0-9a-f]{64}$'"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.estimate_line": {
+      "name": "estimate_line",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "version_id": {
+          "name": "version_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "price_list_id": {
+          "name": "price_list_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "position": {
+          "name": "position",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "price_list_item_id": {
+          "name": "price_list_item_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "unit_price_pence": {
+          "name": "unit_price_pence",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "quantity_low": {
+          "name": "quantity_low",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "quantity_high": {
+          "name": "quantity_high",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "low_pence": {
+          "name": "low_pence",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "generated": {
+            "as": "unit_price_pence * quantity_low",
+            "type": "stored"
+          }
+        },
+        "high_pence": {
+          "name": "high_pence",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "generated": {
+            "as": "unit_price_pence * quantity_high",
+            "type": "stored"
+          }
+        },
+        "depends_on": {
+          "name": "depends_on",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "notes_span": {
+          "name": "notes_span",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "owner_wording": {
+          "name": "owner_wording",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "estimate_line_item_idx": {
+          "name": "estimate_line_item_idx",
+          "columns": [
+            {
+              "expression": "price_list_item_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "estimate_line_version_fk": {
+          "name": "estimate_line_version_fk",
+          "tableFrom": "estimate_line",
+          "tableTo": "estimate_version",
+          "columnsFrom": [
+            "version_id",
+            "price_list_id"
+          ],
+          "columnsTo": [
+            "id",
+            "price_list_id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "estimate_line_priced_from_list_fk": {
+          "name": "estimate_line_priced_from_list_fk",
+          "tableFrom": "estimate_line",
+          "tableTo": "price_list_item",
+          "columnsFrom": [
+            "price_list_item_id",
+            "price_list_id",
+            "unit_price_pence"
+          ],
+          "columnsTo": [
+            "id",
+            "price_list_id",
+            "unit_price_pence"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "estimate_line_position_key": {
+          "name": "estimate_line_position_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "version_id",
+            "position"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "estimate_line_position_positive": {
+          "name": "estimate_line_position_positive",
+          "value": "\"estimate_line\".\"position\" >= 1"
+        },
+        "estimate_line_quantity_range": {
+          "name": "estimate_line_quantity_range",
+          "value": "\"estimate_line\".\"quantity_low\" >= 0 and \"estimate_line\".\"quantity_high\" >= \"estimate_line\".\"quantity_low\" and \"estimate_line\".\"quantity_high\" >= 1"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.estimate_version": {
+      "name": "estimate_version",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "practice_id": {
+          "name": "practice_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "case_id": {
+          "name": "case_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "price_list_id": {
+          "name": "price_list_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "number": {
+          "name": "number",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "sent_at": {
+          "name": "sent_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "total_low_pence": {
+          "name": "total_low_pence",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "total_high_pence": {
+          "name": "total_high_pence",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "estimate_version_one_draft_per_case_idx": {
+          "name": "estimate_version_one_draft_per_case_idx",
+          "columns": [
+            {
+              "expression": "case_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"estimate_version\".\"sent_at\" is null",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "estimate_version_case_in_practice_fk": {
+          "name": "estimate_version_case_in_practice_fk",
+          "tableFrom": "estimate_version",
+          "tableTo": "patient_case",
+          "columnsFrom": [
+            "case_id",
+            "practice_id"
+          ],
+          "columnsTo": [
+            "id",
+            "practice_id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "estimate_version_price_list_in_practice_fk": {
+          "name": "estimate_version_price_list_in_practice_fk",
+          "tableFrom": "estimate_version",
+          "tableTo": "price_list",
+          "columnsFrom": [
+            "price_list_id",
+            "practice_id"
+          ],
+          "columnsTo": [
+            "id",
+            "practice_id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "estimate_version_case_number_key": {
+          "name": "estimate_version_case_number_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "case_id",
+            "number"
+          ]
+        },
+        "estimate_version_id_price_list_id_key": {
+          "name": "estimate_version_id_price_list_id_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "id",
+            "price_list_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "estimate_version_number_positive": {
+          "name": "estimate_version_number_positive",
+          "value": "\"estimate_version\".\"number\" >= 1"
+        },
+        "estimate_version_totals_when_sent": {
+          "name": "estimate_version_totals_when_sent",
+          "value": "(\"estimate_version\".\"sent_at\" is null and \"estimate_version\".\"total_low_pence\" is null and \"estimate_version\".\"total_high_pence\" is null)\n        or (\"estimate_version\".\"sent_at\" is not null and \"estimate_version\".\"total_low_pence\" is not null and \"estimate_version\".\"total_high_pence\" is not null)"
+        },
+        "estimate_version_totals_range": {
+          "name": "estimate_version_totals_range",
+          "value": "\"estimate_version\".\"total_low_pence\" is null or (\"estimate_version\".\"total_low_pence\" >= 0 and \"estimate_version\".\"total_high_pence\" >= \"estimate_version\".\"total_low_pence\")"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.patient_case": {
+      "name": "patient_case",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "practice_id": {
+          "name": "practice_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "patient_name": {
+          "name": "patient_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "owner_name": {
+          "name": "owner_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "procedure": {
+          "name": "procedure",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "money_state": {
+          "name": "money_state",
+          "type": "money_state",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'estimate_draft'"
+        },
+        "currency_code": {
+          "name": "currency_code",
+          "type": "char(3)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'GBP'"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "patient_case_practice_id_idx": {
+          "name": "patient_case_practice_id_idx",
+          "columns": [
+            {
+              "expression": "practice_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "patient_case_practice_id_practice_id_fk": {
+          "name": "patient_case_practice_id_practice_id_fk",
+          "tableFrom": "patient_case",
+          "tableTo": "practice",
+          "columnsFrom": [
+            "practice_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "patient_case_id_practice_id_key": {
+          "name": "patient_case_id_practice_id_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "id",
+            "practice_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "patient_case_currency_code": {
+          "name": "patient_case_currency_code",
+          "value": "\"patient_case\".\"currency_code\" in ('GBP', 'USD')"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.practice": {
+      "name": "practice",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "kind": {
+          "name": "kind",
+          "type": "practice_kind",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "monetary_threshold_pence": {
+          "name": "monetary_threshold_pence",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 50000
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "practice_monetary_threshold_positive": {
+          "name": "practice_monetary_threshold_positive",
+          "value": "\"practice\".\"monetary_threshold_pence\" > 0"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.price_list": {
+      "name": "price_list",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "practice_id": {
+          "name": "practice_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "currency_code": {
+          "name": "currency_code",
+          "type": "char(3)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'GBP'"
+        },
+        "source_name": {
+          "name": "source_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "imported_at": {
+          "name": "imported_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "clock_timestamp()"
+        }
+      },
+      "indexes": {
+        "price_list_practice_id_idx": {
+          "name": "price_list_practice_id_idx",
+          "columns": [
+            {
+              "expression": "practice_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "imported_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "price_list_practice_id_practice_id_fk": {
+          "name": "price_list_practice_id_practice_id_fk",
+          "tableFrom": "price_list",
+          "tableTo": "practice",
+          "columnsFrom": [
+            "practice_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "price_list_id_practice_id_key": {
+          "name": "price_list_id_practice_id_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "id",
+            "practice_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "price_list_currency_code": {
+          "name": "price_list_currency_code",
+          "value": "\"price_list\".\"currency_code\" in ('GBP', 'USD')"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.price_list_item": {
+      "name": "price_list_item",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "price_list_id": {
+          "name": "price_list_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "code": {
+          "name": "code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "category": {
+          "name": "category",
+          "type": "price_category",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "unit": {
+          "name": "unit",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "unit_price_pence": {
+          "name": "unit_price_pence",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "price_list_item_price_list_id_price_list_id_fk": {
+          "name": "price_list_item_price_list_id_price_list_id_fk",
+          "tableFrom": "price_list_item",
+          "tableTo": "price_list",
+          "columnsFrom": [
+            "price_list_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "price_list_item_code_key": {
+          "name": "price_list_item_code_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "price_list_id",
+            "code"
+          ]
+        },
+        "price_list_item_priced_key": {
+          "name": "price_list_item_priced_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "id",
+            "price_list_id",
+            "unit_price_pence"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "price_list_item_unit_price_non_negative": {
+          "name": "price_list_item_unit_price_non_negative",
+          "value": "\"price_list_item\".\"unit_price_pence\" >= 0"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.session": {
+      "name": "session",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "practice_id": {
+          "name": "practice_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "door": {
+          "name": "door",
+          "type": "session_door",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "expires_at": {
+          "name": "expires_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "last_seen_at": {
+          "name": "last_seen_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "session_practice_id_idx": {
+          "name": "session_practice_id_idx",
+          "columns": [
+            {
+              "expression": "practice_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "session_expires_at_idx": {
+          "name": "session_expires_at_idx",
+          "columns": [
+            {
+              "expression": "expires_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "session_practice_id_practice_id_fk": {
+          "name": "session_practice_id_practice_id_fk",
+          "tableFrom": "session",
+          "tableTo": "practice",
+          "columnsFrom": [
+            "practice_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "session_expires_after_creation": {
+          "name": "session_expires_after_creation",
+          "value": "\"session\".\"expires_at\" > \"session\".\"created_at\""
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.webhook_event": {
+      "name": "webhook_event",
+      "schema": "",
+      "columns": {
+        "event_id": {
+          "name": "event_id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "event_type": {
+          "name": "event_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "resource_type": {
+          "name": "resource_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "resource_id": {
+          "name": "resource_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "summary": {
+          "name": "summary",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "event_created_at": {
+          "name": "event_created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "transmission_id": {
+          "name": "transmission_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "transmission_time": {
+          "name": "transmission_time",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "cert_url": {
+          "name": "cert_url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "auth_algo": {
+          "name": "auth_algo",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "verification": {
+          "name": "verification",
+          "type": "webhook_verification",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "is_mock": {
+          "name": "is_mock",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "raw_body": {
+          "name": "raw_body",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "payload": {
+          "name": "payload",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "received_at": {
+          "name": "received_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "processed_at": {
+          "name": "processed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "webhook_event_resource_id_idx": {
+          "name": "webhook_event_resource_id_idx",
+          "columns": [
+            {
+              "expression": "resource_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    }
+  },
+  "enums": {
+    "public.audit_actor": {
+      "name": "audit_actor",
+      "schema": "public",
+      "values": [
+        "vet",
+        "owner",
+        "system",
+        "schedule_agent",
+        "paypal_webhook"
+      ]
+    },
+    "public.money_state": {
+      "name": "money_state",
+      "schema": "public",
+      "values": [
+        "estimate_draft",
+        "awaiting_owner",
+        "held",
+        "update_awaiting_owner",
+        "update_declined",
+        "captured",
+        "released",
+        "refunded",
+        "withdrawn"
+      ]
+    },
+    "public.practice_kind": {
+      "name": "practice_kind",
+      "schema": "public",
+      "values": [
+        "showcase",
+        "judge"
+      ]
+    },
+    "public.price_category": {
+      "name": "price_category",
+      "schema": "public",
+      "values": [
+        "consultation",
+        "anaesthesia",
+        "procedure",
+        "imaging",
+        "laboratory",
+        "medication",
+        "hospitalisation",
+        "consumable"
+      ]
+    },
+    "public.session_door": {
+      "name": "session_door",
+      "schema": "public",
+      "values": [
+        "practice",
+        "owner"
+      ]
+    },
+    "public.webhook_verification": {
+      "name": "webhook_verification",
+      "schema": "public",
+      "values": [
+        "signature",
+        "postback"
+      ]
+    }
+  },
+  "schemas": {},
+  "sequences": {},
+  "roles": {},
+  "policies": {},
+  "views": {},
+  "_meta": {
+    "columns": {},
+    "schemas": {},
+    "tables": {}
+  }
+}

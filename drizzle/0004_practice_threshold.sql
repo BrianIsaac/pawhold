@@ -1,0 +1,2 @@
+ALTER TABLE "practice" ADD COLUMN "monetary_threshold_pence" integer DEFAULT 50000 NOT NULL;--> statement-breakpoint
+ALTER TABLE "practice" ADD CONSTRAINT "practice_monetary_threshold_positive" CHECK ("practice"."monetary_threshold_pence" > 0);
