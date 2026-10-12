@@ -47,6 +47,8 @@ export interface RunDependencies {
   readonly now?: () => Date;
   /** The wait before retrying a request that got no answer; 2 s by default. */
   readonly retryDelayMs?: number;
+  /** How a probe waits between readings; real time by default. */
+  readonly sleep?: (ms: number) => Promise<void>;
 }
 
 /** How long the probes wait for PayPal on one request, retries included. */
@@ -81,6 +83,7 @@ export async function runOnce(probe: Probe, deps: RunDependencies): Promise<Prob
     recordingBuyer(deps.buyer, events),
     deps.options,
     now,
+    deps.sleep,
   );
   const startedAt = now().toISOString();
   let outcome: ProbeOutcome | null = null;

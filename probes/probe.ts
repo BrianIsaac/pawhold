@@ -74,6 +74,8 @@ export interface ProbeContext {
   note(text: string): void;
   /** The clock. */
   now(): Date;
+  /** Waits; immediate in a replay. */
+  sleep(ms: number): Promise<void>;
 }
 
 /** A probe of section 4. */
@@ -164,6 +166,7 @@ export class HoldLedger {
  * @param buyer - The buyer.
  * @param options - The command line's options.
  * @param now - The clock.
+ * @param sleep - How to wait.
  * @returns The context and the run's timeline.
  */
 export function createContext(
@@ -171,6 +174,7 @@ export function createContext(
   buyer: Buyer,
   options: ProbeOptions,
   now: () => Date = () => new Date(),
+  sleep: (ms: number) => Promise<void> = (ms) => new Promise((done) => setTimeout(done, ms)),
 ): { context: ProbeContext; notes: { at: string; text: string }[] } {
   const caseId = randomUUID();
   const holdIds = new Map<string, string>();
@@ -188,6 +192,7 @@ export function createContext(
     },
     note: (text) => notes.push({ at: now().toISOString(), text }),
     now,
+    sleep,
   };
   return { context, notes };
 }

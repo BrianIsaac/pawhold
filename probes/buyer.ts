@@ -110,7 +110,7 @@ export function createBrowserBuyer(
       );
       return await steps({
         approve: (url) => approveIn(page, url, login, secrets),
-        activity: () => readActivity(page, secrets),
+        activity: () => readActivity(page, login, secrets),
       });
     } finally {
       await browser.close();
@@ -242,15 +242,7 @@ async function approveIn(
     await email.or(review).first().waitFor({ state: "visible" });
     const signedIn = await email.isVisible();
     if (signedIn) {
-      await email.fill(login.email);
-      const next = page.locator("#btnNext");
-      if (await next.isVisible()) {
-        await next.click();
-      }
-      const password = page.locator("#password");
-      await password.waitFor({ state: "visible" });
-      await password.fill(login.password);
-      await page.locator("#btnLogin").click();
+      await signIn(page, login);
     }
     await review.waitFor({ state: "visible" });
     const fundingId = await page
@@ -278,18 +270,29 @@ async function approveIn(
 }
 
 /**
- * Reads the signed-in buyer's recent activity on the sandbox account.
+ * Reads the buyer's recent activity on the account's summary page, signing
+ * in to the account first when asked (the checkout's sign-in does not carry
+ * over to the account pages). Each entry is one activity tile's text, such as
+ * "Test Store −£12.34 Today, 12 Oct . Authorisation".
  *
- * @param page - A signed-in page.
+ * @param page - The session's page.
+ * @param login - The buyer's login.
  * @param secrets - Values scrubbed from what is read.
  * @returns The reading.
  */
-async function readActivity(page: Page, secrets: readonly string[]): Promise<ActivityReading> {
-  await page.goto(`${SANDBOX_HOME}/myaccount/activities/`);
-  await page.waitForLoadState("networkidle").catch(() => undefined);
-  const entries = await page
-    .locator('[data-testid*="activity"] li, li[data-testid], ol li')
-    .allInnerTexts();
+async function readActivity(
+  page: Page,
+  login: BuyerLogin,
+  secrets: readonly string[],
+): Promise<ActivityReading> {
+  await page.goto(`${SANDBOX_HOME}/myaccount/summary`);
+  if (new URL(page.url()).pathname.startsWith("/signin")) {
+    await signIn(page, login);
+    await page.waitForURL((u) => u.pathname.startsWith("/myaccount"));
+  }
+  const tiles = page.getByTestId("trans_overview_root_container");
+  await tiles.first().waitFor({ state: "visible" });
+  const entries = await tiles.allInnerTexts();
   const url = new URL(page.url());
   return {
     at: new Date().toISOString(),
@@ -298,6 +301,25 @@ async function readActivity(page: Page, secrets: readonly string[]): Promise<Act
       .map((e) => scrub(e.replace(/\s+/g, " ").trim(), secrets))
       .filter((e) => e.length > 0),
   };
+}
+
+/**
+ * Signs in on PayPal's sign-in form, which asks for the email and the
+ * password on one page or on two.
+ *
+ * @param page - The page showing the form.
+ * @param login - The buyer's login.
+ */
+async function signIn(page: Page, login: BuyerLogin): Promise<void> {
+  await page.locator("#email").fill(login.email);
+  const next = page.locator("#btnNext");
+  if (await next.isVisible()) {
+    await next.click();
+  }
+  const password = page.locator("#password");
+  await password.waitFor({ state: "visible" });
+  await password.fill(login.password);
+  await page.locator("#btnLogin").click();
 }
 
 /**

@@ -132,6 +132,7 @@ export async function replay(
     options: recorded.options,
     now: () => new Date(recorded.startedAt),
     retryDelayMs: 0,
+    sleep: () => Promise.resolve(),
   });
   return { run, unserved: served.remaining() };
 }
