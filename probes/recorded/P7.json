@@ -1,0 +1,1109 @@
+{
+  "probe": "P7",
+  "startedAt": "2026-10-12T11:29:15.667Z",
+  "endedAt": "2026-10-12T11:29:59.910Z",
+  "options": {
+    "holds": []
+  },
+  "outcome": {
+    "verdict": "pass",
+    "summary": "The buyer authorised a second order (1TX101196J354491W) while the first hold stood; the first was captured in full, £20.00 of the second captured and its rest voided.",
+    "observations": {
+      "first order": "22102980XT567473H",
+      "first authorisation": "6PC77583MA3774833",
+      "second order": "95094625J3943064P",
+      "second authorisation": "1TX101196J354491W",
+      "second authorisation status": "CREATED",
+      "first authorisation status once the second was made": "CREATED",
+      "first capture": "84K83717YA9181446",
+      "first capture status": "COMPLETED",
+      "second capture": "0CW350597D750913M",
+      "second capture status": "COMPLETED",
+      "first authorisation status after": "CAPTURED",
+      "second authorisation status after": "VOIDED"
+    },
+    "branch": null
+  },
+  "error": null,
+  "exchanges": [
+    {
+      "at": "2026-10-12T11:29:15.668Z",
+      "method": "POST",
+      "path": "/v1/oauth2/token",
+      "requestId": null,
+      "sentHeaders": {},
+      "requestBody": null,
+      "ms": 270,
+      "status": 200,
+      "debugId": "ca495c4090fa0",
+      "responseBody": null
+    },
+    {
+      "at": "2026-10-12T11:29:15.938Z",
+      "method": "POST",
+      "path": "/v2/checkout/orders",
+      "requestId": "91635da3-b037-8402-9258-58e7c4ec07ab",
+      "sentHeaders": {
+        "prefer": "return=representation"
+      },
+      "requestBody": {
+        "intent": "AUTHORIZE",
+        "purchase_units": [
+          {
+            "reference_id": "probe-estimate",
+            "custom_id": "pawhold-probe-estimate",
+            "description": "pawhold sandbox probe",
+            "amount": {
+              "currency_code": "GBP",
+              "value": "100.00"
+            }
+          }
+        ],
+        "payment_source": {
+          "paypal": {
+            "experience_context": {
+              "brand_name": "pawhold probes",
+              "locale": "en-GB",
+              "shipping_preference": "NO_SHIPPING",
+              "user_action": "CONTINUE",
+              "return_url": "https://example.com/pawhold-probes/return",
+              "cancel_url": "https://example.com/pawhold-probes/cancel"
+            }
+          }
+        }
+      },
+      "ms": 770,
+      "status": 200,
+      "debugId": "ca495c40ab8cc",
+      "responseBody": {
+        "id": "22102980XT567473H",
+        "intent": "AUTHORIZE",
+        "status": "PAYER_ACTION_REQUIRED",
+        "payment_source": {
+          "paypal": {}
+        },
+        "purchase_units": [
+          {
+            "reference_id": "probe-estimate",
+            "amount": {
+              "currency_code": "GBP",
+              "value": "100.00"
+            },
+            "payee": {
+              "email_address": "<redacted>",
+              "merchant_id": "<redacted>",
+              "display_data": {
+                "brand_name": "pawhold probes"
+              }
+            },
+            "description": "pawhold sandbox probe",
+            "custom_id": "pawhold-probe-estimate"
+          }
+        ],
+        "links": [
+          {
+            "href": "https://api.sandbox.paypal.com/v2/checkout/orders/22102980XT567473H",
+            "rel": "self",
+            "method": "GET"
+          },
+          {
+            "href": "https://www.sandbox.paypal.com/checkoutnow?token=22102980XT567473H",
+            "rel": "payer-action",
+            "method": "GET"
+          }
+        ]
+      }
+    },
+    {
+      "at": "2026-10-12T11:29:27.099Z",
+      "method": "POST",
+      "path": "/v2/checkout/orders/22102980XT567473H/authorize",
+      "requestId": "723424f5-e40f-8af5-8746-99822c574343",
+      "sentHeaders": {
+        "prefer": "return=representation"
+      },
+      "requestBody": {},
+      "ms": 6556,
+      "status": 201,
+      "debugId": "ca495c4716b87",
+      "responseBody": {
+        "id": "22102980XT567473H",
+        "intent": "AUTHORIZE",
+        "status": "COMPLETED",
+        "payment_source": {
+          "paypal": {
+            "email_address": "<redacted>",
+            "account_id": "<redacted>",
+            "account_status": "VERIFIED",
+            "name": "<redacted>",
+            "address": {
+              "country_code": "GB"
+            }
+          }
+        },
+        "purchase_units": [
+          {
+            "reference_id": "probe-estimate",
+            "amount": {
+              "currency_code": "GBP",
+              "value": "100.00"
+            },
+            "payee": {
+              "email_address": "<redacted>",
+              "merchant_id": "<redacted>",
+              "display_data": {
+                "brand_name": "pawhold probes"
+              }
+            },
+            "description": "pawhold sandbox probe",
+            "custom_id": "pawhold-probe-estimate",
+            "payments": {
+              "authorizations": [
+                {
+                  "status": "CREATED",
+                  "id": "6PC77583MA3774833",
+                  "amount": {
+                    "currency_code": "GBP",
+                    "value": "100.00"
+                  },
+                  "custom_id": "pawhold-probe-estimate",
+                  "seller_protection": {
+                    "status": "ELIGIBLE",
+                    "dispute_categories": [
+                      "ITEM_NOT_RECEIVED",
+                      "UNAUTHORIZED_TRANSACTION"
+                    ]
+                  },
+                  "expiration_time": "2026-11-10T11:29:32Z",
+                  "links": [
+                    {
+                      "href": "https://api.sandbox.paypal.com/v2/payments/authorizations/6PC77583MA3774833",
+                      "rel": "self",
+                      "method": "GET"
+                    },
+                    {
+                      "href": "https://api.sandbox.paypal.com/v2/payments/authorizations/6PC77583MA3774833/capture",
+                      "rel": "capture",
+                      "method": "POST"
+                    },
+                    {
+                      "href": "https://api.sandbox.paypal.com/v2/payments/authorizations/6PC77583MA3774833/void",
+                      "rel": "void",
+                      "method": "POST"
+                    },
+                    {
+                      "href": "https://api.sandbox.paypal.com/v2/payments/authorizations/6PC77583MA3774833/reauthorize",
+                      "rel": "reauthorize",
+                      "method": "POST"
+                    },
+                    {
+                      "href": "https://api.sandbox.paypal.com/v2/checkout/orders/22102980XT567473H",
+                      "rel": "up",
+                      "method": "GET"
+                    }
+                  ],
+                  "create_time": "2026-10-12T11:29:32Z",
+                  "update_time": "2026-10-12T11:29:32Z"
+                }
+              ]
+            }
+          }
+        ],
+        "payer": {
+          "name": "<redacted>",
+          "email_address": "<redacted>",
+          "payer_id": "<redacted>",
+          "address": {
+            "country_code": "GB"
+          }
+        },
+        "create_time": "2026-10-12T11:29:16Z",
+        "update_time": "2026-10-12T11:29:32Z",
+        "links": [
+          {
+            "href": "https://api.sandbox.paypal.com/v2/checkout/orders/22102980XT567473H",
+            "rel": "self",
+            "method": "GET"
+          }
+        ]
+      }
+    },
+    {
+      "at": "2026-10-12T11:29:33.655Z",
+      "method": "POST",
+      "path": "/v2/checkout/orders",
+      "requestId": "4e17f2dc-0737-87c1-a722-afec883c496c",
+      "sentHeaders": {
+        "prefer": "return=representation"
+      },
+      "requestBody": {
+        "intent": "AUTHORIZE",
+        "purchase_units": [
+          {
+            "reference_id": "probe-update",
+            "custom_id": "pawhold-probe-update",
+            "description": "pawhold sandbox probe",
+            "amount": {
+              "currency_code": "GBP",
+              "value": "50.00"
+            }
+          }
+        ],
+        "payment_source": {
+          "paypal": {
+            "experience_context": {
+              "brand_name": "pawhold probes",
+              "locale": "en-GB",
+              "shipping_preference": "NO_SHIPPING",
+              "user_action": "CONTINUE",
+              "return_url": "https://example.com/pawhold-probes/return",
+              "cancel_url": "https://example.com/pawhold-probes/cancel"
+            }
+          }
+        }
+      },
+      "ms": 924,
+      "status": 200,
+      "debugId": "ca495c47a5d85",
+      "responseBody": {
+        "id": "95094625J3943064P",
+        "intent": "AUTHORIZE",
+        "status": "PAYER_ACTION_REQUIRED",
+        "payment_source": {
+          "paypal": {}
+        },
+        "purchase_units": [
+          {
+            "reference_id": "probe-update",
+            "amount": {
+              "currency_code": "GBP",
+              "value": "50.00"
+            },
+            "payee": {
+              "email_address": "<redacted>",
+              "merchant_id": "<redacted>",
+              "display_data": {
+                "brand_name": "pawhold probes"
+              }
+            },
+            "description": "pawhold sandbox probe",
+            "custom_id": "pawhold-probe-update"
+          }
+        ],
+        "links": [
+          {
+            "href": "https://api.sandbox.paypal.com/v2/checkout/orders/95094625J3943064P",
+            "rel": "self",
+            "method": "GET"
+          },
+          {
+            "href": "https://www.sandbox.paypal.com/checkoutnow?token=95094625J3943064P",
+            "rel": "payer-action",
+            "method": "GET"
+          }
+        ]
+      }
+    },
+    {
+      "at": "2026-10-12T11:29:44.806Z",
+      "method": "POST",
+      "path": "/v2/checkout/orders/95094625J3943064P/authorize",
+      "requestId": "dafe5477-8529-8142-b95e-46baabcc448c",
+      "sentHeaders": {
+        "prefer": "return=representation"
+      },
+      "requestBody": {},
+      "ms": 6674,
+      "status": 201,
+      "debugId": "ca495c4e00dfc",
+      "responseBody": {
+        "id": "95094625J3943064P",
+        "intent": "AUTHORIZE",
+        "status": "COMPLETED",
+        "payment_source": {
+          "paypal": {
+            "email_address": "<redacted>",
+            "account_id": "<redacted>",
+            "account_status": "VERIFIED",
+            "name": "<redacted>",
+            "address": {
+              "country_code": "GB"
+            }
+          }
+        },
+        "purchase_units": [
+          {
+            "reference_id": "probe-update",
+            "amount": {
+              "currency_code": "GBP",
+              "value": "50.00"
+            },
+            "payee": {
+              "email_address": "<redacted>",
+              "merchant_id": "<redacted>",
+              "display_data": {
+                "brand_name": "pawhold probes"
+              }
+            },
+            "description": "pawhold sandbox probe",
+            "custom_id": "pawhold-probe-update",
+            "payments": {
+              "authorizations": [
+                {
+                  "status": "CREATED",
+                  "id": "1TX101196J354491W",
+                  "amount": {
+                    "currency_code": "GBP",
+                    "value": "50.00"
+                  },
+                  "custom_id": "pawhold-probe-update",
+                  "seller_protection": {
+                    "status": "ELIGIBLE",
+                    "dispute_categories": [
+                      "ITEM_NOT_RECEIVED",
+                      "UNAUTHORIZED_TRANSACTION"
+                    ]
+                  },
+                  "expiration_time": "2026-11-10T11:29:50Z",
+                  "links": [
+                    {
+                      "href": "https://api.sandbox.paypal.com/v2/payments/authorizations/1TX101196J354491W",
+                      "rel": "self",
+                      "method": "GET"
+                    },
+                    {
+                      "href": "https://api.sandbox.paypal.com/v2/payments/authorizations/1TX101196J354491W/capture",
+                      "rel": "capture",
+                      "method": "POST"
+                    },
+                    {
+                      "href": "https://api.sandbox.paypal.com/v2/payments/authorizations/1TX101196J354491W/void",
+                      "rel": "void",
+                      "method": "POST"
+                    },
+                    {
+                      "href": "https://api.sandbox.paypal.com/v2/payments/authorizations/1TX101196J354491W/reauthorize",
+                      "rel": "reauthorize",
+                      "method": "POST"
+                    },
+                    {
+                      "href": "https://api.sandbox.paypal.com/v2/checkout/orders/95094625J3943064P",
+                      "rel": "up",
+                      "method": "GET"
+                    }
+                  ],
+                  "create_time": "2026-10-12T11:29:50Z",
+                  "update_time": "2026-10-12T11:29:50Z"
+                }
+              ]
+            }
+          }
+        ],
+        "payer": {
+          "name": "<redacted>",
+          "email_address": "<redacted>",
+          "payer_id": "<redacted>",
+          "address": {
+            "country_code": "GB"
+          }
+        },
+        "create_time": "2026-10-12T11:29:34Z",
+        "update_time": "2026-10-12T11:29:50Z",
+        "links": [
+          {
+            "href": "https://api.sandbox.paypal.com/v2/checkout/orders/95094625J3943064P",
+            "rel": "self",
+            "method": "GET"
+          }
+        ]
+      }
+    },
+    {
+      "at": "2026-10-12T11:29:51.480Z",
+      "method": "GET",
+      "path": "/v2/payments/authorizations/6PC77583MA3774833",
+      "requestId": null,
+      "sentHeaders": {},
+      "requestBody": null,
+      "ms": 1102,
+      "status": 200,
+      "debugId": "ca495c4e9dc8a",
+      "responseBody": {
+        "id": "6PC77583MA3774833",
+        "status": "CREATED",
+        "amount": {
+          "currency_code": "GBP",
+          "value": "100.00"
+        },
+        "custom_id": "pawhold-probe-estimate",
+        "seller_protection": {
+          "status": "ELIGIBLE",
+          "dispute_categories": [
+            "ITEM_NOT_RECEIVED",
+            "UNAUTHORIZED_TRANSACTION"
+          ]
+        },
+        "supplementary_data": {
+          "related_ids": {
+            "order_id": "22102980XT567473H"
+          }
+        },
+        "payee": {
+          "email_address": "<redacted>",
+          "merchant_id": "<redacted>"
+        },
+        "expiration_time": "2026-11-10T11:29:32Z",
+        "create_time": "2026-10-12T11:29:32Z",
+        "update_time": "2026-10-12T11:29:32Z",
+        "links": [
+          {
+            "href": "https://api.sandbox.paypal.com/v2/payments/authorizations/6PC77583MA3774833",
+            "rel": "self",
+            "method": "GET"
+          },
+          {
+            "href": "https://api.sandbox.paypal.com/v2/payments/authorizations/6PC77583MA3774833/capture",
+            "rel": "capture",
+            "method": "POST"
+          },
+          {
+            "href": "https://api.sandbox.paypal.com/v2/payments/authorizations/6PC77583MA3774833/void",
+            "rel": "void",
+            "method": "POST"
+          },
+          {
+            "href": "https://api.sandbox.paypal.com/v2/payments/authorizations/6PC77583MA3774833/reauthorize",
+            "rel": "reauthorize",
+            "method": "POST"
+          },
+          {
+            "href": "https://api.sandbox.paypal.com/v2/checkout/orders/22102980XT567473H",
+            "rel": "up",
+            "method": "GET"
+          }
+        ]
+      }
+    },
+    {
+      "at": "2026-10-12T11:29:52.583Z",
+      "method": "POST",
+      "path": "/v2/payments/authorizations/6PC77583MA3774833/capture",
+      "requestId": "a5c158ab-0fea-84d6-981d-af60e670919c",
+      "sentHeaders": {
+        "prefer": "return=representation"
+      },
+      "requestBody": {
+        "final_capture": true
+      },
+      "ms": 1332,
+      "status": 201,
+      "debugId": "ca495c4efcac6",
+      "responseBody": {
+        "id": "84K83717YA9181446",
+        "amount": {
+          "currency_code": "GBP",
+          "value": "100.00"
+        },
+        "final_capture": true,
+        "seller_protection": {
+          "status": "ELIGIBLE",
+          "dispute_categories": [
+            "ITEM_NOT_RECEIVED",
+            "UNAUTHORIZED_TRANSACTION"
+          ]
+        },
+        "seller_receivable_breakdown": {
+          "gross_amount": {
+            "currency_code": "GBP",
+            "value": "100.00"
+          },
+          "paypal_fee": {
+            "currency_code": "GBP",
+            "value": "3.60"
+          },
+          "net_amount": {
+            "currency_code": "GBP",
+            "value": "96.40"
+          },
+          "exchange_rate": {}
+        },
+        "custom_id": "pawhold-probe-estimate",
+        "status": "COMPLETED",
+        "create_time": "2026-10-12T11:29:53Z",
+        "update_time": "2026-10-12T11:29:53Z",
+        "links": [
+          {
+            "href": "https://api.sandbox.paypal.com/v2/payments/captures/84K83717YA9181446",
+            "rel": "self",
+            "method": "GET"
+          },
+          {
+            "href": "https://api.sandbox.paypal.com/v2/payments/captures/84K83717YA9181446/refund",
+            "rel": "refund",
+            "method": "POST"
+          },
+          {
+            "href": "https://api.sandbox.paypal.com/v2/payments/authorizations/6PC77583MA3774833",
+            "rel": "up",
+            "method": "GET"
+          }
+        ]
+      }
+    },
+    {
+      "at": "2026-10-12T11:29:53.915Z",
+      "method": "POST",
+      "path": "/v2/payments/authorizations/1TX101196J354491W/capture",
+      "requestId": "7002c878-7145-8f11-85b6-2a4479e7b03b",
+      "sentHeaders": {
+        "prefer": "return=representation"
+      },
+      "requestBody": {
+        "final_capture": false,
+        "amount": {
+          "currency_code": "GBP",
+          "value": "20.00"
+        }
+      },
+      "ms": 1535,
+      "status": 201,
+      "debugId": "ca495c4f828b9",
+      "responseBody": {
+        "id": "0CW350597D750913M",
+        "amount": {
+          "currency_code": "GBP",
+          "value": "20.00"
+        },
+        "final_capture": false,
+        "seller_protection": {
+          "status": "ELIGIBLE",
+          "dispute_categories": [
+            "ITEM_NOT_RECEIVED",
+            "UNAUTHORIZED_TRANSACTION"
+          ]
+        },
+        "seller_receivable_breakdown": {
+          "gross_amount": {
+            "currency_code": "GBP",
+            "value": "20.00"
+          },
+          "paypal_fee": {
+            "currency_code": "GBP",
+            "value": "0.88"
+          },
+          "net_amount": {
+            "currency_code": "GBP",
+            "value": "19.12"
+          },
+          "exchange_rate": {}
+        },
+        "custom_id": "pawhold-probe-update",
+        "status": "COMPLETED",
+        "create_time": "2026-10-12T11:29:54Z",
+        "update_time": "2026-10-12T11:29:54Z",
+        "links": [
+          {
+            "href": "https://api.sandbox.paypal.com/v2/payments/captures/0CW350597D750913M",
+            "rel": "self",
+            "method": "GET"
+          },
+          {
+            "href": "https://api.sandbox.paypal.com/v2/payments/captures/0CW350597D750913M/refund",
+            "rel": "refund",
+            "method": "POST"
+          },
+          {
+            "href": "https://api.sandbox.paypal.com/v2/payments/authorizations/1TX101196J354491W",
+            "rel": "up",
+            "method": "GET"
+          }
+        ]
+      }
+    },
+    {
+      "at": "2026-10-12T11:29:55.450Z",
+      "method": "POST",
+      "path": "/v2/payments/authorizations/1TX101196J354491W/void",
+      "requestId": "5c6ef477-db20-8e5a-a715-0bce73726ec2",
+      "sentHeaders": {
+        "prefer": "return=representation"
+      },
+      "requestBody": null,
+      "ms": 1476,
+      "status": 200,
+      "debugId": "ca495c501aad3",
+      "responseBody": {
+        "id": "1TX101196J354491W",
+        "status": "VOIDED",
+        "amount": {
+          "currency_code": "GBP",
+          "value": "50.00"
+        },
+        "seller_protection": {
+          "status": "ELIGIBLE",
+          "dispute_categories": [
+            "ITEM_NOT_RECEIVED",
+            "UNAUTHORIZED_TRANSACTION"
+          ]
+        },
+        "expiration_time": "2026-11-10T03:29:50-08:00",
+        "create_time": "2026-10-12T04:29:50-07:00",
+        "update_time": "2026-10-12T04:29:56-07:00",
+        "links": [
+          {
+            "href": "https://api.sandbox.paypal.com/v2/payments/authorizations/1TX101196J354491W",
+            "rel": "self",
+            "method": "GET"
+          }
+        ]
+      }
+    },
+    {
+      "at": "2026-10-12T11:29:56.926Z",
+      "method": "GET",
+      "path": "/v2/payments/authorizations/6PC77583MA3774833",
+      "requestId": null,
+      "sentHeaders": {},
+      "requestBody": null,
+      "ms": 479,
+      "status": 200,
+      "debugId": "ca495c50aea4f",
+      "responseBody": {
+        "id": "6PC77583MA3774833",
+        "status": "CAPTURED",
+        "amount": {
+          "currency_code": "GBP",
+          "value": "100.00"
+        },
+        "custom_id": "pawhold-probe-estimate",
+        "seller_protection": {
+          "status": "ELIGIBLE",
+          "dispute_categories": [
+            "ITEM_NOT_RECEIVED",
+            "UNAUTHORIZED_TRANSACTION"
+          ]
+        },
+        "supplementary_data": {
+          "related_ids": {
+            "order_id": "22102980XT567473H"
+          }
+        },
+        "payee": {
+          "email_address": "<redacted>",
+          "merchant_id": "<redacted>"
+        },
+        "expiration_time": "2026-11-10T11:29:32Z",
+        "create_time": "2026-10-12T11:29:32Z",
+        "update_time": "2026-10-12T11:29:53Z",
+        "links": [
+          {
+            "href": "https://api.sandbox.paypal.com/v2/payments/authorizations/6PC77583MA3774833",
+            "rel": "self",
+            "method": "GET"
+          },
+          {
+            "href": "https://api.sandbox.paypal.com/v2/payments/authorizations/6PC77583MA3774833/capture",
+            "rel": "capture",
+            "method": "POST"
+          },
+          {
+            "href": "https://api.sandbox.paypal.com/v2/payments/authorizations/6PC77583MA3774833/void",
+            "rel": "void",
+            "method": "POST"
+          },
+          {
+            "href": "https://api.sandbox.paypal.com/v2/payments/authorizations/6PC77583MA3774833/reauthorize",
+            "rel": "reauthorize",
+            "method": "POST"
+          },
+          {
+            "href": "https://api.sandbox.paypal.com/v2/checkout/orders/22102980XT567473H",
+            "rel": "up",
+            "method": "GET"
+          }
+        ]
+      }
+    },
+    {
+      "at": "2026-10-12T11:29:57.405Z",
+      "method": "GET",
+      "path": "/v2/payments/authorizations/1TX101196J354491W",
+      "requestId": null,
+      "sentHeaders": {},
+      "requestBody": null,
+      "ms": 621,
+      "status": 200,
+      "debugId": "ca495c50decb5",
+      "responseBody": {
+        "id": "1TX101196J354491W",
+        "status": "VOIDED",
+        "amount": {
+          "currency_code": "GBP",
+          "value": "50.00"
+        },
+        "custom_id": "pawhold-probe-update",
+        "seller_protection": {
+          "status": "ELIGIBLE",
+          "dispute_categories": [
+            "ITEM_NOT_RECEIVED",
+            "UNAUTHORIZED_TRANSACTION"
+          ]
+        },
+        "supplementary_data": {
+          "related_ids": {
+            "order_id": "95094625J3943064P"
+          }
+        },
+        "payee": {
+          "email_address": "<redacted>",
+          "merchant_id": "<redacted>"
+        },
+        "expiration_time": "2026-11-10T11:29:50Z",
+        "create_time": "2026-10-12T11:29:50Z",
+        "update_time": "2026-10-12T11:29:56Z",
+        "links": [
+          {
+            "href": "https://api.sandbox.paypal.com/v2/payments/authorizations/1TX101196J354491W",
+            "rel": "self",
+            "method": "GET"
+          },
+          {
+            "href": "https://api.sandbox.paypal.com/v2/payments/authorizations/1TX101196J354491W/capture",
+            "rel": "capture",
+            "method": "POST"
+          },
+          {
+            "href": "https://api.sandbox.paypal.com/v2/payments/authorizations/1TX101196J354491W/void",
+            "rel": "void",
+            "method": "POST"
+          },
+          {
+            "href": "https://api.sandbox.paypal.com/v2/payments/authorizations/1TX101196J354491W/reauthorize",
+            "rel": "reauthorize",
+            "method": "POST"
+          },
+          {
+            "href": "https://api.sandbox.paypal.com/v2/checkout/orders/95094625J3943064P",
+            "rel": "up",
+            "method": "GET"
+          }
+        ]
+      }
+    },
+    {
+      "at": "2026-10-12T11:29:58.026Z",
+      "method": "GET",
+      "path": "/v2/payments/authorizations/6PC77583MA3774833",
+      "requestId": null,
+      "sentHeaders": {},
+      "requestBody": null,
+      "ms": 487,
+      "status": 200,
+      "debugId": "ca495c511c83c",
+      "responseBody": {
+        "id": "6PC77583MA3774833",
+        "status": "CAPTURED",
+        "amount": {
+          "currency_code": "GBP",
+          "value": "100.00"
+        },
+        "custom_id": "pawhold-probe-estimate",
+        "seller_protection": {
+          "status": "ELIGIBLE",
+          "dispute_categories": [
+            "ITEM_NOT_RECEIVED",
+            "UNAUTHORIZED_TRANSACTION"
+          ]
+        },
+        "supplementary_data": {
+          "related_ids": {
+            "order_id": "22102980XT567473H"
+          }
+        },
+        "payee": {
+          "email_address": "<redacted>",
+          "merchant_id": "<redacted>"
+        },
+        "expiration_time": "2026-11-10T11:29:32Z",
+        "create_time": "2026-10-12T11:29:32Z",
+        "update_time": "2026-10-12T11:29:53Z",
+        "links": [
+          {
+            "href": "https://api.sandbox.paypal.com/v2/payments/authorizations/6PC77583MA3774833",
+            "rel": "self",
+            "method": "GET"
+          },
+          {
+            "href": "https://api.sandbox.paypal.com/v2/payments/authorizations/6PC77583MA3774833/capture",
+            "rel": "capture",
+            "method": "POST"
+          },
+          {
+            "href": "https://api.sandbox.paypal.com/v2/payments/authorizations/6PC77583MA3774833/void",
+            "rel": "void",
+            "method": "POST"
+          },
+          {
+            "href": "https://api.sandbox.paypal.com/v2/payments/authorizations/6PC77583MA3774833/reauthorize",
+            "rel": "reauthorize",
+            "method": "POST"
+          },
+          {
+            "href": "https://api.sandbox.paypal.com/v2/checkout/orders/22102980XT567473H",
+            "rel": "up",
+            "method": "GET"
+          }
+        ]
+      }
+    },
+    {
+      "at": "2026-10-12T11:29:58.514Z",
+      "method": "GET",
+      "path": "/v2/payments/authorizations/1TX101196J354491W",
+      "requestId": null,
+      "sentHeaders": {},
+      "requestBody": null,
+      "ms": 460,
+      "status": 200,
+      "debugId": "ca495c514dac6",
+      "responseBody": {
+        "id": "1TX101196J354491W",
+        "status": "VOIDED",
+        "amount": {
+          "currency_code": "GBP",
+          "value": "50.00"
+        },
+        "custom_id": "pawhold-probe-update",
+        "seller_protection": {
+          "status": "ELIGIBLE",
+          "dispute_categories": [
+            "ITEM_NOT_RECEIVED",
+            "UNAUTHORIZED_TRANSACTION"
+          ]
+        },
+        "supplementary_data": {
+          "related_ids": {
+            "order_id": "95094625J3943064P"
+          }
+        },
+        "payee": {
+          "email_address": "<redacted>",
+          "merchant_id": "<redacted>"
+        },
+        "expiration_time": "2026-11-10T11:29:50Z",
+        "create_time": "2026-10-12T11:29:50Z",
+        "update_time": "2026-10-12T11:29:56Z",
+        "links": [
+          {
+            "href": "https://api.sandbox.paypal.com/v2/payments/authorizations/1TX101196J354491W",
+            "rel": "self",
+            "method": "GET"
+          },
+          {
+            "href": "https://api.sandbox.paypal.com/v2/payments/authorizations/1TX101196J354491W/capture",
+            "rel": "capture",
+            "method": "POST"
+          },
+          {
+            "href": "https://api.sandbox.paypal.com/v2/payments/authorizations/1TX101196J354491W/void",
+            "rel": "void",
+            "method": "POST"
+          },
+          {
+            "href": "https://api.sandbox.paypal.com/v2/payments/authorizations/1TX101196J354491W/reauthorize",
+            "rel": "reauthorize",
+            "method": "POST"
+          },
+          {
+            "href": "https://api.sandbox.paypal.com/v2/checkout/orders/95094625J3943064P",
+            "rel": "up",
+            "method": "GET"
+          }
+        ]
+      }
+    },
+    {
+      "at": "2026-10-12T11:29:58.974Z",
+      "method": "GET",
+      "path": "/v2/payments/authorizations/6PC77583MA3774833",
+      "requestId": null,
+      "sentHeaders": {},
+      "requestBody": null,
+      "ms": 428,
+      "status": 200,
+      "debugId": "ca495c517bcfd",
+      "responseBody": {
+        "id": "6PC77583MA3774833",
+        "status": "CAPTURED",
+        "amount": {
+          "currency_code": "GBP",
+          "value": "100.00"
+        },
+        "custom_id": "pawhold-probe-estimate",
+        "seller_protection": {
+          "status": "ELIGIBLE",
+          "dispute_categories": [
+            "ITEM_NOT_RECEIVED",
+            "UNAUTHORIZED_TRANSACTION"
+          ]
+        },
+        "supplementary_data": {
+          "related_ids": {
+            "order_id": "22102980XT567473H"
+          }
+        },
+        "payee": {
+          "email_address": "<redacted>",
+          "merchant_id": "<redacted>"
+        },
+        "expiration_time": "2026-11-10T11:29:32Z",
+        "create_time": "2026-10-12T11:29:32Z",
+        "update_time": "2026-10-12T11:29:53Z",
+        "links": [
+          {
+            "href": "https://api.sandbox.paypal.com/v2/payments/authorizations/6PC77583MA3774833",
+            "rel": "self",
+            "method": "GET"
+          },
+          {
+            "href": "https://api.sandbox.paypal.com/v2/payments/authorizations/6PC77583MA3774833/capture",
+            "rel": "capture",
+            "method": "POST"
+          },
+          {
+            "href": "https://api.sandbox.paypal.com/v2/payments/authorizations/6PC77583MA3774833/void",
+            "rel": "void",
+            "method": "POST"
+          },
+          {
+            "href": "https://api.sandbox.paypal.com/v2/payments/authorizations/6PC77583MA3774833/reauthorize",
+            "rel": "reauthorize",
+            "method": "POST"
+          },
+          {
+            "href": "https://api.sandbox.paypal.com/v2/checkout/orders/22102980XT567473H",
+            "rel": "up",
+            "method": "GET"
+          }
+        ]
+      }
+    },
+    {
+      "at": "2026-10-12T11:29:59.402Z",
+      "method": "GET",
+      "path": "/v2/payments/authorizations/1TX101196J354491W",
+      "requestId": null,
+      "sentHeaders": {},
+      "requestBody": null,
+      "ms": 507,
+      "status": 200,
+      "debugId": "ca495c51a6f8b",
+      "responseBody": {
+        "id": "1TX101196J354491W",
+        "status": "VOIDED",
+        "amount": {
+          "currency_code": "GBP",
+          "value": "50.00"
+        },
+        "custom_id": "pawhold-probe-update",
+        "seller_protection": {
+          "status": "ELIGIBLE",
+          "dispute_categories": [
+            "ITEM_NOT_RECEIVED",
+            "UNAUTHORIZED_TRANSACTION"
+          ]
+        },
+        "supplementary_data": {
+          "related_ids": {
+            "order_id": "95094625J3943064P"
+          }
+        },
+        "payee": {
+          "email_address": "<redacted>",
+          "merchant_id": "<redacted>"
+        },
+        "expiration_time": "2026-11-10T11:29:50Z",
+        "create_time": "2026-10-12T11:29:50Z",
+        "update_time": "2026-10-12T11:29:56Z",
+        "links": [
+          {
+            "href": "https://api.sandbox.paypal.com/v2/payments/authorizations/1TX101196J354491W",
+            "rel": "self",
+            "method": "GET"
+          },
+          {
+            "href": "https://api.sandbox.paypal.com/v2/payments/authorizations/1TX101196J354491W/capture",
+            "rel": "capture",
+            "method": "POST"
+          },
+          {
+            "href": "https://api.sandbox.paypal.com/v2/payments/authorizations/1TX101196J354491W/void",
+            "rel": "void",
+            "method": "POST"
+          },
+          {
+            "href": "https://api.sandbox.paypal.com/v2/payments/authorizations/1TX101196J354491W/reauthorize",
+            "rel": "reauthorize",
+            "method": "POST"
+          },
+          {
+            "href": "https://api.sandbox.paypal.com/v2/checkout/orders/95094625J3943064P",
+            "rel": "up",
+            "method": "GET"
+          }
+        ]
+      }
+    }
+  ],
+  "buyer": [
+    {
+      "kind": "approval",
+      "value": {
+        "startedAt": "2026-10-12T11:29:16.753Z",
+        "seconds": 10.3,
+        "signedIn": true,
+        "funding": "BALANCEGBP",
+        "notice": "There may be additional fees like shipping or tax. You agree to pay up to £125.00 GBP. You’ll see the final amount when you return to the merchant."
+      }
+    },
+    {
+      "kind": "approval",
+      "value": {
+        "startedAt": "2026-10-12T11:29:34.624Z",
+        "seconds": 10.2,
+        "signedIn": true,
+        "funding": "BALANCEGBP",
+        "notice": "There may be additional fees like shipping or tax. You agree to pay up to £63.00 GBP. You’ll see the final amount when you return to the merchant."
+      }
+    }
+  ],
+  "notes": [
+    {
+      "at": "2026-10-12T11:29:27.099Z",
+      "text": "order 22102980XT567473H approved by the buyer"
+    },
+    {
+      "at": "2026-10-12T11:29:44.806Z",
+      "text": "order 95094625J3943064P approved by the buyer"
+    }
+  ],
+  "cleanup": {
+    "rows": [
+      {
+        "orderId": "22102980XT567473H",
+        "authorizationId": "6PC77583MA3774833",
+        "status": "CAPTURED",
+        "kept": null,
+        "ok": true
+      },
+      {
+        "orderId": "95094625J3943064P",
+        "authorizationId": "1TX101196J354491W",
+        "status": "VOIDED",
+        "kept": null,
+        "ok": true
+      }
+    ],
+    "clean": true
+  }
+}
