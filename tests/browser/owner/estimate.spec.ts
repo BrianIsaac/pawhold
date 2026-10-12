@@ -1,7 +1,11 @@
 import { expect, test } from "@playwright/test";
 
 import { openBrowserDatabase, sentBrambleEstimate } from "./support/cases";
-import { expectNoSeriousViolations, expectTargetsAtLeast44 } from "./support/checks";
+import {
+  expectNoSeriousViolations,
+  expectTargetsAtLeast44,
+  untilPayPalDrawn,
+} from "./support/checks";
 import { saveShot } from "./support/shots";
 
 const database = openBrowserDatabase();
@@ -51,7 +55,8 @@ test.describe("the estimate page", () => {
       "£72.00",
     );
 
-    await expectNoSeriousViolations(page);
+    await untilPayPalDrawn(page);
+    await expectNoSeriousViolations(page, ["iframe"]);
     await expectTargetsAtLeast44(page);
     await saveShot(page, "estimate");
   });

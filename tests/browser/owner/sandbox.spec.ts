@@ -1,8 +1,8 @@
-import { expect, test } from "@playwright/test";
+import { expect, type Page, test } from "@playwright/test";
 
 import { approveInWindow } from "../../../probes/buyer";
 
-import { openBrowserDatabase, sentBrambleEstimate } from "./support/cases";
+import { brambleUpdate, openBrowserDatabase, sentBrambleEstimate } from "./support/cases";
 import { expectNoSeriousViolations, expectTargetsAtLeast44 } from "./support/checks";
 import {
   buyerLogin,
@@ -85,18 +85,7 @@ test.describe("the owner authorises through PayPal's sandbox", () => {
     practices.push(sent.practiceId);
     await page.goto(sent.path);
 
-    const fields: [keyof typeof TEST_CARD, string][] = [
-      ["name", TEST_CARD.name],
-      ["number", TEST_CARD.number],
-      ["expiry", TEST_CARD.expiry],
-      ["cvv", TEST_CARD.cvv],
-    ];
-    for (const [type, value] of fields) {
-      const input = page.frameLocator(`[data-card-field=${type}] iframe`).locator("input").first();
-      await input.waitFor({ state: "visible", timeout: 30_000 });
-      await input.click();
-      await input.pressSequentially(value, { delay: 20 });
-    }
+    await fillTestCard(page);
     await page.getByRole("button", { name: "Authorise £927.00" }).click();
 
     await expect(page.getByText("Held", { exact: true })).toBeVisible({ timeout: 90_000 });
@@ -109,3 +98,53 @@ test.describe("the owner authorises through PayPal's sandbox", () => {
     await saveShot(page, "held-card");
   });
 });
+
+test.describe("the owner approves an update through PayPal's sandbox", () => {
+  test.skip(!sandboxConfigured, "PAYPAL_CLIENT_ID is not set: the sandbox walks are skipped");
+  test.describe.configure({ timeout: 240_000 });
+
+  test.afterAll(async () => {
+    const stillHeld = await voidWhatTheWalksHeld(database.db, practices);
+    expect(stillHeld, "the walks must leave nothing held").toEqual([]);
+  });
+
+  test("an update's increase is held through card fields, a second hold beside the first", async ({
+    page,
+  }) => {
+    const { update } = await brambleUpdate(database.db);
+    practices.push(update.practiceId);
+    await page.goto(update.path);
+
+    await fillTestCard(page);
+    await page.getByRole("button", { name: "Approve £228.00" }).click();
+
+    await expect(
+      page.getByText("Done. £228.00 is held on your card. You'll get the final bill at discharge."),
+    ).toBeVisible({ timeout: 90_000 });
+    await expect(page.getByRole("button", { name: "Don't go ahead" })).toHaveCount(0);
+    if (webhookReachable) {
+      await expect(page.getByText(TICK)).toBeVisible({ timeout: 90_000 });
+    }
+    await saveShot(page, "update-held-card");
+  });
+});
+
+/**
+ * Types P6's test card into PayPal's card fields, each in its own frame.
+ *
+ * @param page - The owner's page.
+ */
+async function fillTestCard(page: Page): Promise<void> {
+  const fields: [keyof typeof TEST_CARD, string][] = [
+    ["name", TEST_CARD.name],
+    ["number", TEST_CARD.number],
+    ["expiry", TEST_CARD.expiry],
+    ["cvv", TEST_CARD.cvv],
+  ];
+  for (const [type, value] of fields) {
+    const input = page.frameLocator(`[data-card-field=${type}] iframe`).locator("input").first();
+    await input.waitFor({ state: "visible", timeout: 30_000 });
+    await input.click();
+    await input.pressSequentially(value, { delay: 20 });
+  }
+}

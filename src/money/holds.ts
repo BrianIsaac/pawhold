@@ -47,6 +47,7 @@ const actor = z.enum(auditActor.enumValues);
 
 const sendRequest = z.strictObject({ practiceId: z.uuid(), versionId: z.uuid(), actor });
 const caseRequest = z.strictObject({ practiceId: z.uuid(), caseId: z.uuid(), actor });
+const declineRequest = caseRequest.extend({ versionId: z.uuid().optional() });
 const holdRequest = z.strictObject({ practiceId: z.uuid(), caseId: z.uuid(), holdId: z.uuid() });
 const orderRequest = z.strictObject({
   practiceId: z.uuid(),
@@ -521,19 +522,26 @@ export async function withdrawEstimate(
  * The owner declines the update awaiting them (plan 3.2: held --owner
  * declines the update--> held, update declined): the case stays held at what
  * its holds cover, scope frozen there, and the update's order, if one was
- * made, is recorded as declined and never authorised after.
+ * made, is recorded as declined and never authorised after. Given the
+ * version the owner was shown, the decline is refused unless that version is
+ * the update awaiting them, checked under the case's lock, so an older
+ * update's link never declines a newer one (U6).
  *
  * @param executor - The pool or an open transaction.
- * @param request - The practice, the case and who declines (the owner).
+ * @param request - The practice, the case, who declines (the owner) and the version they were shown.
  * @returns The case's new state.
- * @throws MoneyError when no update awaits the owner.
+ * @throws MoneyError when no update awaits the owner, or the version shown is not the one awaiting.
  */
 export async function declineUpdate(
   executor: Executor,
-  request: z.input<typeof caseRequest>,
+  request: z.input<typeof declineRequest>,
 ): Promise<MoneyState> {
-  const { practiceId, caseId, actor: by } = parse(caseRequest, request);
-  return closeAwaiting(executor, { practiceId, caseId, actor: by }, "decline_update");
+  const { practiceId, caseId, actor: by, versionId } = parse(declineRequest, request);
+  return closeAwaiting(
+    executor,
+    { practiceId, caseId, actor: by, ...(versionId ? { shownVersionId: versionId } : {}) },
+    "decline_update",
+  );
 }
 
 /**
@@ -545,19 +553,31 @@ export async function declineUpdate(
  * @param request.practiceId - The practice.
  * @param request.caseId - The case.
  * @param request.actor - Who acts.
+ * @param request.shownVersionId - The version the owner was shown, when they act.
  * @param event - Which.
  * @returns The case's new state.
- * @throws MoneyError when no estimate awaits an answer.
+ * @throws MoneyError when no estimate awaits an answer, or the version shown is not the one awaiting.
  */
 async function closeAwaiting(
   executor: Executor,
-  request: { practiceId: string; caseId: string; actor: z.output<typeof actor> },
+  request: {
+    practiceId: string;
+    caseId: string;
+    actor: z.output<typeof actor>;
+    shownVersionId?: string;
+  },
   event: "withdraw" | "decline_update",
 ): Promise<MoneyState> {
   return executor.transaction(async (tx) => {
     const kase = await lockCase(tx, request.practiceId, request.caseId);
     const to = nextState(event, kase.moneyState) ?? (await stateBeforeUpdate(tx, kase.id));
     const versionId = await latestSentVersionId(tx, kase.id);
+    if (request.shownVersionId !== undefined && request.shownVersionId !== versionId) {
+      throw new MoneyError(
+        "version_not_awaiting",
+        `version ${request.shownVersionId} is not the estimate awaiting the owner`,
+      );
+    }
     const [ordered] = versionId
       ? await tx
           .update(hold)

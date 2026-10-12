@@ -9,6 +9,8 @@
   --owner-ink: #1d2327;
   --owner-ink-soft: #4a5258;
   --owner-rule: #d9d4ca;
+  /* A field's edge: 4.1:1 on the card, above WCAG 1.4.11's 3:1. */
+  --owner-field: #847d72;
   --owner-accent: #0b5d5b;
   --owner-accent-ink: #ffffff;
   --owner-held: #0b5d5b;

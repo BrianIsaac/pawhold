@@ -1,5 +1,10 @@
+import { randomBytes } from "node:crypto";
+
+import { eq } from "drizzle-orm";
+
+import { appendAuditEvent } from "@/audit/writer";
 import { createDatabase, type Database } from "@/db/client";
-import { patientCase, practice } from "@/db/schema";
+import { hold, patientCase, practice } from "@/db/schema";
 import { type EstimateLineInput, makeEstimateVersion } from "@/estimate/version";
 import { sendEstimate } from "@/money/holds";
 import { ownerLink } from "@/owner/link";
@@ -153,4 +158,128 @@ export async function sentBrambleEstimate(
     { secret: browserSecret(), now },
   );
   return { ...fixture, versionId: draft.id, path: link.path, token: link.token };
+}
+
+/** The vet's finding behind Bramble's update. */
+export const BRAMBLE_FINDING =
+  "Rads show 4 teeth with root resorption, need surgical extraction. Abx for 7 days.";
+
+/** Bramble's update: up to four extractions and antibiotics; £228.00 over the £927.00 held. */
+export const BRAMBLE_UPDATE_LINES: EstimateLineInput[] = [
+  ...BRAMBLE_LINES.filter((line) => line.code !== "DEN-EXT-SG"),
+  {
+    code: "DEN-EXT-SG",
+    quantityLow: 0,
+    quantityHigh: 4,
+    dependsOn: "the X-rays show the upper back teeth need to come out",
+    notesSpan: "4 teeth with root resorption, need surgical extraction",
+    ownerWording: "Removing up to four damaged teeth",
+  },
+  {
+    code: "MED-ANTIB-TAB",
+    quantityLow: 1,
+    quantityHigh: 1,
+    notesSpan: "Abx for 7 days",
+    ownerWording: "Antibiotic tablets for a week",
+  },
+];
+
+/** U4's explanation of the update, in the shape U4 keeps it (its audit event's output). */
+export const BRAMBLE_EXPLANATION =
+  "The X-rays showed damaged roots on four teeth, so your vet recommends removing up to four teeth rather than two, with a week of antibiotic tablets afterwards.";
+
+/** A seeded PayPal id's prefix: no PayPal call is ever made about it. */
+export const SEEDED_ID_PREFIX = "SEEDED";
+
+/**
+ * A PayPal-shaped id for a seeded hold.
+ *
+ * @returns The id.
+ */
+function seededId(): string {
+  return `${SEEDED_ID_PREFIX}${randomBytes(6).toString("hex").toUpperCase()}`.slice(0, 17);
+}
+
+/**
+ * Bramble's case held at its first estimate, written as rows the database
+ * accepts (U3's "To U9"), with no PayPal call: the hold's ids are seeded.
+ *
+ * @param db - The run's database.
+ * @returns The case and its first estimate's link.
+ */
+export async function heldBrambleEstimate(db: Database["db"]): Promise<SentCase> {
+  const sent = await sentBrambleEstimate(db);
+  await db.transaction(async (tx) => {
+    const authorizationId = seededId();
+    const [made] = await tx
+      .insert(hold)
+      .values({
+        id: sent.versionId,
+        practiceId: sent.practiceId,
+        caseId: sent.caseId,
+        versionNumber: 1,
+        versionHighPence: 92_700,
+        heldBeforePence: 0,
+        amountPence: 92_700,
+        currencyCode: "GBP",
+        status: "authorised",
+        paypalOrderId: seededId(),
+        authorizationId,
+        originalAuthorizationId: authorizationId,
+        paymentKind: "paypal",
+        authorisedAt: new Date(),
+        confirmedAt: new Date(),
+      })
+      .returning();
+    await tx.update(patientCase).set({ moneyState: "held" }).where(eq(patientCase.id, sent.caseId));
+    await appendAuditEvent(tx, {
+      practiceId: sent.practiceId,
+      caseId: sent.caseId,
+      actor: "owner",
+      action: "hold.authorised",
+      moneyStateBefore: "awaiting_owner",
+      moneyStateAfter: "held",
+      amount: { pence: made!.amountPence, currency: "GBP" },
+      paypal: { orderId: made!.paypalOrderId, authorizationId },
+      detail: { holdId: made!.id, versionNumber: 1, paymentKind: "paypal", seeded: true },
+    });
+  });
+  return sent;
+}
+
+/**
+ * Bramble's case held at its first estimate with the update sent, U4's
+ * explanation kept as U4 keeps it, and the update's link.
+ *
+ * @param db - The run's database.
+ * @returns The case, the first estimate's link and the update's.
+ */
+export async function brambleUpdate(
+  db: Database["db"],
+): Promise<{ first: SentCase; update: SentCase }> {
+  const first = await heldBrambleEstimate(db);
+  const fixture = { practiceId: first.practiceId, caseId: first.caseId };
+  const draft = await makeEstimateVersion(db, {
+    ...fixture,
+    actor: "vet",
+    lines: BRAMBLE_UPDATE_LINES,
+  });
+  await appendAuditEvent(db, {
+    ...fixture,
+    actor: "system",
+    action: "estimate.update_drafted",
+    model: {
+      id: "gpt-6.1-sol",
+      inputSha256: "0".repeat(64),
+      output: { explanation: BRAMBLE_EXPLANATION, explanationFellBack: null },
+    },
+    detail: { versionId: draft.id, number: draft.number, seeded: true },
+  });
+  await sendEstimate(db, { practiceId: first.practiceId, versionId: draft.id, actor: "vet" });
+  const link = await ownerLink(
+    db,
+    { ...fixture, versionId: draft.id },
+    { secret: browserSecret(), now: new Date() },
+  );
+  return { first, update: { ...fixture, versionId: draft.id, path: link.path, token: link.token } };
 }

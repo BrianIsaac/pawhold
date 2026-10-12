@@ -17,6 +17,14 @@
   min-height: 48px;
 }
 
+/* Until PayPal's SDK draws its button and fields, their places hold their shape. */
+.paypalButton:empty {
+  height: 48px;
+  border-radius: 4px;
+  background: var(--owner-rule);
+  animation: settling 1.2s ease-in-out infinite alternate;
+}
+
 .paypalButton :global(paypal-button) {
   display: block;
   width: 100%;
@@ -56,8 +64,41 @@
 }
 
 /* PayPal's hosted field is an iframe sized by its container (PayPal's v6 sample: 3rem). */
+/*
+ * The field's outline is drawn behind PayPal's frame, in the colour and
+ * radius the frame's input is given (authorise.tsx), so the field holds its
+ * shape from the moment the page loads until PayPal's frame paints over it.
+ */
 .cardSlot {
+  position: relative;
+  isolation: isolate;
   height: 3rem;
+}
+
+.cardSlot::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  box-sizing: border-box;
+  border: 1px solid var(--owner-field);
+  border-radius: 4px;
+  background: var(--owner-card);
+}
+
+@keyframes settling {
+  from {
+    opacity: 0.55;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .paypalButton:empty {
+    animation: none;
+  }
 }
 
 .cardButton {
@@ -133,4 +174,30 @@
 .waiting {
   margin: 0;
   color: var(--owner-ink-soft);
+}
+
+.decline {
+  display: flex;
+  flex-direction: column;
+  gap: var(--owner-space-2);
+  padding-top: var(--owner-space-4);
+  border-top: 1px solid var(--owner-rule);
+}
+
+.declineButton {
+  min-height: 48px;
+  padding: var(--owner-space-3) var(--owner-space-4);
+  border: 2px solid var(--owner-ink-soft);
+  border-radius: var(--owner-radius);
+  background: transparent;
+  color: var(--owner-ink);
+  font: inherit;
+  font-size: 1.0625rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.declineButton:disabled {
+  opacity: 0.55;
+  cursor: progress;
 }

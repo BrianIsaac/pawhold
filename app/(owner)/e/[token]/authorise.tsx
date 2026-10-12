@@ -11,25 +11,15 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   CARD_FIELD_LABELS,
   CARD_FIELD_PLACEHOLDERS,
-  confirmedByPayPal,
-  HELD,
-  heldDone,
   OR_USE_A_CARD,
   PAYPAL_ERROR,
   paypalCeilingNote,
-  WAITING_FOR_PAYPAL,
 } from "@/owner/wording";
 
 import styles from "./authorise.module.css";
+import { HeldStatus, type HoldState } from "./held";
 
-/** The hold as the server answers it. */
-export interface HoldState {
-  readonly status:
-    "ordered" | "authorised" | "captured" | "voided" | "expired" | "withdrawn" | "declined";
-  readonly paymentKind: "paypal" | "card" | null;
-  readonly amountPence: number;
-  readonly confirmedAt: string | null;
-}
+export type { HoldState };
 
 /** What the authorise area needs from the page. */
 export interface AuthoriseProps {
@@ -42,13 +32,7 @@ export interface AuthoriseProps {
   readonly amount: string;
   /** The card button's label ("Authorise £927.00", or "Approve £155.00" on an update). */
   readonly cardLabel: string;
-  /** The link's hold as the page was rendered, when its order was made. */
-  readonly hold: HoldState | null;
 }
-
-/** How often, and for how long, the page asks for PayPal's confirmation. */
-const POLL_EVERY_MS = 3_000;
-const POLL_FOR_MS = 60_000;
 
 /** How many times an authorisation PayPal did not answer is asked again (U3: ask again). */
 const AUTHORISE_ATTEMPTS = 3;
@@ -63,6 +47,12 @@ const CARD_SUBMIT_ATTEMPTS = 3;
 type Phase = "loading" | "ready" | "working" | "held" | "unavailable";
 
 const CARD_FIELDS = ["name", "number", "expiry", "cvv"] as const;
+
+/** The card fields' edge, as `--owner-field` (PayPal's frames cannot read the page's CSS). */
+const FIELD_EDGE = "#847d72";
+
+/** The card fields' placeholder text: 5.8:1 on white, where PayPal's default is faint. */
+const PLACEHOLDER = "#6b655d";
 
 /** A refusal from the owner's endpoints. */
 class OwnerRequestError extends Error {
@@ -137,8 +127,8 @@ async function submitCard(
 }
 
 /**
- * PayPal's button and card fields through JS SDK v6, then the hold: "Held",
- * and "Confirmed by PayPal {time}" once the webhook's tick lands. The order
+ * PayPal's button and card fields through JS SDK v6, then the hold
+ * (`HeldStatus`). The order
  * is made by the server (`createOrder`), PayPal's approval happens in
  * PayPal's own window, and the server authorises it (`onApprove`, or the
  * card fields' submit), so no PayPal secret or order body reaches the page.
@@ -149,12 +139,9 @@ async function submitCard(
 export function Authorise(props: AuthoriseProps) {
   const { clientId, token, currency } = props;
   const router = useRouter();
-  const [phase, setPhase] = useState<Phase>(
-    props.hold?.status === "authorised" ? "held" : "loading",
-  );
-  const [hold, setHold] = useState<HoldState | null>(props.hold);
+  const [phase, setPhase] = useState<Phase>("loading");
+  const [hold, setHold] = useState<HoldState | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [stoppedWaiting, setStoppedWaiting] = useState(false);
   const paypalSlot = useRef<HTMLDivElement>(null);
   const cardSlots = useRef<Partial<Record<(typeof CARD_FIELDS)[number], HTMLDivElement | null>>>(
     {},
@@ -179,9 +166,9 @@ export function Authorise(props: AuthoriseProps) {
           if (held.status === "authorised") {
             setHold(held);
             setPhase("held");
-          } else {
-            router.refresh();
           }
+          // The page as it now stands: an update's "Don't go ahead" goes once it is held.
+          router.refresh();
           return;
         } catch (failure) {
           const unavailable =
@@ -268,7 +255,14 @@ export function Authorise(props: AuthoriseProps) {
           ariaLabel: CARD_FIELD_LABELS[type],
           placeholder: CARD_FIELD_PLACEHOLDERS[type],
           style: {
-            input: { fontSize: "16px", fontFamily: "system-ui, sans-serif", color: "#1d2327" },
+            input: {
+              fontSize: "16px",
+              fontFamily: "system-ui, sans-serif",
+              color: "#1d2327",
+              border: `1px solid ${FIELD_EDGE}`,
+              borderRadius: "4px",
+            },
+            "input::placeholder": { color: PLACEHOLDER },
           },
         });
         slots[type]?.append(field);
@@ -297,34 +291,6 @@ export function Authorise(props: AuthoriseProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  useEffect(() => {
-    if (phase !== "held" || hold?.confirmedAt) {
-      return;
-    }
-    let ended = false;
-    const until = Date.now() + POLL_FOR_MS;
-    const poll = async () => {
-      while (!ended && Date.now() < until) {
-        await pause(POLL_EVERY_MS);
-        const response = await fetch(`/e/${token}/status`, { cache: "no-store" }).catch(() => null);
-        const answer = response?.ok
-          ? ((await response.json()) as { hold: HoldState | null })
-          : null;
-        if (!ended && answer?.hold?.confirmedAt) {
-          setHold(answer.hold);
-          break;
-        }
-      }
-      if (!ended) {
-        setStoppedWaiting(true);
-      }
-    };
-    void poll();
-    return () => {
-      ended = true;
-    };
-  }, [phase, hold?.confirmedAt, token]);
-
   const payByCard = async () => {
     const card = cardSession.current;
     if (!card || phase !== "ready") {
@@ -349,17 +315,13 @@ export function Authorise(props: AuthoriseProps) {
     }
   };
 
-  if (phase === "held" && hold?.paymentKind) {
+  if (phase === "held" && hold?.status === "authorised" && hold.paymentKind) {
     return (
-      <div className={styles.held} role="status" aria-live="polite">
-        <p className={styles.heldChip}>{HELD}</p>
-        <p className={styles.heldDone}>{heldDone(props.amount, hold.paymentKind)}</p>
-        {hold.confirmedAt ? (
-          <p className={styles.confirmed}>{confirmedByPayPal(new Date(hold.confirmedAt))}</p>
-        ) : !stoppedWaiting ? (
-          <p className={styles.waiting}>{WAITING_FOR_PAYPAL}</p>
-        ) : null}
-      </div>
+      <HeldStatus
+        token={token}
+        amount={props.amount}
+        hold={{ ...hold, paymentKind: hold.paymentKind }}
+      />
     );
   }
 

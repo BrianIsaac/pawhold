@@ -1,21 +1,18 @@
 import type { ReactNode } from "react";
 
-import { WHAT_THE_VET_WROTE, onlyIf } from "@/agent/wording";
 import { formatPence } from "@/money/format";
-import type { OwnerPage } from "@/owner/view";
+import type { OwnerEstimatePage } from "@/owner/view";
 import {
   askFirst,
   estimateHeading,
   estimateIntro,
-  linePrice,
   LINES_LABEL,
   rangeLine,
   YOUR_VET,
 } from "@/owner/wording";
 
+import { OwnerLines } from "./lines";
 import styles from "./page.module.css";
-
-type EstimatePage = Extract<OwnerPage, { kind: "estimate" }>;
 
 /**
  * The estimate the owner is asked to authorise (section 6): the lines in the
@@ -24,14 +21,14 @@ type EstimatePage = Extract<OwnerPage, { kind: "estimate" }>;
  *
  * @param props - The page and the way to authorise.
  * @param props.page - The estimate.
- * @param props.authorise - PayPal's buttons and card fields, or what stands in their place.
+ * @param props.authorise - PayPal's buttons and card fields, the hold, or what stands in their place.
  * @returns The page.
  */
 export function Estimate({
   page,
   authorise,
 }: {
-  readonly page: EstimatePage;
+  readonly page: OwnerEstimatePage;
   readonly authorise?: ReactNode;
 }) {
   const money = (pence: number) => formatPence(pence, page.currency);
@@ -47,30 +44,7 @@ export function Estimate({
 
       <p className={styles.range}>{rangeLine(YOUR_VET, money(page.totals.lowPence), high)}</p>
 
-      <section className={styles.section} aria-labelledby="estimate-lines">
-        <h2 id="estimate-lines" className={styles.sectionHeading}>
-          {LINES_LABEL}
-        </h2>
-        <ul className={styles.lines} aria-label={LINES_LABEL}>
-          {page.lines.map((line) => (
-            <li key={line.position} className={styles.line}>
-              <div className={styles.lineRow}>
-                <span className={styles.lineWording}>{line.wording}</span>
-                <span className={styles.linePrice}>
-                  {linePrice(money(line.lowPence), money(line.highPence))}
-                </span>
-              </div>
-              {line.dependsOn ? <p className={styles.onlyIf}>{onlyIf(line.dependsOn)}</p> : null}
-              {line.notesSpan ? (
-                <details className={styles.notes}>
-                  <summary>{WHAT_THE_VET_WROTE}</summary>
-                  <blockquote>{line.notesSpan}</blockquote>
-                </details>
-              ) : null}
-            </li>
-          ))}
-        </ul>
-      </section>
+      <OwnerLines lines={page.lines} currency={page.currency} label={LINES_LABEL} id="lines" />
 
       {authorise ? <section className={styles.authorise}>{authorise}</section> : null}
 

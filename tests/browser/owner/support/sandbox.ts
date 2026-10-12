@@ -10,6 +10,8 @@ import { paypalRequestId } from "@/paypal/request-id";
 import type { BuyerLogin } from "../../../../probes/buyer";
 import { retryingFetch } from "../../../../probes/retry";
 
+import { SEEDED_ID_PREFIX } from "./cases";
+
 /*
  * The owner's walks against PayPal's sandbox: skipped without
  * PAYPAL_CLIENT_ID. The webhook's tick is waited for only when a webhook
@@ -83,7 +85,8 @@ function sandboxClient(): PayPalClient {
 /**
  * Voids every authorisation the practices' holds left standing, those whose
  * authorise answer pawhold never recorded included, and answers what is
- * still held after (which should be nothing).
+ * still held after (which should be nothing). Seeded holds were never
+ * PayPal's and are passed over.
  *
  * @param db - The run's database.
  * @param practiceIds - The practices the walks made.
@@ -102,7 +105,7 @@ export async function voidWhatTheWalksHeld(
     .from(hold)
     .where(inArray(hold.practiceId, [...practiceIds]));
   const stillHeld: string[] = [];
-  for (const one of holds) {
+  for (const one of holds.filter((made) => !made.paypalOrderId.startsWith(SEEDED_ID_PREFIX))) {
     const unrecorded =
       one.authorizationId === null
         ? ((await getOrder(paypal, one.paypalOrderId)).purchase_units?.flatMap(

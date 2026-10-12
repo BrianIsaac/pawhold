@@ -224,6 +224,7 @@ export function createOwnerHandlers(dependencies: OwnerHandlerDependencies) {
           practiceId: link.practiceId,
           caseId: link.caseId,
           actor: "owner",
+          versionId: link.versionId,
         }),
       }));
     },

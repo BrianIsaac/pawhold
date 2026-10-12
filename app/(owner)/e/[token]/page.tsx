@@ -3,13 +3,23 @@ import type { Metadata } from "next";
 import { formatPence } from "@/money/format";
 import { resolveOwnerLink } from "@/owner/resolve";
 import { ownerPage } from "@/owner/view";
-import { authoriseLabel, authorisingUnavailable } from "@/owner/wording";
+import {
+  approveLabel,
+  authoriseLabel,
+  authorisingUnavailable,
+  linkReplaced,
+  REPLACED_HEADING,
+  updateDeclined,
+} from "@/owner/wording";
 import { database, paypalBrowserClientId, sessionSecret } from "@/server/runtime";
 
-import { AskThePractice } from "./ask-the-practice";
+import { AskThePractice, Notice } from "./ask-the-practice";
 import { Authorise } from "./authorise";
+import { Decline } from "./decline";
 import { Estimate } from "./estimate";
+import { HeldStatus } from "./held";
 import styles from "./page.module.css";
+import { Update } from "./update";
 
 export const dynamic = "force-dynamic";
 
@@ -38,36 +48,75 @@ export default async function OwnerLinkPage({ params }: PageProps<"/e/[token]">)
   if (!page) {
     return <AskThePractice practiceName={null} />;
   }
-  const clientId = paypalBrowserClientId();
-  const amount = formatPence(page.holdPence, page.currency);
-  const awaiting = page.state === "awaiting_owner" || page.hold?.status === "authorised";
+
+  const held = page.hold?.status === "authorised";
+  const awaiting =
+    page.isLatest &&
+    page.state === (page.kind === "estimate" ? "awaiting_owner" : "update_awaiting_owner");
+  if (!held && !awaiting && !page.isLatest) {
+    return <Notice heading={REPLACED_HEADING} text={linkReplaced(page.header.practiceName)} />;
+  }
+
+  const money = (pence: number) => formatPence(pence, page.currency);
+  const authorise = (amount: string, cardLabel: string) => {
+    if (page.hold?.status === "authorised" && page.hold.paymentKind) {
+      return (
+        <HeldStatus
+          token={token}
+          amount={amount}
+          hold={{
+            status: page.hold.status,
+            paymentKind: page.hold.paymentKind,
+            amountPence: page.hold.amount.pence,
+            confirmedAt: page.hold.confirmedAt?.toISOString() ?? null,
+          }}
+        />
+      );
+    }
+    const clientId = paypalBrowserClientId();
+    return clientId ? (
+      <Authorise
+        clientId={clientId}
+        token={token}
+        currency={page.currency}
+        amount={amount}
+        cardLabel={cardLabel}
+      />
+    ) : (
+      <p className={styles.unavailable} role="alert">
+        {authorisingUnavailable(page.header.practiceName)}
+      </p>
+    );
+  };
+
+  if (page.kind === "estimate") {
+    const amount = money(page.holdPence);
+    return (
+      <Estimate
+        page={page}
+        authorise={held || awaiting ? authorise(amount, authoriseLabel(amount)) : null}
+      />
+    );
+  }
+
+  const delta = money(page.increasePence);
+  const declined = page.isLatest && page.state === "update_declined";
   return (
-    <Estimate
+    <Update
       page={page}
-      authorise={
-        !awaiting ? null : clientId ? (
-          <Authorise
-            clientId={clientId}
-            token={token}
-            currency={page.currency}
-            amount={amount}
-            cardLabel={authoriseLabel(amount)}
-            hold={
-              page.hold
-                ? {
-                    status: page.hold.status,
-                    paymentKind: page.hold.paymentKind,
-                    amountPence: page.hold.amount.pence,
-                    confirmedAt: page.hold.confirmedAt?.toISOString() ?? null,
-                  }
-                : null
-            }
-          />
-        ) : (
-          <p className={styles.unavailable} role="alert">
-            {authorisingUnavailable(page.header.practiceName)}
+      answer={
+        held ? (
+          authorise(delta, approveLabel(delta))
+        ) : awaiting ? (
+          <>
+            {authorise(delta, approveLabel(delta))}
+            <Decline token={token} />
+          </>
+        ) : declined ? (
+          <p className={styles.declined} role="status">
+            {updateDeclined(money(page.heldPence))}
           </p>
-        )
+        ) : null
       }
     />
   );

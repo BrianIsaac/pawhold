@@ -8,7 +8,12 @@ import { OWNER_LINK_LIFETIME_MS, ownerLink } from "@/owner/link";
 import { createOwnerHandlers } from "@/owner/handlers";
 
 import { connectTestDatabase } from "../support/database";
-import { DENTAL_LINES, makeDentalCase, type MoneyFixture } from "../support/money";
+import {
+  DENTAL_LINES,
+  DENTAL_UPDATE_LINES,
+  makeDentalCase,
+  type MoneyFixture,
+} from "../support/money";
 import { startPayPalDouble } from "../support/paypal-double";
 
 const { db } = connectTestDatabase();
@@ -198,5 +203,42 @@ describe("the owner's hold, as the page polls it", () => {
         confirmedAt: confirmedAt.toISOString(),
       },
     });
+  });
+});
+
+describe("the owner's \"Don't go ahead\"", () => {
+  it("declines the update awaiting the owner and leaves the case held at its first estimate", async () => {
+    const { orderId } = (await (await handlers().order(request("order"), token)).json()) as {
+      orderId: string;
+    };
+    paypal.approve(orderId, "paypal");
+    await handlers().authorise(request("authorise", { body: { orderId } }), token);
+    const update = await makeEstimateVersion(db, {
+      ...fixture,
+      actor: "vet",
+      lines: DENTAL_UPDATE_LINES,
+    });
+    await sendEstimate(db, { practiceId: fixture.practiceId, versionId: update.id, actor: "vet" });
+    const updateToken = (
+      await ownerLink(db, { ...fixture, versionId: update.id }, { secret: SECRET, now: new Date() })
+    ).token;
+    const decline = new Request(`${ORIGIN}/e/${updateToken}/decline`, {
+      method: "POST",
+      headers: { origin: ORIGIN },
+    });
+
+    const answer = await handlers().decline(decline, updateToken);
+
+    expect(answer.status).toBe(200);
+    expect(await answer.json()).toEqual({ state: "update_declined" });
+    const holds = await db.select().from(hold).where(eq(hold.caseId, fixture.caseId));
+    expect(holds.map((one) => [one.id, one.status])).toEqual([[versionId, "authorised"]]);
+  });
+
+  it("refuses to decline a first estimate: there is nothing held to stay at", async () => {
+    const answer = await handlers().decline(request("decline"), token);
+
+    expect(answer.status).toBe(409);
+    expect(await answer.json()).toEqual({ reason: "wrong_state" });
   });
 });

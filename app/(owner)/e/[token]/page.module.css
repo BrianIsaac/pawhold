@@ -164,3 +164,23 @@
   background: var(--owner-warn-wash);
   color: var(--owner-warn);
 }
+
+.eyebrow {
+  margin: 0 0 var(--owner-space-2);
+  color: var(--owner-ink-soft);
+  font-size: 0.9375rem;
+  font-weight: 500;
+}
+
+.explanation {
+  margin: 0;
+  font-size: 1.0625rem;
+}
+
+.declined {
+  margin: 0;
+  padding: var(--owner-space-4);
+  border: 1px solid var(--owner-rule);
+  border-radius: var(--owner-radius);
+  background: var(--owner-card);
+}

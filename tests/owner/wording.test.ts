@@ -13,7 +13,14 @@ import {
   PAYPAL_ERROR,
   rangeLine,
   YOUR_VET,
+  capitalised,
+  updateAdds,
+  DONT_GO_AHEAD,
+  PRACTICE_WILL_CALL,
+  updateDeclined,
+  linkReplaced,
 } from "@/owner/wording";
+import { updateHeading } from "@/agent/wording";
 
 describe("the owner's pages, in section 6's words", () => {
   it("asks the practice to send an expired or changed link again", () => {
@@ -79,6 +86,32 @@ describe("authorising, in section 6's words", () => {
     );
     expect(PAYPAL_ERROR).toBe(
       "PayPal couldn't complete that. Nothing has been charged. Try again, or use a card.",
+    );
+  });
+});
+
+describe("an update, in section 6's words", () => {
+  it("heads the update with the vet asking first", () => {
+    expect(updateHeading(capitalised(YOUR_VET))).toBe(
+      "Your vet found something and is asking before going ahead.",
+    );
+  });
+
+  it("says what the update adds to the estimate", () => {
+    expect(updateAdds("£155.00", "Bramble")).toBe("This adds £155.00 to Bramble's estimate.");
+  });
+
+  it("offers not to go ahead, and says what follows", () => {
+    expect(DONT_GO_AHEAD).toBe("Don't go ahead");
+    expect(PRACTICE_WILL_CALL).toBe("The practice will call you to talk it through.");
+  });
+
+  it("says what stays held once the owner said no, and that an old link was replaced", () => {
+    expect(updateDeclined("£927.00")).toBe(
+      "You said not to go ahead. The practice will call you to talk it through. The £927.00 already held stays as it is.",
+    );
+    expect(linkReplaced("Hollins Lane Veterinary Surgery")).toBe(
+      "This estimate has been replaced by a newer one. Ask Hollins Lane Veterinary Surgery for its link.",
     );
   });
 });

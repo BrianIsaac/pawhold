@@ -195,3 +195,48 @@ export const CARD_FIELD_PLACEHOLDERS = {
   expiry: "MM/YY",
   cvv: "3 or 4 digits",
 } as const;
+
+/**
+ * What the update adds (section 6: "This adds {delta} to {patient}'s
+ * estimate.").
+ *
+ * @param delta - The increase over what is held, shown.
+ * @param patient - The patient's name.
+ * @returns The sentence.
+ */
+export function updateAdds(delta: string, patient: string): string {
+  return `This adds ${delta} to ${patient}'s estimate.`;
+}
+
+/** The owner's "no" to an update (section 6). */
+export const DONT_GO_AHEAD = "Don't go ahead";
+
+/** Under "Don't go ahead" (section 6). */
+export const PRACTICE_WILL_CALL = "The practice will call you to talk it through.";
+
+/** Above the lines an update adds: this unit's wording. */
+export const ADDED_LABEL = "What this adds";
+
+/**
+ * Once the owner declined the update: this unit's wording.
+ *
+ * @param held - What stays held, shown.
+ * @returns The sentence.
+ */
+export function updateDeclined(held: string): string {
+  return `You said not to go ahead. ${PRACTICE_WILL_CALL} The ${held} already held stays as it is.`;
+}
+
+/**
+ * A link to an estimate a newer one replaced, never authorised: this unit's
+ * wording.
+ *
+ * @param practice - The practice's name.
+ * @returns The sentence.
+ */
+export function linkReplaced(practice: string): string {
+  return `This estimate has been replaced by a newer one. Ask ${practice} for its link.`;
+}
+
+/** The heading over a replaced estimate's notice: this unit's wording. */
+export const REPLACED_HEADING = "There is a newer estimate";

@@ -78,3 +78,24 @@ export async function expectTargetsAtLeast44(page: Page): Promise<void> {
   }
   expect(small).toEqual([]);
 }
+
+/**
+ * Waits until PayPal's SDK has drawn its button and card fields, or the
+ * page has said authorising is unavailable, so a shot or a check sees the
+ * page as the owner does once it has loaded.
+ *
+ * @param page - The page.
+ */
+export async function untilPayPalDrawn(page: Page): Promise<void> {
+  const button = page.locator("paypal-button");
+  // Not `getByRole("alert")`: Next's route announcer is one too.
+  const unavailable = page.getByText(/^Authorising isn't available on this page right now\./);
+  await expect(button.or(unavailable)).toBeVisible({ timeout: 30_000 });
+  if (await button.isVisible()) {
+    for (const type of ["name", "number", "expiry", "cvv"]) {
+      await expect(
+        page.frameLocator(`[data-card-field=${type}] iframe`).locator("input").first(),
+      ).toBeVisible({ timeout: 30_000 });
+    }
+  }
+}
