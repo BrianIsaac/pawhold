@@ -14,7 +14,10 @@ import {
 } from "@/db/schema";
 import { caseEstimateVersions } from "@/estimate/version";
 import { createJudgeSessionHandlers } from "@/judge/session";
+import { refundableCaptures } from "@/discharge/refund";
 import { reauthoriseHolds } from "@/jobs/reauthorise";
+import { MoneyError } from "@/money/errors";
+import { refundCaptured } from "@/money/refunds";
 import { caseMoney } from "@/money/view";
 import type { PayPalClient } from "@/paypal/client";
 import { todaysCases } from "@/practice/cases";
@@ -407,5 +410,45 @@ describe("the showcase (plan 3.2: cases at every money state)", () => {
     expect(asked).toEqual([]);
     const chips = await chipsByPatient();
     expect(chips.get("Hazel")).toEqual(["Held £586.00", "Honour period over"]);
+  });
+
+  it("never refunds a seeded capture at PayPal: it is refused, and no refund is offered for it", async () => {
+    const asked: string[] = [];
+    const refusing: PayPalClient = {
+      get: async (path) => {
+        asked.push(path);
+        throw new Error("a seeded capture must never reach PayPal");
+      },
+      post: async (path) => {
+        asked.push(path);
+        throw new Error("a seeded capture must never reach PayPal");
+      },
+    };
+    const poppy = caseOf("Poppy");
+    const [taken] = await db
+      .select({ id: capture.id })
+      .from(capture)
+      .innerJoin(hold, eq(hold.id, capture.holdId))
+      .where(eq(hold.caseId, poppy));
+
+    const refused = await refundCaptured(
+      { db, paypal: refusing },
+      {
+        practiceId,
+        caseId: poppy,
+        captureId: taken!.id,
+        amountPence: 1_000,
+        reason: "Goodwill",
+        actor: "vet",
+      },
+    ).catch((error: unknown) => error);
+
+    expect(refused).toBeInstanceOf(MoneyError);
+    expect((refused as MoneyError).reason).toBe("refund_refused");
+    expect(asked).toEqual([]);
+    expect(await db.select().from(refund).where(eq(refund.captureId, taken!.id))).toEqual([]);
+    for (const patient of ["Poppy", "Teddy", "Luna"]) {
+      expect(await refundableCaptures(db, practiceId, caseOf(patient)), patient).toEqual([]);
+    }
   });
 });

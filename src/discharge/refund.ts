@@ -6,6 +6,7 @@ import { capture, patientCase, refund } from "@/db/schema";
 import type { MoneyDependencies } from "@/money/holds";
 import { refundCaptured, type RefundView } from "@/money/refunds";
 import { caseHolds } from "@/money/view";
+import { isSeededPayPalId } from "@/paypal/seeded";
 import { PracticeError } from "@/practice/errors";
 
 import { holdName, money } from "./wording";
@@ -51,7 +52,10 @@ export async function refundableCaptures(
   if (!own) {
     return [];
   }
-  const holds = (await caseHolds(executor, caseId)).filter((one) => one.authorisedAt !== null);
+  // A seeded hold's captures were never PayPal's, so they are never offered for a refund.
+  const holds = (await caseHolds(executor, caseId)).filter(
+    (one) => one.authorisedAt !== null && !isSeededPayPalId(one.paypalOrderId),
+  );
   if (holds.length === 0) {
     return [];
   }
