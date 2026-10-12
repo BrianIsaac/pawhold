@@ -1,19 +1,15 @@
 import { createHash } from "node:crypto";
 
-import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 
 import { appendAuditEvent } from "@/audit/writer";
-import { patientCase } from "@/db/schema";
 import { currentPriceList } from "@/estimate/price-list";
 import {
-  caseEstimateVersions,
   type EstimateDelta,
   estimateDelta,
   EstimateError,
   type EstimateVersionView,
   linesOf,
-  makeEstimateVersion,
 } from "@/estimate/version";
 
 import { type AskFailure, askModel, asJson } from "./ask";
@@ -25,12 +21,14 @@ import {
   type UnmatchedSpan,
   type UnsupportedLine,
 } from "./guardrails";
+import type { DraftedLineNote } from "./draft";
 import {
   type AgentDependencies,
-  assertDraftable,
-  type DraftedLineNote,
+  askContext,
+  caseEstimateState,
   parseAgentRequest,
-} from "./draft";
+  writeDraft,
+} from "./jobs";
 import type { ModelImage, ModelRequest } from "./model";
 import type { PromptItem } from "./prompts/price-list";
 import { UPDATE_PROMPT_VERSION, updateInstructions } from "./prompts/update";
@@ -154,7 +152,8 @@ export function updateRequest(parts: UpdateRequestParts): ModelRequest {
  * as a draft, their spans checked against the vet's finding only, and a short
  * explanation for the owner that is shown only if it passes its checks. The
  * new version, a draft, holds the sent lines and the delta lines; a model
- * failure leaves the sent lines alone for the vet to add to by hand. The
+ * failure leaves the sent lines alone for the vet to add to by hand (or an
+ * open update draft as it was); pressing it again redrafts the open draft. The
  * version and its `estimate.update_drafted` audit event commit together; the
  * photo's hash, type and size are recorded, never the photo.
  *
@@ -162,7 +161,7 @@ export function updateRequest(parts: UpdateRequestParts): ModelRequest {
  * @param request - The practice, the case, the finding and the photo.
  * @returns The update.
  * @throws EstimateError when the request is malformed, the case is not the
- *   practice's, a draft is open, the case has no sent estimate, or the
+ *   practice's, the case has no sent estimate, or the
  *   practice has no price list; each before the model is asked.
  */
 export async function draftUpdate(
@@ -171,10 +170,8 @@ export async function draftUpdate(
 ): Promise<DraftedUpdate> {
   const { practiceId, caseId, finding, photo } = parseAgentRequest(updateRequestInput, request);
   const { db, model } = dependencies;
-  await assertDraftable(db, practiceId, caseId);
-  const basedOn = (await caseEstimateVersions(db, practiceId, caseId))
-    .filter((version) => version.sentAt !== null)
-    .at(-1);
+  const state = await caseEstimateState(db, practiceId, caseId);
+  const basedOn = state.lastSent;
   if (!basedOn) {
     throw new EstimateError("version_not_found", "the case has no sent estimate to update");
   }
@@ -182,19 +179,15 @@ export async function draftUpdate(
   if (!list) {
     throw new EstimateError("no_price_list", "the practice has no price list to draft from");
   }
-  const [kase] = await db
-    .select({ patientName: patientCase.patientName })
-    .from(patientCase)
-    .where(and(eq(patientCase.id, caseId), eq(patientCase.practiceId, practiceId)));
 
   const modelRequest = updateRequest({
     items: list.items.values(),
-    patientName: kase!.patientName,
+    patientName: state.patientName,
     basedOn,
     finding,
     photo,
   });
-  const asked = await askModel(model, modelRequest, updateEnvelope);
+  const asked = await askModel(askContext(dependencies, practiceId), modelRequest, updateEnvelope);
 
   return db.transaction(async (tx) => {
     const current = (await currentPriceList(tx, practiceId)) ?? list;
@@ -206,11 +199,12 @@ export async function draftUpdate(
       : null;
     const explanation =
       asked.answer && explanationFellBack === null ? asked.answer.explanation.trim() : null;
-    const version = await makeEstimateVersion(tx, {
+    const version = await writeDraft(tx, {
       practiceId,
       caseId,
-      actor: "system",
+      open: state.open,
       lines: [...linesOf(basedOn), ...guarded.kept.map((kept) => kept.line)],
+      failed: asked.failure !== null,
     });
     await appendAuditEvent(tx, {
       practiceId,
@@ -236,7 +230,7 @@ export async function draftUpdate(
         number: version.number,
         basedOnVersionId: basedOn.id,
         promptVersion: UPDATE_PROMPT_VERSION,
-        source: "model",
+        source: asked.source,
         photo: photo
           ? {
               mediaType: photo.mediaType,

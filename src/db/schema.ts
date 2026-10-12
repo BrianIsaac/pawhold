@@ -10,6 +10,7 @@ import {
   jsonb,
   pgEnum,
   pgTable,
+  primaryKey,
   text,
   timestamp,
   unique,
@@ -357,5 +358,31 @@ export const estimateLine = pgTable(
     ),
     unique("estimate_line_position_key").on(table.versionId, table.position),
     index("estimate_line_item_idx").on(table.priceListItemId),
+  ],
+);
+
+/**
+ * The estimate agent's answers kept by practice and request hash (D8's draft
+ * cache): the same notes and list drafted twice in a practice ask the model
+ * once. Only answers that passed the job's envelope are kept. A practice's
+ * own, so one judge's cache never answers, or reveals, another's notes.
+ */
+export const agentAnswer = pgTable(
+  "agent_answer",
+  {
+    practiceId: uuid("practice_id")
+      .notNull()
+      .references(() => practice.id, { onDelete: "cascade" }),
+    inputSha256: text("input_sha256").notNull(),
+    job: text("job").notNull(),
+    modelId: text("model_id").notNull(),
+    servedModel: text("served_model").notNull(),
+    answer: jsonb("answer").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    primaryKey({ name: "agent_answer_pkey", columns: [table.practiceId, table.inputSha256] }),
+    check("agent_answer_input_sha256", sql`${table.inputSha256} ~ '^[0-9a-f]{64}$'`),
+    check("agent_answer_job", sql`${table.job} in ('draft', 'update')`),
   ],
 );

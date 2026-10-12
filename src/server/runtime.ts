@@ -1,5 +1,6 @@
 import "server-only";
 
+import { agentFromEnvironment, type ServerAgent } from "@/agent/environment";
 import { createDatabase, type Database } from "@/db/client";
 import {
   databaseEnvironment,
@@ -26,6 +27,7 @@ interface Runtime {
   webhookHandler?: (request: Request) => Promise<Response>;
   judgeSessions?: ReturnType<typeof createJudgeSessionHandlers>;
   health?: () => Promise<Response>;
+  agent?: ServerAgent;
 }
 
 const holder = globalThis as typeof globalThis & { __pawholdRuntime?: Runtime };
@@ -122,4 +124,17 @@ export function healthHandler(): () => Promise<Response> {
     commit: process.env.RENDER_GIT_COMMIT ?? null,
   });
   return runtime.health;
+}
+
+/**
+ * The estimate agent (U4): OpenAI's `gpt-6.1-sol` when `OPENAI_API_KEY` is
+ * set, else every draft is an empty estimate; the per-session cap from
+ * `AGENT_DRAFTS_PER_HOUR` (D8).
+ *
+ * @returns The agent's dependencies, for `draftEstimate` and `draftUpdate`.
+ * @throws EnvironmentError when `DATABASE_URL` is missing or the cap is malformed.
+ */
+export function estimateAgent(): ServerAgent {
+  runtime.agent ??= agentFromEnvironment(database().db);
+  return runtime.agent;
 }

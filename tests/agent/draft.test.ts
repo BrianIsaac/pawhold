@@ -6,7 +6,12 @@ import { MODEL_SETTINGS, requestHash } from "@/agent/model";
 import { createRecordedModel, memoryRecordedStore, type RecordedStore } from "@/agent/recorded";
 import { auditEvent, patientCase, practice } from "@/db/schema";
 import { currentPriceList, importPriceList, type PriceListWithItems } from "@/estimate/price-list";
-import { EstimateError, makeEstimateVersion, replaceDraftLines } from "@/estimate/version";
+import {
+  EstimateError,
+  makeEstimateVersion,
+  replaceDraftLines,
+  sendEstimateVersion,
+} from "@/estimate/version";
 
 import { readSeedPriceList } from "../../seed/practice";
 import { countingModel, failingModel, primeAnswer } from "../support/agent";
@@ -297,8 +302,14 @@ describe("what is refused before the model is asked", () => {
     expect(counted.calls).toEqual([]);
   });
 
-  it("refuses a case with a draft open", async () => {
-    await makeEstimateVersion(db, { practiceId, caseId, actor: "vet", lines: [] });
+  it("refuses a case whose estimate was sent: an update is the way to change it", async () => {
+    const first = await makeEstimateVersion(db, {
+      practiceId,
+      caseId,
+      actor: "vet",
+      lines: [{ code: "DEN-SP", quantityLow: 1, quantityHigh: 1 }],
+    });
+    await sendEstimateVersion(db, { practiceId, versionId: first.id, actor: "vet" });
     const counted = countingModel(createRecordedModel(store));
 
     const error = await draftEstimate(
@@ -306,8 +317,32 @@ describe("what is refused before the model is asked", () => {
       { practiceId, caseId, notes: NOTES },
     ).catch((caught: unknown) => caught);
 
-    expect((error as EstimateError).reason).toBe("draft_exists");
+    expect((error as EstimateError).reason).toBe("sent");
     expect(counted.calls).toEqual([]);
+  });
+
+  it("redrafts an open first draft the vet made, leaving it as it was if the model fails", async () => {
+    const open = await makeEstimateVersion(db, {
+      practiceId,
+      caseId,
+      actor: "vet",
+      lines: [{ code: "DEN-SP", quantityLow: 1, quantityHigh: 1 }],
+    });
+
+    const failed = await draftEstimate(
+      { db, model: failingModel("transport") },
+      { practiceId, caseId, notes: NOTES },
+    );
+    expect(failed.version.id).toBe(open.id);
+    expect(failed.version.lines.map((line) => line.code)).toEqual(["DEN-SP"]);
+
+    answerWith({ lines: GOOD_LINES, unmatched: [] });
+    const redrafted = await draftEstimate(
+      { db, model: createRecordedModel(store) },
+      { practiceId, caseId, notes: NOTES },
+    );
+    expect(redrafted.version.id).toBe(open.id);
+    expect(redrafted.version.lines).toHaveLength(4);
   });
 
   it("refuses another practice's case", async () => {

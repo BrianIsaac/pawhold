@@ -12,6 +12,7 @@ import { currentPriceList, importPriceList, type PriceListWithItems } from "@/es
 import {
   EstimateError,
   type EstimateVersionView,
+  linesOf,
   makeEstimateVersion,
   sendEstimateVersion,
 } from "@/estimate/version";
@@ -331,13 +332,22 @@ describe("what is refused before the model is asked", () => {
     expect(counted.calls).toEqual([]);
   });
 
-  it("refuses an update while a draft is open", async () => {
-    await makeEstimateVersion(db, { practiceId, caseId, actor: "vet", lines: [] });
-    const error = await draftUpdate(
+  it("redrafts an open update draft rather than making another version", async () => {
+    const open = await makeEstimateVersion(db, {
+      practiceId,
+      caseId,
+      actor: "vet",
+      lines: linesOf(sent),
+    });
+    answerWith({ lines: DELTA, explanation: EXPLANATION });
+
+    const update = await draftUpdate(
       { db, model: createRecordedModel(store) },
       { practiceId, caseId, finding: FINDING, photo: null },
-    ).catch((caught: unknown) => caught);
-    expect((error as EstimateError).reason).toBe("draft_exists");
+    );
+
+    expect(update.version.id).toBe(open.id);
+    expect(update.version.lines).toHaveLength(5);
   });
 
   it.each([

@@ -40,6 +40,8 @@ services:
         value: "false"
       - key: OPENAI_API_KEY
         sync: false
+      - key: AGENT_DRAFTS_PER_HOUR
+        value: "40"
 
   # The reauthorisation rule (U3) and the judge-session clean-up (U9) run
   # here; until they land it checks the database and exits.
