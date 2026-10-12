@@ -133,8 +133,7 @@ export function BillForm({
                 <li key={line.estimateLineId} className={styles.line}>
                   <div className={styles.lineWhat}>
                     <p className={caseStyles.lineName}>
-                      {line.name}
-                      <span className={caseStyles.code}>{line.code}</span>
+                      {line.name} <span className={caseStyles.code}>{line.code}</span>
                     </p>
                     {line.ownerWording === null ? null : (
                       <p className={styles.lineNote}>
@@ -368,8 +367,14 @@ function ExtraWork({
               <li key={one.code} className={styles.line}>
                 <div className={styles.lineWhat}>
                   <p className={caseStyles.lineName}>
-                    {extra?.name ?? names.get(one.code) ?? one.code}
-                    <span className={caseStyles.code}>{one.code}</span>
+                    {extra ? (
+                      <>
+                        {extra.name} <span className={caseStyles.code}>{one.code}</span>
+                      </>
+                    ) : (
+                      // The price list's own label, which names the code already.
+                      (names.get(one.code) ?? one.code)
+                    )}
                   </p>
                   <p className={styles.refused}>{extra?.issue ?? ""}</p>
                 </div>

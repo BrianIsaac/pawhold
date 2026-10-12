@@ -29,6 +29,13 @@ h2,
 h3 {
   line-height: var(--line-height-tight);
   font-weight: var(--font-weight-bold);
+  text-wrap: balance;
+}
+
+p,
+li,
+dd {
+  text-wrap: pretty;
 }
 
 a {

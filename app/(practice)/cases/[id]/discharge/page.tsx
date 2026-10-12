@@ -148,7 +148,7 @@ export default async function DischargePage(props: PageProps<"/cases/[id]/discha
               <dd>{view.case.vetName}</dd>
             </div>
           ) : null}
-          {view.signed === null ? (
+          {view.signed === null && view.money.state !== "held" ? (
             <div>
               <dt>Held</dt>
               <dd>{money(view.heldPence, view.currency)}</dd>

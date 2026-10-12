@@ -28,7 +28,9 @@
   background: var(--colour-surface);
 }
 
+/* As tall signed out, with the brand alone, as with the practice's name and navigation. */
 .headerInner {
+  min-height: calc(var(--target-min) + 2 * var(--space-2));
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -132,12 +134,13 @@
   gap: var(--space-3);
 }
 
+/* A refusal, in the notice's tones the case pages give every refusal; each field says its own fault in red. */
 .alert {
   margin: 0;
   padding: var(--space-3) var(--space-4);
   border-radius: var(--radius-2);
-  background: var(--colour-danger-soft);
-  color: var(--colour-danger-strong);
+  background: var(--colour-notice-soft);
+  color: var(--colour-notice-ink);
 }
 
 .patientLink {
