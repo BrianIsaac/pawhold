@@ -210,7 +210,7 @@ export async function loadDay(
   const heldBy = new Map(open.map((proposal) => [proposal.bookingId, proposal]));
   const movedBy = new Map(
     open
-      .filter((proposal) => proposal.moveStatus === "proposed" && proposal.moveBookingId !== null)
+      .filter((proposal) => moveOpen(proposal, now))
       .map((proposal) => [proposal.moveBookingId!, proposal]),
   );
   const chips = new Map<string, MoneyChip>();
@@ -263,7 +263,7 @@ export async function loadDay(
       heldNote: heldNote(minuteIn(timeZone, proposal.heldAt)),
       reason: proposal.reason,
       move:
-        proposal.moveStatus === "proposed" && proposal.moveBookingId && proposal.movePatientName
+        moveOpen(proposal, now) && proposal.moveBookingId && proposal.movePatientName
           ? {
               bookingId: proposal.moveBookingId,
               patientName: proposal.movePatientName,
@@ -357,4 +357,27 @@ function floorToHour(at: number, mark: Date): number {
  */
 function ceilToHour(at: number, mark: Date): number {
   return mark.getTime() + Math.ceil((at - mark.getTime()) / HOUR_MS) * HOUR_MS;
+}
+
+/**
+ * Whether a proposal's move can still be made: proposed, and its held slot not
+ * yet started (the next sweep withdraws one that has).
+ *
+ * @param proposal - The proposal.
+ * @param proposal.moveStatus - Where its move stands.
+ * @param proposal.moveBookingId - The booking it would move.
+ * @param proposal.moveTo - Where it would move it to.
+ * @param now - The clock.
+ * @returns Whether the move is offered.
+ */
+function moveOpen(
+  proposal: { moveStatus: string | null; moveBookingId: string | null; moveTo: Date | null },
+  now: Date,
+): boolean {
+  return (
+    proposal.moveStatus === "proposed" &&
+    proposal.moveBookingId !== null &&
+    proposal.moveTo !== null &&
+    proposal.moveTo.getTime() > now.getTime()
+  );
 }

@@ -7,6 +7,7 @@ export type ScheduleRefusal =
   | "proposal_not_found"
   | "hold_released"
   | "move_not_open"
+  | "update_answered"
   | "move_stale"
   | "move_too_late"
   | "move_clash";

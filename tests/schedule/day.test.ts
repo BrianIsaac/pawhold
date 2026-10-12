@@ -196,6 +196,51 @@ describe("the plain day view's data (U8a)", () => {
     ]);
   });
 
+  it("offers no move once the held slot has started, before the sweep withdraws it", async () => {
+    const day = await startSeededDay(db);
+    const held = new Date(day.due.startsAt.getTime() - 30 * MINUTE_MS);
+    await sweepSchedule(db, { practiceId: day.practiceId, now: held });
+
+    const view = await loadDay(db, day.practiceId, {
+      day: dayKeyIn(LONDON, day.due.startsAt),
+      now: day.due.startsAt,
+    });
+
+    expect(view.proposals[0]?.move).toBeNull();
+    for (const lane of view.rooms) {
+      for (const one of lane.bookings) {
+        expect(one.moveProposed).toBeNull();
+      }
+    }
+  });
+
+  it("labels each hour of the day the clocks go back, the repeated hour twice", async () => {
+    const place = await makeSchedulePractice(db);
+    const caseId = await openScheduleCase(db, place.practiceId, { patientName: "Moss" });
+    await bookSlot(db, {
+      practiceId: place.practiceId,
+      caseId,
+      roomId: place.rooms.consult,
+      vetId: place.vets.second,
+      kind: "consult",
+      startsAt: new Date("2026-10-25T00:30:00Z"),
+      endsAt: new Date("2026-10-25T00:45:00Z"),
+    });
+
+    const view = await loadDay(db, place.practiceId, { day: "2026-10-25" });
+
+    expect(view.range.from).toBe("2026-10-25T00:00:00.000Z");
+    expect(view.range.hours.slice(0, 3)).toEqual([
+      { label: "01:00", line: 1 },
+      { label: "01:00", line: 13 },
+      { label: "02:00", line: 25 },
+    ]);
+    expect(view.rooms[2]?.bookings[0]).toMatchObject({
+      time: "01:30 to 01:45",
+      column: { start: 7, end: 10 },
+    });
+  });
+
   it("marks nothing once the hold is undone", async () => {
     const day = await startSeededDay(db);
     const now = new Date(day.due.startsAt.getTime() - 30 * MINUTE_MS);

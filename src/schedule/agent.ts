@@ -45,6 +45,12 @@ export interface SweepReport {
   readonly released: string[];
   /** Moves withdrawn: the update answered, or the held slot started (`schedule.proposal_withdrawn`). */
   readonly withdrawn: string[];
+  /**
+   * Each item the sweep could not settle, as `{step} {id}: {why}`. One failing
+   * booking or proposal never stops the rest, in any practice; it is tried
+   * again on the next sweep.
+   */
+  readonly failed: string[];
 }
 
 /** What the sweep needs: the clock, and a practice when it sweeps only one. */
@@ -75,7 +81,23 @@ export async function sweepSchedule(
 ): Promise<SweepReport> {
   const now = options.now ?? new Date();
   const scope = options.practiceId;
-  const report: SweepReport = { held: [], moveProposed: [], released: [], withdrawn: [] };
+  const report: SweepReport = {
+    held: [],
+    moveProposed: [],
+    released: [],
+    withdrawn: [],
+    failed: [],
+  };
+  const attempt = async <T>(step: string, id: string, run: () => Promise<T>): Promise<T | null> => {
+    try {
+      return await run();
+    } catch (error) {
+      report.failed.push(
+        `${step} ${id}: ${error instanceof Error ? error.message : String(error)}`,
+      );
+      return null;
+    }
+  };
 
   const latestSent = sql<string | null>`(
     select ${estimateVersion.id} from ${estimateVersion}
@@ -96,11 +118,13 @@ export async function sweepSchedule(
     )
     .orderBy(asc(scheduleProposal.heldAt));
   for (const { id } of answered) {
-    const done = await db.transaction((tx) => releaseAnswered(tx, id, now));
-    if (done.released) {
+    const done = await attempt("release", id, () =>
+      db.transaction((tx) => releaseAnswered(tx, id, now)),
+    );
+    if (done?.released) {
       report.released.push(id);
     }
-    if (done.withdrawn) {
+    if (done?.withdrawn) {
       report.withdrawn.push(id);
     }
   }
@@ -117,7 +141,7 @@ export async function sweepSchedule(
       ),
     );
   for (const { id } of started) {
-    if (await db.transaction((tx) => withdrawStarted(tx, id, now))) {
+    if (await attempt("withdraw", id, () => db.transaction((tx) => withdrawStarted(tx, id, now)))) {
       report.withdrawn.push(id);
     }
   }
@@ -140,12 +164,36 @@ export async function sweepSchedule(
     )
     .orderBy(asc(booking.startsAt));
   for (const { id } of due) {
-    const held = await db.transaction((tx) => holdSlot(tx, id, now));
+    const held = await attempt("hold", id, () => db.transaction((tx) => holdSlot(tx, id, now)));
     if (held) {
       report.held.push(held.proposalId);
       if (held.moveProposed) {
         report.moveProposed.push(held.proposalId);
       }
+    }
+  }
+
+  // A move proposed into a booking the agent has since held itself (its own
+  // update came to wait on its owner) is withdrawn: the agent never moves a
+  // patient whose own update is waiting. Its own transaction, after the hold,
+  // so no lock is ever taken on a proposal while a booking is held.
+  const superseded = await db
+    .select({ id: scheduleProposal.id })
+    .from(scheduleProposal)
+    .where(
+      and(
+        isNull(scheduleProposal.releasedAt),
+        eq(scheduleProposal.moveStatus, "proposed"),
+        sql`exists (select 1 from "schedule_proposal" as held
+          where held.booking_id = ${scheduleProposal.moveBookingId} and held.released_at is null)`,
+        scope ? eq(scheduleProposal.practiceId, scope) : undefined,
+      ),
+    );
+  for (const { id } of superseded) {
+    if (
+      await attempt("withdraw", id, () => db.transaction((tx) => withdrawSuperseded(tx, id, now)))
+    ) {
+      report.withdrawn.push(id);
     }
   }
   return report;
@@ -486,7 +534,7 @@ async function withdrawMove(
   tx: Transaction,
   proposal: LockedProposal,
   now: Date,
-  why: "update_answered" | "slot_released" | "slot_started",
+  why: "update_answered" | "slot_released" | "slot_started" | "moved_booking_held",
 ): Promise<boolean> {
   if (proposal.moveStatus !== "proposed") {
     return false;
@@ -571,21 +619,7 @@ async function releaseAnswered(
   if (!proposal || proposal.releasedAt !== null) {
     return { released: false, withdrawn: false };
   }
-  const [still] = await tx
-    .select({ id: scheduleProposal.id })
-    .from(scheduleProposal)
-    .innerJoin(patientCase, eq(patientCase.id, scheduleProposal.caseId))
-    .where(
-      and(
-        eq(scheduleProposal.id, proposalId),
-        eq(patientCase.moneyState, "update_awaiting_owner"),
-        sql`(select ${estimateVersion.id} from ${estimateVersion}
-          where ${estimateVersion.caseId} = ${scheduleProposal.caseId}
-            and ${estimateVersion.sentAt} is not null
-          order by ${estimateVersion.number} desc limit 1) = ${scheduleProposal.versionId}`,
-      ),
-    );
-  if (still) {
+  if (await updateStillWaits(tx, proposalId)) {
     return { released: false, withdrawn: false };
   }
   const withdrawn = await release(tx, proposal, now, "agent");
@@ -611,6 +645,71 @@ async function withdrawStarted(tx: Transaction, proposalId: string, now: Date): 
     return false;
   }
   return withdrawMove(tx, proposal, now, "slot_started");
+}
+
+/**
+ * Withdraws a move into a booking the agent now holds itself, if it still is proposed.
+ *
+ * @param tx - The transaction.
+ * @param proposalId - The proposal.
+ * @param now - The clock.
+ * @returns Whether it was withdrawn.
+ */
+async function withdrawSuperseded(
+  tx: Transaction,
+  proposalId: string,
+  now: Date,
+): Promise<boolean> {
+  const proposal = await lockProposal(tx, proposalId);
+  if (!proposal || proposal.releasedAt !== null || proposal.moveBookingId === null) {
+    return false;
+  }
+  if (!(await heldByAgent(tx, proposal.moveBookingId))) {
+    return false;
+  }
+  return withdrawMove(tx, proposal, now, "moved_booking_held");
+}
+
+/**
+ * Whether the agent holds a booking now.
+ *
+ * @param tx - The transaction.
+ * @param bookingId - The booking.
+ * @returns Whether an open hold stands on it.
+ */
+async function heldByAgent(tx: Transaction, bookingId: string): Promise<boolean> {
+  const [open] = await tx
+    .select({ id: scheduleProposal.id })
+    .from(scheduleProposal)
+    .where(and(eq(scheduleProposal.bookingId, bookingId), isNull(scheduleProposal.releasedAt)))
+    .limit(1);
+  return open !== undefined;
+}
+
+/**
+ * Whether the update a hold was made for still waits on the owner: the case
+ * is still `update_awaiting_owner` and that update is still its latest sent.
+ *
+ * @param tx - The transaction.
+ * @param proposalId - The proposal.
+ * @returns Whether it waits.
+ */
+async function updateStillWaits(tx: Transaction, proposalId: string): Promise<boolean> {
+  const [still] = await tx
+    .select({ id: scheduleProposal.id })
+    .from(scheduleProposal)
+    .innerJoin(patientCase, eq(patientCase.id, scheduleProposal.caseId))
+    .where(
+      and(
+        eq(scheduleProposal.id, proposalId),
+        eq(patientCase.moneyState, "update_awaiting_owner"),
+        sql`(select ${estimateVersion.id} from ${estimateVersion}
+          where ${estimateVersion.caseId} = ${scheduleProposal.caseId}
+            and ${estimateVersion.sentAt} is not null
+          order by ${estimateVersion.number} desc limit 1) = ${scheduleProposal.versionId}`,
+      ),
+    );
+  return still !== undefined;
 }
 
 /** What the practice's click on a proposal names: the practice signed in, the proposal and the clock. */
@@ -660,7 +759,7 @@ async function onProposal(
  * @param db - The database.
  * @param request - The practice, the proposal and the clock.
  * @returns Resolves once moved.
- * @throws ScheduleError `hold_released`, `move_not_open`, `move_too_late` (the held slot has started), `move_stale` (a booking changed since it was proposed) or `move_clash`.
+ * @throws ScheduleError `hold_released`, `move_not_open`, `update_answered` (the held case's update was answered before the sweep released it), `move_too_late` (the held slot has started), `move_stale` (a booking changed, or the moved patient's own update now waits, since it was proposed) or `move_clash`.
  */
 export async function applyMove(db: Database["db"], request: ProposalAction): Promise<void> {
   try {
@@ -674,6 +773,12 @@ export async function applyMove(db: Database["db"], request: ProposalAction): Pr
         proposal.moveTo === null
       ) {
         throw new ScheduleError("move_not_open", "That move is no longer proposed.");
+      }
+      if (!(await updateStillWaits(tx, proposal.id))) {
+        throw new ScheduleError(
+          "update_answered",
+          "That update has been answered, so pawhold is releasing the hold. Nothing was moved.",
+        );
       }
       if (now.getTime() >= proposal.moveTo.getTime()) {
         throw new ScheduleError(
@@ -698,7 +803,9 @@ export async function applyMove(db: Database["db"], request: ProposalAction): Pr
         !next ||
         proposal.due.startsAt.getTime() !== proposal.moveTo.getTime() ||
         next.roomId !== proposal.due.roomId ||
-        next.startsAt.getTime() < proposal.due.endsAt.getTime()
+        next.startsAt.getTime() < proposal.due.endsAt.getTime() ||
+        next.moneyState === "update_awaiting_owner" ||
+        (await heldByAgent(tx, next.id))
       ) {
         throw new ScheduleError(
           "move_stale",
@@ -745,6 +852,21 @@ export async function applyMove(db: Database["db"], request: ProposalAction): Pr
             from: proposal.due.startsAt.toISOString(),
             to: swapped.held.startsAt.toISOString(),
           },
+        },
+      });
+      // The moved patient's own timeline says so too (plan 3.5: one event per
+      // thing that happened to a case).
+      await appendAuditEvent(tx, {
+        practiceId: proposal.practiceId,
+        caseId: next.caseId,
+        actor: "vet",
+        action: "schedule.booking_moved",
+        detail: {
+          ...baseDetail(proposal.id, next),
+          from: next.startsAt.toISOString(),
+          to: swapped.moved.startsAt.toISOString(),
+          heldBookingId: proposal.due.id,
+          heldCaseId: proposal.due.caseId,
         },
       });
     });

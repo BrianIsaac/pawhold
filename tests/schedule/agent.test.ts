@@ -1,7 +1,7 @@
 import { and, asc, eq, like } from "drizzle-orm";
 import { beforeEach, describe, expect, it } from "vitest";
 
-import { auditEvent, booking, scheduleProposal } from "@/db/schema";
+import { auditEvent, booking, patientCase, room, scheduleProposal } from "@/db/schema";
 import { declineUpdate } from "@/money/holds";
 import { applyMove, dismissMove, releaseHold, sweepSchedule } from "@/schedule/agent";
 import { bookSlot } from "@/schedule/bookings";
@@ -83,6 +83,19 @@ async function refusal(call: Promise<unknown>): Promise<ScheduleError> {
 }
 
 /**
+ * The seeded practice's theatre 2.
+ *
+ * @returns Its id.
+ */
+async function theatre2(): Promise<string> {
+  const [found] = await db
+    .select({ id: room.id })
+    .from(room)
+    .where(and(eq(room.practiceId, day.practiceId), eq(room.name, "Theatre 2")));
+  return found!.id;
+}
+
+/**
  * The one proposal the sweep made, after a sweep at the lead time.
  *
  * @returns Its id.
@@ -144,6 +157,7 @@ describe("the schedule agent (plan 3.4's third job, D9 (a))", () => {
       moveProposed: [],
       released: [],
       withdrawn: [],
+      failed: [],
     });
     expect((await sweep(beforeDue(0))).held).toEqual([]);
     expect(await scheduleEvents()).toEqual([]);
@@ -193,8 +207,11 @@ describe("the schedule agent (plan 3.4's third job, D9 (a))", () => {
       startsAt: new Date(day.due.startsAt.getTime() + nextLength),
       endsAt: new Date(day.due.startsAt.getTime() + nextLength + dueLength),
     });
-    const applied = (await scheduleEvents()).at(-1);
-    expect(applied).toMatchObject({ actor: "vet", action: "schedule.move_applied" });
+    const applied = (await scheduleEvents()).filter(
+      (event) => event.action === "schedule.move_applied",
+    );
+    expect(applied).toHaveLength(1);
+    expect(applied[0]).toMatchObject({ actor: "vet", caseId: day.dueCaseId });
   });
 
   it("an answered update releases the hold and withdraws the proposal", async () => {
@@ -208,6 +225,7 @@ describe("the schedule agent (plan 3.4's third job, D9 (a))", () => {
       moveProposed: [],
       released: [proposalId],
       withdrawn: [proposalId],
+      failed: [],
     });
     const [after] = await db
       .select()
@@ -240,12 +258,14 @@ describe("the schedule agent (plan 3.4's third job, D9 (a))", () => {
       moveProposed: [],
       released: [],
       withdrawn: [],
+      failed: [],
     });
     expect(await sweep(beforeDue(29))).toEqual({
       held: [],
       moveProposed: [],
       released: [],
       withdrawn: [],
+      failed: [],
     });
     expect(await scheduleEvents()).toHaveLength(written);
   });
@@ -310,7 +330,13 @@ describe("the schedule agent (plan 3.4's third job, D9 (a))", () => {
     expect(refused.reason).toBe("move_too_late");
 
     const report = await sweep(beforeDue(-1));
-    expect(report).toEqual({ held: [], moveProposed: [], released: [], withdrawn: [proposalId] });
+    expect(report).toEqual({
+      held: [],
+      moveProposed: [],
+      released: [],
+      withdrawn: [proposalId],
+      failed: [],
+    });
     expect((await scheduleEvents()).at(-1)?.detail).toMatchObject({ why: "slot_started" });
   });
 
@@ -356,6 +382,74 @@ describe("the schedule agent (plan 3.4's third job, D9 (a))", () => {
     });
   });
 
+  it("refuses the move once the held case's update is answered, before any sweep releases it", async () => {
+    const proposalId = await heldAtLead();
+    await declineUpdate(db, { practiceId: day.practiceId, caseId: day.dueCaseId, actor: "owner" });
+
+    const refused = await refusal(
+      applyMove(db, { practiceId: day.practiceId, proposalId, now: beforeDue(25) }),
+    );
+
+    expect(refused.reason).toBe("update_answered");
+    expect(await timesOf(day.next.id)).toEqual({
+      startsAt: day.next.startsAt,
+      endsAt: day.next.endsAt,
+    });
+  });
+
+  it("never moves a procedure whose own update has come to wait on its owner, and withdraws that move once it holds it", async () => {
+    const proposalId = await heldAtLead();
+    await db
+      .update(patientCase)
+      .set({ moneyState: "update_awaiting_owner" })
+      .where(eq(patientCase.id, day.next.caseId));
+
+    const refused = await refusal(
+      applyMove(db, { practiceId: day.practiceId, proposalId, now: beforeDue(25) }),
+    );
+    expect(refused.reason).toBe("move_stale");
+
+    await setScheduleSettings(db, {
+      practiceId: day.practiceId,
+      leadMinutes: 120,
+      timeZone: "Europe/London",
+    });
+    const report = await sweep(beforeDue(20));
+    expect(report.held).toHaveLength(1);
+    expect(report.withdrawn).toEqual([proposalId]);
+    const withdrawn = (await scheduleEvents()).find(
+      (event) => event.action === "schedule.proposal_withdrawn",
+    );
+    expect(withdrawn?.detail).toMatchObject({ proposalId, why: "moved_booking_held" });
+  });
+
+  it("holds every other slot when one cannot be held, and reports the one", async () => {
+    const [archie] = await db
+      .select({ id: patientCase.id })
+      .from(patientCase)
+      .where(
+        and(eq(patientCase.practiceId, day.practiceId), eq(patientCase.patientName, "Archie")),
+      );
+    await db
+      .update(patientCase)
+      .set({ moneyState: "update_awaiting_owner", ownerName: "x".repeat(600) })
+      .where(eq(patientCase.id, archie!.id));
+    const broken = await bookSlot(db, {
+      practiceId: day.practiceId,
+      caseId: archie!.id,
+      roomId: await theatre2(),
+      vetId: day.vets["Rowan Hale"]!,
+      kind: "procedure",
+      startsAt: beforeDue(25),
+      endsAt: beforeDue(10),
+    });
+
+    const report = await sweep(beforeDue(30));
+
+    expect(report.held).toHaveLength(1);
+    expect(report.failed).toEqual([expect.stringMatching(new RegExp(`^hold ${broken.id}: `))]);
+  });
+
   it("sweeps one practice's day only, as the day view's check asks", async () => {
     const other = await startSeededDay(db);
 
@@ -394,9 +488,23 @@ describe("the schedule agent (plan 3.4's third job, D9 (a))", () => {
       "schedule.slot_held",
       "schedule.move_proposed",
       "schedule.move_applied",
+      "schedule.booking_moved",
       "schedule.slot_released",
     ]);
-    for (const event of events) {
+    const moved = events.find((event) => event.action === "schedule.booking_moved")!;
+    expect(moved).toMatchObject({
+      actor: "vet",
+      caseId: day.next.caseId,
+      detail: {
+        proposalId: first,
+        bookingId: day.next.id,
+        caseId: day.next.caseId,
+        roomId: day.theatre1,
+        from: day.next.startsAt.toISOString(),
+        to: day.due.startsAt.toISOString(),
+      },
+    });
+    for (const event of events.filter((one) => one !== moved)) {
       expect(event.caseId, event.action).toBe(day.dueCaseId);
       expect(event.detail, event.action).toMatchObject({
         proposalId: first,

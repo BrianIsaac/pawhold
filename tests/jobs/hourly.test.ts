@@ -14,7 +14,13 @@ const paypal = startPayPalDouble();
 // touches none of theirs.
 const BEFORE_EVERYTHING = new Date("2026-10-01T00:00:00Z");
 
-const NOTHING_SWEPT: SweepReport = { held: [], moveProposed: [], released: [], withdrawn: [] };
+const NOTHING_SWEPT: SweepReport = {
+  held: [],
+  moveProposed: [],
+  released: [],
+  withdrawn: [],
+  failed: [],
+};
 
 // The schedule agent's sweep releases any practice's answered holds whatever
 // the clock, so these runs give it a part that sweeps nothing of the other

@@ -101,6 +101,7 @@ export default async function DayPage({
                   <DayActionButton
                     action={undoHoldAction.bind(null, proposal.id)}
                     variant="secondary"
+                    name={`${DAY_BUTTONS.undo} the hold on ${proposal.patientName}'s slot`}
                     describedBy={`held-${proposal.id}`}
                   >
                     {DAY_BUTTONS.undo}
@@ -114,6 +115,7 @@ export default async function DayPage({
                     <div className={styles.buttons}>
                       <DayActionButton
                         action={moveItAction.bind(null, proposal.id)}
+                        name={`${DAY_BUTTONS.move}: ${proposal.move.patientName} to ${proposal.slot}`}
                         describedBy={`move-${proposal.id}`}
                       >
                         {DAY_BUTTONS.move}
@@ -121,6 +123,7 @@ export default async function DayPage({
                       <DayActionButton
                         action={dismissMoveAction.bind(null, proposal.id)}
                         variant="quiet"
+                        name={`${DAY_BUTTONS.dismiss} the move of ${proposal.move.patientName}`}
                         describedBy={`move-${proposal.id}`}
                       >
                         {DAY_BUTTONS.dismiss}
@@ -217,7 +220,12 @@ export default async function DayPage({
             ) : null}
           </div>
         </div>
-        <ScrollIntoDay scrollerId={SCROLLER_ID} line={scrollTo} slots={view.range.slots} />
+        <ScrollIntoDay
+          scrollerId={SCROLLER_ID}
+          day={view.day}
+          line={scrollTo}
+          slots={view.range.slots}
+        />
       </section>
     </>
   );
