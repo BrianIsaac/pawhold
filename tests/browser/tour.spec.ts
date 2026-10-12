@@ -2,9 +2,9 @@ import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 
 import type { Page } from "@playwright/test";
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 
-import { patientCase } from "@/db/schema";
+import { hold, patientCase } from "@/db/schema";
 import { caseEstimateVersions } from "@/estimate/version";
 import { OWNER_LINK_LIFETIME_MS, ownerLink } from "@/owner/link";
 
@@ -286,6 +286,30 @@ const STOPS: Record<string, Stop> = {
     },
   },
   "case-draft": { reach: draftNewCase },
+  "case-draft-failed": {
+    reach: async (page) => {
+      await signInAsPractice(page);
+      await openNewCase(page, { patient: "Pepper", owner: "Sam Patel", procedure: "Dental" });
+      await page
+        .getByRole("textbox", { name: "Clinical notes" })
+        .fill("Notes no recording answers: a check-up only.");
+      await page.getByRole("button", { name: "Draft estimate" }).click();
+      await expect(page.getByText(/^The draft didn't work this time\./)).toBeVisible();
+    },
+  },
+  "practice-not-found": {
+    reach: async (page) => {
+      await signInAsPractice(page);
+      await page.goto("/cases/00000000-0000-4000-8000-000000000000");
+      await expect(page.getByRole("heading", { level: 1 })).toHaveText("There's nothing here");
+    },
+  },
+  "not-found": {
+    reach: async (page) => {
+      await page.goto("/no-such-page");
+      await expect(page.getByRole("heading", { level: 1 })).toHaveText("There's nothing here");
+    },
+  },
   "case-draft-line-open": {
     reach: async (page) => {
       await draftNewCase(page);
@@ -407,6 +431,30 @@ const STOPS: Record<string, Stop> = {
       await expect(page.getByText(/^Confirmed by PayPal/)).toHaveCount(3);
     },
   },
+  "discharge-capture-refused": {
+    reach: async (page) => {
+      test.skip(!DOUBLE_URL, "the run talks to PayPal's sandbox: the double's walk is skipped");
+      const practiceId = await signInAsPractice(page);
+      const database = openBrowserDatabase();
+      try {
+        const kase = await twoHoldCase(database.db, practiceId);
+        // Authorisations PayPal has never heard of: the capture is refused.
+        await database.db
+          .update(hold)
+          .set({ authorizationId: sql`'0NOSUCH' || left(${hold.id}::text, 12)` })
+          .where(eq(hold.caseId, kase.caseId));
+        await page.goto(`/cases/${kase.caseId}/discharge`);
+      } finally {
+        await database.close();
+      }
+      await page.getByRole("button", { name: /^Confirm and charge/ }).click();
+      await page
+        .getByRole("dialog", { name: "Confirm the bill?" })
+        .getByRole("button", { name: /^Confirm and charge/ })
+        .click();
+      await expect(page.getByText(/^PayPal refused a step/)).toBeVisible({ timeout: 30_000 });
+    },
+  },
   "refund-dialog": {
     reach: async (page) => {
       test.skip(!DOUBLE_URL, "the run talks to PayPal's sandbox: the double's walk is skipped");
@@ -460,6 +508,19 @@ const STOPS: Record<string, Stop> = {
   "owner-receipt-released": { reach: (page) => openOwnerPage(page, "Teddy") },
   "owner-receipt-refunded": { reach: (page) => openOwnerPage(page, "Luna") },
   "owner-withdrawn": { reach: (page) => openOwnerPage(page, "Milo") },
+  "owner-update-withdrawn": {
+    reach: async (page) => {
+      const practiceId = await openSeededCase(page, "Juno");
+      await page.getByRole("button", { name: "Withdraw the update" }).click();
+      await page
+        .getByRole("dialog", { name: "Withdraw the update?" })
+        .getByRole("button", { name: "Withdraw it" })
+        .click();
+      await expect(page.getByRole("status")).toBeVisible();
+      await page.goto(await ownerPathOf(practiceId, "Juno"));
+      await expect(page.getByRole("heading", { level: 1 })).toHaveText("This update was withdrawn");
+    },
+  },
   "owner-expired": {
     reach: async (page) => {
       const practiceId = await signInAsPractice(page);
