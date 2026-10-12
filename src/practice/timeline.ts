@@ -2,7 +2,7 @@ import { and, asc, eq, isNotNull } from "drizzle-orm";
 
 import type { AuditEventRecord } from "@/audit/writer";
 import type { Executor } from "@/db/client";
-import { auditEvent, capture, hold, patientCase, refund } from "@/db/schema";
+import { auditEvent, capture, hold, patientCase, refund, room } from "@/db/schema";
 import { currencyCode } from "@/money/currency";
 import { formatMoney } from "@/money/format";
 
@@ -43,6 +43,15 @@ export interface DescribeContext {
    * `capture:{PayPal capture id}` and `refund:{PayPal refund id}`.
    */
   readonly confirmations: ReadonlyMap<string, Date>;
+  /**
+   * Who signed the case's bill off, and the event that did: the discharge's
+   * captures and voids after it were the vet's confirming (U11, D11 flag).
+   */
+  readonly billSignedOff?: { readonly by: string; readonly eventId: number } | null;
+  /** The practice's rooms' names, by id, for the schedule's events. */
+  readonly rooms?: ReadonlyMap<string, string>;
+  /** The practice's patients, by case id, for the schedule's events. */
+  readonly patients?: ReadonlyMap<string, string>;
 }
 
 type Detail = Record<string, unknown>;
@@ -56,6 +65,8 @@ interface Described {
   readonly amount: string;
   /** Formats pence in the event's currency. */
   readonly money: (pence: unknown) => string;
+  /** A range of pence in the event's currency: one figure when its ends are the same. */
+  readonly span: (low: unknown, high: unknown) => string;
 }
 
 /**
@@ -66,19 +77,19 @@ interface Described {
 const WORDS: Record<string, (event: Described) => string> = {
   "case.opened": ({ detail, context }) =>
     `opened the case for ${text(detail.patientName) ?? context.patientName}`,
-  "estimate.version_made": ({ detail, money }) =>
+  "estimate.version_made": ({ detail, span }) =>
     Number(detail.lineCount) === 0
       ? `made version ${text(detail.number)} of the estimate, with no lines yet`
-      : `made version ${text(detail.number)} of the estimate, ${money(detail.lowPence)} to ${money(detail.highPence)}`,
-  "estimate.draft_changed": ({ detail, money }) =>
-    `changed draft version ${text(detail.number)}: ${money(detail.lowPence)} to ${money(detail.highPence)}`,
+      : `made version ${text(detail.number)} of the estimate, ${span(detail.lowPence, detail.highPence)}`,
+  "estimate.draft_changed": ({ detail, span }) =>
+    `changed draft version ${text(detail.number)}: ${span(detail.lowPence, detail.highPence)}`,
   "estimate.drafted": ({ detail }) => askWords(detail, "the notes"),
   "estimate.update_drafted": ({ detail }) => askWords(detail, "the finding"),
   "estimate.approved": ({ detail }) => `approved version ${text(detail.number)}`,
-  "estimate.sent": ({ event, detail, money, amount, context }) =>
+  "estimate.sent": ({ event, detail, span, amount, context }) =>
     event.moneyStateAfter === "update_awaiting_owner"
-      ? `sent an update to ${context.ownerFirstName}: the estimate is now ${money(detail.lowPence)} to ${money(detail.highPence)}`
-      : `sent the estimate to ${context.ownerFirstName}: ${money(detail.lowPence)} to ${money(detail.highPence)}, a hold of ${amount}`,
+      ? `sent an update to ${context.ownerFirstName}: the estimate is now ${span(detail.lowPence, detail.highPence)}`
+      : `sent the estimate to ${context.ownerFirstName}: ${span(detail.lowPence, detail.highPence)}, a hold of ${amount}`,
   "estimate.withdrawn": ({ event }) =>
     event.moneyStateBefore === "update_awaiting_owner"
       ? "withdrew the update"
@@ -121,6 +132,23 @@ const WORDS: Record<string, (event: Described) => string> = {
     return `refunded ${amount}${confirmed ? ` (confirmed ${practiceSecond(confirmed)})` : ""}`;
   },
   "capture.refund_failed": ({ amount }) => `PayPal answered that the refund of ${amount} failed`,
+  // The schedule's events (U8a), worded as U8a's handover suggests (U11, D11 flag).
+  "schedule.slot_held": ({ detail, context }) =>
+    `held ${roomOf(detail, context)} at ${minuteOf(detail.startsAt)}.${text(detail.reason) ? ` ${text(detail.reason)}` : ""}`,
+  "schedule.move_proposed": ({ detail, context }) =>
+    `proposed moving ${patientOf(detail.moveCaseId, context)}'s procedure to ${minuteOf(detail.moveTo)}`,
+  "schedule.move_applied": ({ detail, context }) => {
+    const moved = (detail.moved ?? {}) as Detail;
+    const held = (detail.heldMoved ?? {}) as Detail;
+    return `moved ${patientOf(detail.moveCaseId, context)}'s procedure to ${minuteOf(moved.to)}; ${context.patientName}'s now starts at ${minuteOf(held.to)}`;
+  },
+  "schedule.booking_moved": ({ detail, context }) =>
+    `moved ${context.patientName}'s procedure to ${minuteOf(detail.to)}, into the slot held for ${patientOf(detail.heldCaseId, context)}`,
+  "schedule.proposal_dismissed": () => "dismissed the proposed move",
+  "schedule.slot_released": ({ detail, context }) =>
+    `released the hold on ${roomOf(detail, context)}${detail.by === "agent" ? ": the update was answered" : ""}`,
+  "schedule.proposal_withdrawn": ({ detail }) =>
+    `withdrew the proposed move${WITHDRAWN_WHY[text(detail.why) ?? ""] ?? ""}`,
   "webhook.reconciled": ({ detail }) =>
     `webhook ${text(detail.eventType)} verified and matched${detail.holdId ? " to the hold" : ""}`,
   "webhook.flagged": ({ detail }) =>
@@ -157,6 +185,47 @@ export const DESCRIBED_ACTIONS: ReadonlySet<string> = new Set(Object.keys(WORDS)
  */
 function text(value: unknown): string | null {
   return value === null || value === undefined ? null : String(value);
+}
+
+/** Why the agent withdrew a proposed move, as the timeline says it. */
+const WITHDRAWN_WHY: Readonly<Record<string, string>> = {
+  update_answered: ": the update was answered",
+  slot_released: ": the hold was undone",
+  slot_started: ": the slot had started",
+  moved_booking_held: ": that procedure's own update is now waiting",
+};
+
+/**
+ * A schedule event's room, by the id its detail keeps.
+ *
+ * @param detail - The event's detail.
+ * @param context - The case and the practice's rooms.
+ * @returns The room's name, or "the room".
+ */
+function roomOf(detail: Detail, context: DescribeContext): string {
+  return context.rooms?.get(text(detail.roomId) ?? "") ?? "the room";
+}
+
+/**
+ * A patient named by a case id a schedule event keeps.
+ *
+ * @param caseId - The case's id.
+ * @param context - The case and the practice's patients.
+ * @returns The patient's name, or "the next patient".
+ */
+function patientOf(caseId: unknown, context: DescribeContext): string {
+  return context.patients?.get(text(caseId) ?? "") ?? "the next patient";
+}
+
+/**
+ * An instant a schedule event keeps, at the minute on the practice's clock.
+ *
+ * @param at - The ISO instant.
+ * @returns "16:40", or "a time" when it is not one.
+ */
+function minuteOf(at: unknown): string {
+  const when = typeof at === "string" ? new Date(at) : null;
+  return when && !Number.isNaN(when.getTime()) ? practiceMinute(when) : "a time";
 }
 
 /**
@@ -196,6 +265,24 @@ function who(event: AuditEventRecord, detail: Detail, context: DescribeContext):
     case "paypal_webhook":
       return "PayPal";
   }
+}
+
+/**
+ * The vet who confirmed the bill, for a capture or void pawhold made at
+ * PayPal after the sign-off: the vet's confirming did it (U11, flagged D11).
+ *
+ * @param event - The event.
+ * @param context - The case and who signed its bill off.
+ * @returns The vet, or null when the event is not the discharge's.
+ */
+function dischargedBy(event: AuditEventRecord, context: DescribeContext): string | null {
+  const signed = context.billSignedOff;
+  return signed &&
+    event.actor === "system" &&
+    (event.action === "hold.captured" || event.action === "hold.voided") &&
+    event.id > signed.eventId
+    ? signed.by
+    : null;
 }
 
 /**
@@ -285,9 +372,11 @@ export function describeEvent(event: AuditEventRecord, context: DescribeContext)
       ? formatMoney({ pence, currency })
       : "an amount";
   const amount = event.amountPence === null ? null : money(event.amountPence);
+  const span = (low: unknown, high: unknown): string =>
+    low === high ? money(high) : `${money(low)} to ${money(high)}`;
   const words = WORDS[event.action];
   const what = words
-    ? words({ event, detail, context, amount: amount ?? "an amount", money })
+    ? words({ event, detail, context, amount: amount ?? "an amount", money, span })
     : event.action.replaceAll(".", ": ").replaceAll("_", " ");
   return {
     id: event.id,
@@ -295,7 +384,7 @@ export function describeEvent(event: AuditEventRecord, context: DescribeContext)
     at: event.occurredAt.toISOString(),
     day: practiceDay(event.occurredAt),
     time: practiceMinute(event.occurredAt),
-    who: who(event, detail, context),
+    who: dischargedBy(event, context) ?? who(event, detail, context),
     what,
     ...(detail.seeded === true ? { note: "Seeded for the demo" } : {}),
     details: facts(event, amount),
@@ -329,7 +418,7 @@ export async function caseTimeline(
   if (!kase) {
     throw new PracticeError("case_not_found", `the practice has no case ${caseId}`);
   }
-  const [events, holds, captures, refunds] = await Promise.all([
+  const [events, holds, captures, refunds, rooms, patients] = await Promise.all([
     executor
       .select()
       .from(auditEvent)
@@ -350,6 +439,14 @@ export async function caseTimeline(
       .innerJoin(capture, eq(capture.id, refund.captureId))
       .innerJoin(hold, eq(hold.id, capture.holdId))
       .where(and(eq(hold.caseId, caseId), isNotNull(refund.confirmedAt))),
+    executor
+      .select({ id: room.id, name: room.name })
+      .from(room)
+      .where(eq(room.practiceId, practiceId)),
+    executor
+      .select({ id: patientCase.id, name: patientCase.patientName })
+      .from(patientCase)
+      .where(eq(patientCase.practiceId, practiceId)),
   ]);
   const confirmations = new Map<string, Date>([
     ...holds.map((one) => [`hold:${one.id}`, one.at!] as const),
@@ -358,11 +455,20 @@ export async function caseTimeline(
       .filter((one) => one.id !== null)
       .map((one) => [`refund:${one.id}`, one.at!] as const),
   ]);
-  const context: DescribeContext = {
+  const base: DescribeContext = {
     vetName: kase.vetName,
     ownerFirstName: firstName(kase.ownerName),
     patientName: kase.patientName,
     confirmations,
+    rooms: new Map(rooms.map((one) => [one.id, one.name])),
+    patients: new Map(patients.map((one) => [one.id, one.name])),
+  };
+  const signedOff = events.findLast((event) => event.action === "bill.signed_off");
+  const context: DescribeContext = {
+    ...base,
+    billSignedOff: signedOff
+      ? { by: describeEvent(signedOff, base).who, eventId: signedOff.id }
+      : null,
   };
   return events.map((event) => describeEvent(event, context));
 }
