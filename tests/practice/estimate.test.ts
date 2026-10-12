@@ -399,4 +399,76 @@ describe("review and send", () => {
     const sources = await db.select().from(estimateSource).where(eq(estimateSource.caseId, caseId));
     expect(sources).toHaveLength(2);
   });
+
+  it("refuses to send when the draft changed since the vet reviewed it, and records what was approved", async () => {
+    const reviewed = (await loadCaseView(db, practiceId, caseId)).estimate.draft!.version;
+    await addDraftLine(db, {
+      practiceId,
+      caseId,
+      code: "CONS-COLLAR",
+      quantityLow: 1,
+      quantityHigh: 1,
+    });
+
+    const refused = await approveAndSend(db, {
+      practiceId,
+      versionId: reviewed.id,
+      reviewed: reviewedOf(reviewed),
+    }).catch((error: unknown) => error);
+    expect((refused as PracticeError).reason).toBe("stale");
+
+    const now = (await loadCaseView(db, practiceId, caseId)).estimate.draft!.version;
+    await approveAndSend(db, { practiceId, versionId: now.id, reviewed: reviewedOf(now) });
+    const [approved] = await db
+      .select()
+      .from(auditEvent)
+      .where(and(eq(auditEvent.caseId, caseId), eq(auditEvent.action, "estimate.approved")));
+    expect(approved?.detail).toMatchObject({
+      lowPence: now.totals.lowPence,
+      highPence: now.totals.highPence,
+      lineCount: now.lines.length,
+    });
+  });
 });
+
+describe("a line's fields", () => {
+  beforeEach(async () => {
+    await draftForCase(agent(), { practiceId, caseId, notes: NOTES });
+  });
+
+  it("refuse a blank or odd quantity rather than reading it as 0, in words a vet reads", async () => {
+    const draft = (await loadCaseView(db, practiceId, caseId)).estimate.draft!.version;
+    for (const quantityLow of ["", " ", "1e1", "0x10", "+3"]) {
+      const refused = await editDraftLine(db, {
+        practiceId,
+        versionId: draft.id,
+        lineId: draft.lines[0]!.id,
+        quantityLow,
+        quantityHigh: "1",
+        dependsOn: "",
+        ownerWording: "",
+      }).catch((error: unknown) => error);
+      expect((refused as PracticeError).fields.quantityLow, quantityLow).toBe(
+        "Enter a whole number",
+      );
+      expect((refused as PracticeError).message).toBe("Check the fields marked below.");
+    }
+  });
+});
+
+/**
+ * What the review dialog showed of a draft.
+ *
+ * @param version - The draft as rendered.
+ * @returns Its totals and its lines.
+ */
+function reviewedOf(version: {
+  totals: { lowPence: number; highPence: number };
+  lines: readonly { id: string }[];
+}) {
+  return {
+    lowPence: version.totals.lowPence,
+    highPence: version.totals.highPence,
+    lineIds: version.lines.map((line) => line.id),
+  };
+}

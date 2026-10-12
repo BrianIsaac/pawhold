@@ -6,7 +6,12 @@ import { z } from "zod";
 import { PracticeError } from "@/practice/errors";
 import { loadCaseView } from "@/practice/estimate";
 import { caseTimeline } from "@/practice/timeline";
-import { sentConfirmation, updateSentConfirmation } from "@/practice/wording";
+import {
+  estimateWithdrawn,
+  sentConfirmation,
+  updateSentConfirmation,
+  updateWithdrawn,
+} from "@/practice/wording";
 import { currentPracticeSession } from "@/server/practice-session";
 import { database } from "@/server/runtime";
 
@@ -17,6 +22,7 @@ import { SignedOut } from "../../SignedOut";
 import styles from "./case.module.css";
 import { EstimateSection } from "./EstimateSection";
 import { TimelineSection } from "./TimelineSection";
+import { StatusMessage } from "./StatusMessage";
 import { UpdateSection } from "./UpdateSection";
 
 export const metadata: Metadata = { title: "Case" };
@@ -59,7 +65,11 @@ export default async function CasePage(props: PageProps<"/cases/[id]">) {
       ? sentConfirmation(first)
       : search.sent === "update" && view.money.state === "update_awaiting_owner"
         ? updateSentConfirmation(first)
-        : null;
+        : search.withdrawn === "estimate" && view.money.state === "withdrawn"
+          ? estimateWithdrawn(first)
+          : search.withdrawn === "update" && view.update.awaiting === null
+            ? updateWithdrawn(first)
+            : null;
 
   return (
     <>
@@ -91,7 +101,7 @@ export default async function CasePage(props: PageProps<"/cases/[id]">) {
             </div>
           ) : null}
         </dl>
-        <span className={practice.chips} aria-label="Money">
+        <span className={practice.chips}>
           {view.chips.map((chip) => (
             <Chip key={chip.tone} tone={chip.tone}>
               {chip.label}
@@ -99,11 +109,7 @@ export default async function CasePage(props: PageProps<"/cases/[id]">) {
           ))}
         </span>
       </div>
-      {confirmation ? (
-        <p role="status" className={styles.status}>
-          {confirmation}
-        </p>
-      ) : null}
+      {confirmation ? <StatusMessage>{confirmation}</StatusMessage> : null}
       <section id="estimate" className={styles.section} aria-labelledby="estimate-title">
         <h2 id="estimate-title" className={styles.sectionTitle}>
           Estimate

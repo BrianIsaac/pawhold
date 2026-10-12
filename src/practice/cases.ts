@@ -30,7 +30,8 @@ const openCaseRequest = openCaseInput.extend({ practiceId: z.uuid() });
 
 /**
  * Parses a request, turning a malformed one into a refusal that names each
- * faulty field.
+ * faulty field in words the vet reads; the refusal's message says to look at
+ * them.
  *
  * @param schema - The request's schema.
  * @param request - The request.
@@ -48,11 +49,7 @@ export function parsePracticeRequest<T extends z.ZodType>(
       const field = String(issue.path[0] ?? "");
       fields[field] ??= issue.message;
     }
-    throw new PracticeError(
-      "request_invalid",
-      `request refused: ${z.prettifyError(parsed.error)}`,
-      fields,
-    );
+    throw new PracticeError("request_invalid", "Check the fields marked below.", fields);
   }
   return parsed.data;
 }

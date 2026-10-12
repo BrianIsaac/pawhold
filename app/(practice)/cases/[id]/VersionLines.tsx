@@ -38,7 +38,11 @@ export function VersionLines({
   actions?: (lineId: string) => LineActions;
 }) {
   return (
-    <ol className={styles.lines} aria-label={`Lines of version ${panel.version.number}`}>
+    <ol
+      className={styles.lines}
+      start={from + 1}
+      aria-label={`Lines of version ${panel.version.number}`}
+    >
       {panel.version.lines.slice(from).map((line) => {
         const bound = actions?.(line.id);
         return (

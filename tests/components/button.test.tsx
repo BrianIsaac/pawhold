@@ -21,11 +21,16 @@ describe("Button", () => {
     );
   });
 
-  it("is disabled and busy while its action is pending", () => {
+  it("is busy and disabled to assistive technology while pending, keeping its focus", () => {
     const html = renderToStaticMarkup(<Button pending>Sending</Button>);
 
-    expect(html).toContain("disabled");
+    expect(html).toContain('aria-disabled="true"');
     expect(html).toContain('aria-busy="true"');
+    expect(html).not.toMatch(/ disabled=""/);
+  });
+
+  it("is disabled when told to be", () => {
+    expect(renderToStaticMarkup(<Button disabled>Send</Button>)).toContain('disabled=""');
   });
 
   it("is a link when it goes somewhere", () => {

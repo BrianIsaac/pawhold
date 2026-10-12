@@ -10,7 +10,11 @@ export type ButtonVariant = "primary" | "secondary" | "quiet" | "danger";
 /** A button's own props, beside the native ones. */
 export interface ButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, "className"> {
   readonly variant?: ButtonVariant;
-  /** While its action runs: disabled and announced as busy. */
+  /**
+   * While its action runs: announced as busy and disabled to assistive
+   * technology, its presses ignored; it keeps focus, which a disabled button
+   * would drop.
+   */
   readonly pending?: boolean;
   readonly children: ReactNode;
 }
@@ -27,6 +31,7 @@ export function Button({
   pending = false,
   type = "button",
   disabled,
+  onClick,
   children,
   ...rest
 }: ButtonProps) {
@@ -35,8 +40,16 @@ export function Button({
       type={type}
       className={styles.button}
       data-variant={variant}
-      disabled={disabled === true || pending}
+      disabled={disabled}
+      aria-disabled={pending ? true : undefined}
       aria-busy={pending ? true : undefined}
+      onClick={(event) => {
+        if (pending) {
+          event.preventDefault();
+          return;
+        }
+        onClick?.(event);
+      }}
       {...rest}
     >
       {children}

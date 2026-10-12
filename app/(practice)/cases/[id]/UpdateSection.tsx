@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 
 import { formatMoney } from "@/money/format";
 import type { CaseView } from "@/practice/estimate";
-import type { VersionPanel } from "@/practice/panels";
+import { reviewedOf, type VersionPanel } from "@/practice/panels";
 import { practiceDay } from "@/practice/time";
 import { askToApprove, updateDeclined } from "@/practice/wording";
 
@@ -174,7 +174,7 @@ export function UpdateSection({ view }: { view: CaseView }) {
                 title="Withdraw the update?"
                 actionLabel="Withdraw it"
                 actionVariant="danger"
-                action={withdrawAction.bind(null, caseId)}
+                action={withdrawAction.bind(null, { caseId, what: "update" })}
               >
                 <p className={styles.muted}>
                   {first} won&apos;t be able to approve it. What {first} approved before stays held.
@@ -239,6 +239,7 @@ export function UpdateSection({ view }: { view: CaseView }) {
                   caseId,
                   versionId: update.draft.panel.version.id,
                   sent: "update",
+                  reviewed: reviewedOf(update.draft.panel.version),
                 })}
                 disabled={update.draft.increasePence <= 0}
               >

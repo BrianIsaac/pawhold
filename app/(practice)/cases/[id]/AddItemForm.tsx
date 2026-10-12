@@ -27,7 +27,7 @@ export function AddItemForm({
   return (
     <form action={submit} className={styles.editorForm} noValidate>
       <h3 className={styles.subTitle}>Add an item from your price list</h3>
-      {state.message && Object.keys(state.fields).length === 0 ? (
+      {state.message ? (
         <p role="alert" className={styles.notice}>
           {state.message}
         </p>

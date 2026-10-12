@@ -57,3 +57,22 @@ export function versionPanel(
   }
   return { version, source, spans };
 }
+
+/**
+ * What the review dialog shows of a draft, bound into its send so the send
+ * approves exactly that (U2 rewrites every line's id on any change).
+ *
+ * @param version - The draft as rendered.
+ * @returns Its totals and its lines' ids.
+ */
+export function reviewedOf(version: EstimateVersionView): {
+  lowPence: number;
+  highPence: number;
+  lineIds: string[];
+} {
+  return {
+    lowPence: version.totals.lowPence,
+    highPence: version.totals.highPence,
+    lineIds: version.lines.map((line) => line.id),
+  };
+}

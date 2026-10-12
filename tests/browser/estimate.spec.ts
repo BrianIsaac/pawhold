@@ -70,3 +70,41 @@ test("adds items by hand when there is no draft, and refuses an amount in the ow
     "The owner's wording can't carry an amount, a percentage or a dose: prices come from your list.",
   );
 });
+
+test("keeps the notes just typed when a redraft fails, and announces a withdrawal", async ({
+  page,
+}) => {
+  await signInAsPractice(page);
+  await openNewCase(page, { patient: "Pepper", owner: "Sam Patel", procedure: "Dental" });
+  await page.getByRole("textbox", { name: "Clinical notes" }).fill(PLAN_NOTES);
+  await page.getByRole("button", { name: "Draft estimate" }).click();
+  await expect(page.getByRole("region", { name: "Draft estimate, version 1" })).toBeVisible();
+
+  // No answer is recorded for these notes, so the redraft fails and keeps the lines it had.
+  await page.getByText("Change the notes and draft again").click();
+  const notes = page.getByRole("textbox", { name: "Clinical notes" });
+  await notes.fill("GA, scale and polish only, no extractions");
+  await page.getByRole("button", { name: "Draft estimate" }).click();
+  await expect(
+    page.getByText("The draft didn't work this time. Add items from your price list below."),
+  ).toBeVisible();
+  await expect(notes).toHaveValue("GA, scale and polish only, no extractions");
+  await expect(
+    page.getByRole("list", { name: "Lines of version 1" }).getByRole("listitem"),
+  ).toHaveCount(4);
+
+  await page.getByRole("button", { name: "Send to Sam" }).click();
+  await page
+    .getByRole("dialog", { name: "Send this estimate to Sam?" })
+    .getByRole("button", { name: "Send to Sam" })
+    .click();
+  await expect(page.getByRole("status")).toBeFocused();
+  await page.getByRole("button", { name: "Withdraw the estimate" }).click();
+  await page
+    .getByRole("dialog", { name: "Withdraw the estimate?" })
+    .getByRole("button", { name: "Withdraw it" })
+    .click();
+  await expect(page.getByRole("status")).toHaveText("Withdrawn. Sam can no longer authorise it.");
+  await expect(page.getByRole("status")).toBeFocused();
+  await expect(page.getByText("Withdrawn", { exact: true })).toBeVisible();
+});

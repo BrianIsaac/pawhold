@@ -28,7 +28,7 @@ import { PracticeError } from "./errors";
 import { approvedVersions, type VersionPanel, versionPanel } from "./panels";
 
 export type { VersionPanel } from "./panels";
-import { caseSources, keepSource } from "./sources";
+import { caseSources, keepSourceOrRefuse } from "./sources";
 import { loadUpdateView, type UpdateView } from "./update";
 import { parsePracticeRequest } from "./cases";
 
@@ -197,7 +197,7 @@ export async function draftForCase(
 ): Promise<DraftedEstimate> {
   const { practiceId, caseId, notes } = draftForCaseRequest.parse(request);
   const drafted = await draftEstimate(agent, { practiceId, caseId, notes });
-  await keepSource(agent.db, {
+  await keepSourceOrRefuse(agent.db, {
     versionId: drafted.version.id,
     practiceId,
     caseId,
@@ -209,11 +209,26 @@ export async function draftForCase(
   return drafted;
 }
 
-const quantity = z.coerce
-  .number({ error: "Enter a whole number" })
-  .int("Enter a whole number")
-  .min(0, "At least 0")
-  .max(MAX_LINE_QUANTITY, `At most ${MAX_LINE_QUANTITY}`);
+/**
+ * A quantity as typed: whole digits only, so a blank, "1e1" or "+3" is
+ * refused rather than read as some number.
+ *
+ * @param min - The least it may be.
+ * @returns The schema.
+ */
+function quantity(min: number) {
+  return z.preprocess(
+    (value) => (typeof value === "number" ? String(value) : value),
+    z
+      .string()
+      .trim()
+      .regex(/^\d+$/, "Enter a whole number")
+      .transform(Number)
+      .pipe(
+        z.int().min(min, `At least ${min}`).max(MAX_LINE_QUANTITY, `At most ${MAX_LINE_QUANTITY}`),
+      ),
+  );
+}
 
 const WORDING_REFUSED =
   "The owner's wording can't carry an amount, a percentage or a dose: prices come from your list.";
@@ -236,8 +251,8 @@ function ownerWords(max: number) {
 
 const lineFields = z
   .object({
-    quantityLow: quantity,
-    quantityHigh: quantity.min(1, "At least 1"),
+    quantityLow: quantity(0),
+    quantityHigh: quantity(1),
     dependsOn: ownerWords(300).optional(),
     ownerWording: ownerWords(500).optional(),
   })
@@ -316,6 +331,37 @@ async function lockDraft(
 }
 
 /**
+ * Refuses a change to a line an update draft carries from the version the
+ * owner approved: an update only adds to what is held (plan 3.2, "scope
+ * frozen at what is held"), as the update's screen shows it.
+ *
+ * @param tx - The transaction holding the case's lock.
+ * @param practiceId - The practice.
+ * @param draft - The draft.
+ * @param at - The line's index in the draft.
+ * @throws PracticeError `stale` when the line is one the owner approved.
+ */
+async function refuseApprovedLine(
+  tx: Transaction,
+  practiceId: string,
+  draft: EstimateVersionView,
+  at: number,
+): Promise<void> {
+  const versions = await caseEstimateVersions(tx, practiceId, draft.caseId);
+  const money = await caseMoney(tx, practiceId, draft.caseId);
+  const base = approvedVersions(
+    versions.filter((version) => version.sentAt !== null && version.number < draft.number),
+    money.holds,
+  ).at(-1);
+  if (base && at < base.lines.length) {
+    throw new PracticeError(
+      "stale",
+      "That line is in the estimate the owner approved. An update only adds to it.",
+    );
+  }
+}
+
+/**
  * Changes one line of a draft: its quantities, its condition ("Only if") and
  * the owner's wording, U2 repricing the draft from the list, written by the
  * vet. The line keeps its place and its span.
@@ -336,6 +382,7 @@ export async function editDraftLine(
     if (at < 0) {
       throw new PracticeError("stale", "That line changed since the page was opened.");
     }
+    await refuseApprovedLine(tx, practiceId, draft, at);
     const lines = linesOf(draft).map((line, index) =>
       index === at ? withFields(line, fields) : line,
     );
@@ -358,9 +405,11 @@ export async function removeDraftLine(
   const { practiceId, versionId, lineId } = parsePracticeRequest(removeRequest, request);
   return db.transaction(async (tx) => {
     const draft = await lockDraft(tx, practiceId, versionId);
-    if (!draft.lines.some((line) => line.id === lineId)) {
+    const at = draft.lines.findIndex((line) => line.id === lineId);
+    if (at < 0) {
       throw new PracticeError("stale", "That line changed since the page was opened.");
     }
+    await refuseApprovedLine(tx, practiceId, draft, at);
     const lines = linesOf(draft).filter((_, index) => draft.lines[index]!.id !== lineId);
     return replaceDraftLines(tx, { practiceId, versionId, actor: "vet", lines });
   });
@@ -446,34 +495,60 @@ function refuseUnlessDraftable(state: MoneyState): void {
   }
 }
 
-const versionRequest = z.strictObject({ practiceId: z.uuid(), versionId: z.uuid() });
+const versionRequest = z.strictObject({
+  practiceId: z.uuid(),
+  versionId: z.uuid(),
+  /** What the review dialog showed: the totals and the lines, by id. */
+  reviewed: z
+    .strictObject({
+      lowPence: z.int(),
+      highPence: z.int(),
+      lineIds: z.array(z.uuid()),
+    })
+    .optional(),
+});
 
 /**
- * Review and send (section 6): the vet's approval, an audit event with the
- * vet's name (plan 3.4: "nothing reaches the owner unreviewed"), then U3's
- * send, which moves the case, in one transaction. A refused send writes no
- * approval.
+ * Review and send (section 6): the vet's approval of exactly what the review
+ * showed, an audit event with the vet's name and the totals approved (plan
+ * 3.4: "nothing reaches the owner unreviewed"), then U3's send, which moves
+ * the case, in one transaction holding the case's lock. A draft changed since
+ * the review (any change rewrites its lines' ids, U2) is refused as stale; a
+ * refused send writes no approval.
  *
  * @param db - The database.
- * @param request - The practice and the draft.
+ * @param request - The practice, the draft and what the review showed of it.
  * @returns The version as sent and the case's new state.
- * @throws PracticeError when the version is not the practice's or its case names no vet.
+ * @throws PracticeError when the version is not the practice's, changed since the review, or its case names no vet.
  * @throws EstimateError or MoneyError as U2's and U3's send refuse.
  */
 export async function approveAndSend(
   db: Database["db"],
   request: z.input<typeof versionRequest>,
 ): Promise<SentEstimate> {
-  const { practiceId, versionId } = parsePracticeRequest(versionRequest, request);
+  const { practiceId, versionId, reviewed } = parsePracticeRequest(versionRequest, request);
   return db.transaction(async (tx) => {
-    const version = await loadEstimateVersion(tx, practiceId, versionId);
-    if (!version) {
+    const found = await loadEstimateVersion(tx, practiceId, versionId);
+    if (!found) {
       throw new PracticeError("version_not_found", "That estimate is not this practice's.");
     }
     const [kase] = await tx
       .select({ vetName: patientCase.vetName })
       .from(patientCase)
-      .where(eq(patientCase.id, version.caseId));
+      .where(eq(patientCase.id, found.caseId))
+      .for("update");
+    const version = (await loadEstimateVersion(tx, practiceId, versionId))!;
+    if (
+      reviewed &&
+      (reviewed.lowPence !== version.totals.lowPence ||
+        reviewed.highPence !== version.totals.highPence ||
+        reviewed.lineIds.join() !== version.lines.map((line) => line.id).join())
+    ) {
+      throw new PracticeError(
+        "stale",
+        "The draft changed since you reviewed it. Review it again before sending.",
+      );
+    }
     if (!kase?.vetName) {
       throw new PracticeError(
         "request_invalid",
@@ -485,7 +560,14 @@ export async function approveAndSend(
       caseId: version.caseId,
       actor: "vet",
       action: "estimate.approved",
-      detail: { versionId, number: version.number, vetName: kase.vetName },
+      detail: {
+        versionId,
+        number: version.number,
+        vetName: kase.vetName,
+        lowPence: version.totals.lowPence,
+        highPence: version.totals.highPence,
+        lineCount: version.lines.length,
+      },
     });
     return sendEstimate(tx, { practiceId, versionId, actor: "vet" });
   });

@@ -7,6 +7,8 @@ import type { ModelFailure } from "@/agent/model";
 import type { Executor } from "@/db/client";
 import { estimateSource, PHOTO_MEDIA_TYPES } from "@/db/schema";
 
+import { PracticeError } from "./errors";
+
 /** An update's photo, as a page shows it (its bytes are served on their own). */
 export interface SourcePhoto {
   readonly mediaType: (typeof PHOTO_MEDIA_TYPES)[number];
@@ -200,4 +202,28 @@ export async function keepSource(
       target: estimateSource.versionId,
       set: { ...values, updatedAt: sql`now()` },
     });
+}
+
+/**
+ * Keeps a draft's source, turning the database's refusal (the version was
+ * sent between the draft and this write, migration 0010) into a refusal the
+ * vet reads; the draft itself is U4's and committed already.
+ *
+ * @param write - The write.
+ * @returns Resolves once kept.
+ * @throws PracticeError `stale` when the version was sent meanwhile.
+ */
+export async function keepSourceOrRefuse(...write: Parameters<typeof keepSource>): Promise<void> {
+  try {
+    await keepSource(...write);
+  } catch (error) {
+    const raised = (error as { cause?: unknown }).cause ?? error;
+    if ((raised as { code?: string }).code === "23001") {
+      throw new PracticeError(
+        "stale",
+        "The estimate was sent while it was being drafted. The page shows it as it is now.",
+      );
+    }
+    throw error;
+  }
 }

@@ -1,13 +1,13 @@
 import { readFileSync } from "node:fs";
 
-import { and, eq } from "drizzle-orm";
+import { and, asc, eq } from "drizzle-orm";
 import { beforeEach, describe, expect, it } from "vitest";
 
 import { createRecordedModel, memoryRecordedStore, type RecordedStore } from "@/agent/recorded";
 import { auditEvent, patientCase } from "@/db/schema";
 import { createJudgeSessionHandlers } from "@/judge/session";
 import { PracticeError } from "@/practice/errors";
-import { approveAndSend, loadCaseView } from "@/practice/estimate";
+import { approveAndSend, editDraftLine, loadCaseView, removeDraftLine } from "@/practice/estimate";
 import { draftUpdateForCase, loadSourcePhoto } from "@/practice/update";
 
 import { seedFictionalPractice } from "../../seed/practice";
@@ -173,7 +173,49 @@ describe("the update", () => {
     const approvals = await db
       .select()
       .from(auditEvent)
-      .where(and(eq(auditEvent.caseId, caseId), eq(auditEvent.action, "estimate.approved")));
+      .where(and(eq(auditEvent.caseId, caseId), eq(auditEvent.action, "estimate.approved")))
+      .orderBy(asc(auditEvent.id));
     expect(approvals.at(-1)?.detail).toMatchObject({ number: 3, vetName: "Rowan Hale" });
+  });
+
+  it("keeps the photo already added when the finding is drafted again without a new one", async () => {
+    await draftWalkUpdate();
+    primeAnswer(store, await walkUpdateRequest(db, practiceId, caseId), WALK_UPDATE_ANSWER);
+
+    await draftUpdateForCase(agent(), {
+      practiceId,
+      caseId,
+      finding: WALK_FINDING,
+      photo: null,
+      sharePhoto: false,
+    });
+
+    const { update } = await loadCaseView(db, practiceId, caseId);
+    expect(update.draft?.panel.source?.photo).toMatchObject({ bytes: PHOTO.length, shared: false });
+    expect(update.draft?.panel.source?.failure).toBeNull();
+  });
+
+  it("refuses a change to a line the owner already approved: an update only adds to it", async () => {
+    await draftWalkUpdate();
+    const draft = (await loadCaseView(db, practiceId, caseId)).update.draft!.panel.version;
+    const approvedLine = draft.lines[0]!;
+
+    const edited = await editDraftLine(db, {
+      practiceId,
+      versionId: draft.id,
+      lineId: approvedLine.id,
+      quantityLow: 0,
+      quantityHigh: 1,
+      dependsOn: "",
+      ownerWording: "",
+    }).catch((error: unknown) => error);
+    const removed = await removeDraftLine(db, {
+      practiceId,
+      versionId: draft.id,
+      lineId: approvedLine.id,
+    }).catch((error: unknown) => error);
+
+    expect((edited as PracticeError).reason).toBe("stale");
+    expect((removed as PracticeError).reason).toBe("stale");
   });
 });

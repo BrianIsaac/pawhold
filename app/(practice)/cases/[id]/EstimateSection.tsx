@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 
 import { formatMoney } from "@/money/format";
 import type { CaseView, ListGroup, VersionPanel } from "@/practice/estimate";
+import { reviewedOf } from "@/practice/panels";
 import { estimateTotal, sendTo } from "@/practice/wording";
 
 import {
@@ -140,7 +141,12 @@ function DraftPanel({ view, draft }: { view: CaseView; draft: VersionPanel }) {
           trigger={sendTo(first)}
           title={`Send this estimate to ${first}?`}
           actionLabel={sendTo(first)}
-          action={sendAction.bind(null, { caseId, versionId, sent: "estimate" })}
+          action={sendAction.bind(null, {
+            caseId,
+            versionId,
+            sent: "estimate",
+            reviewed: reviewedOf(draft.version),
+          })}
           disabled={draft.version.lines.length === 0}
         >
           <ul className={styles.review} aria-label={`What ${first} will see`}>
@@ -259,7 +265,7 @@ export function EstimateSection({ view }: { view: CaseView }) {
               title="Withdraw the estimate?"
               actionLabel="Withdraw it"
               actionVariant="danger"
-              action={withdrawAction.bind(null, caseId)}
+              action={withdrawAction.bind(null, { caseId, what: "estimate" })}
             >
               <p className={styles.muted}>
                 {first} won&apos;t be able to authorise it. Nothing is held yet, so nothing needs

@@ -459,7 +459,14 @@ function approved(
   return {
     actor: "vet",
     action: "estimate.approved",
-    detail: { versionId: version.id, number: version.number, vetName },
+    detail: {
+      versionId: version.id,
+      number: version.number,
+      vetName,
+      lowPence: version.lowPence,
+      highPence: version.highPence,
+      lineCount: version.lineCount,
+    },
   };
 }
 

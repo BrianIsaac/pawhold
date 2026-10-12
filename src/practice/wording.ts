@@ -197,3 +197,23 @@ export function updateDeclined(
 ): string {
   return `${ownerFirstName} declined this update on ${day}. The case stays held at ${formatMoney({ pence: heldPence, currency })}: only what ${ownerFirstName} approved is done.`;
 }
+
+/**
+ * This unit's: once the estimate is withdrawn.
+ *
+ * @param ownerFirstName - The owner's first name.
+ * @returns The sentence.
+ */
+export function estimateWithdrawn(ownerFirstName: string): string {
+  return `Withdrawn. ${ownerFirstName} can no longer authorise it.`;
+}
+
+/**
+ * This unit's: once an update is withdrawn.
+ *
+ * @param ownerFirstName - The owner's first name.
+ * @returns The sentence.
+ */
+export function updateWithdrawn(ownerFirstName: string): string {
+  return `Update withdrawn. What ${ownerFirstName} approved before stays held.`;
+}

@@ -37,7 +37,7 @@ export function UpdateForm({
   const [state, submit, pending] = useActionState(action, NOTHING_YET);
   return (
     <form action={submit} className={styles.editorForm} noValidate>
-      {state.message && Object.keys(state.fields).length === 0 ? (
+      {state.message ? (
         <p role="alert" className={styles.notice}>
           {state.message}
         </p>

@@ -24,7 +24,8 @@ import { updateIncrease } from "@/money/view";
 
 import { parsePracticeRequest } from "./cases";
 import { type VersionPanel, versionPanel } from "./panels";
-import { keepSource, type SourceView } from "./sources";
+import { PracticeError } from "./errors";
+import { keepSourceOrRefuse, type SourceView } from "./sources";
 import { triggerSentence } from "./wording";
 
 /** A photo's media type. */
@@ -91,13 +92,6 @@ const updateInput = z
         });
       }
     }
-    if (request.sharePhoto && !photo) {
-      context.addIssue({
-        code: "custom",
-        path: ["sharePhoto"],
-        message: "Add a photo to show the owner",
-      });
-    }
   });
 
 /**
@@ -121,34 +115,61 @@ export async function draftUpdateForCase(
     updateInput,
     request,
   );
-  const mediaType = photo ? sniffImage(photo.bytes)! : null;
   const versions = await caseEstimateVersions(agent.db, practiceId, caseId);
-  const hadOpen = versions.some((version) => version.sentAt === null);
+  const open = versions.find((version) => version.sentAt === null) ?? null;
+  // A redraft with no new photo keeps the one already added: a file input
+  // cannot be filled again, and dropping the photo silently would lose it.
+  const kept = photo === null && open ? await storedPhoto(agent.db, open.id) : null;
+  const bytes = photo?.bytes ?? kept?.bytes ?? null;
+  const mediaType = bytes ? sniffImage(bytes) : null;
+  if (sharePhoto && !bytes) {
+    throw new PracticeError("request_invalid", "Check the fields marked below.", {
+      sharePhoto: "Add a photo to show the owner",
+    });
+  }
   const drafted = await draftUpdate(agent, {
     practiceId,
     caseId,
     finding,
-    photo: photo && mediaType ? { mediaType, dataBase64: photo.bytes.toString("base64") } : null,
+    photo: bytes && mediaType ? { mediaType, dataBase64: bytes.toString("base64") } : null,
   });
-  await keepSource(agent.db, {
+  await keepSourceOrRefuse(agent.db, {
     versionId: drafted.version.id,
     practiceId,
     caseId,
     kind: "finding",
     text: finding,
     outcome: drafted,
-    preservedLines: drafted.failure !== null && hadOpen,
+    preservedLines: drafted.failure !== null && open !== null,
     photo:
-      photo && mediaType
+      bytes && mediaType
         ? {
             mediaType,
-            bytes: photo.bytes,
-            sha256: createHash("sha256").update(photo.bytes).digest("hex"),
+            bytes,
+            sha256: createHash("sha256").update(bytes).digest("hex"),
             shared: sharePhoto,
           }
         : null,
   });
   return drafted;
+}
+
+/**
+ * The photo kept beside a version, if any.
+ *
+ * @param executor - The pool or an open transaction.
+ * @param versionId - The version.
+ * @returns Its bytes, or null.
+ */
+async function storedPhoto(
+  executor: Executor,
+  versionId: string,
+): Promise<{ bytes: Buffer } | null> {
+  const [row] = await executor
+    .select({ photo: estimateSource.photo })
+    .from(estimateSource)
+    .where(eq(estimateSource.versionId, versionId));
+  return row?.photo ? { bytes: row.photo } : null;
 }
 
 const photoRequest = z.strictObject({
