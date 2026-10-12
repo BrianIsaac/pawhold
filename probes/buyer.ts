@@ -1,5 +1,6 @@
 import { type Browser, chromium, type Page } from "playwright";
 
+import { serveCardPage } from "./card-page";
 import { RETURN_URL } from "./paypal";
 
 /*
@@ -7,7 +8,8 @@ import { RETURN_URL } from "./paypal";
  * with the GB personal account and approves an order, as an owner would on
  * their phone. One browser per approval, closed the moment it is done; P9
  * keeps one open across its steps to read the buyer's activity, and closes
- * it at the end of them.
+ * it at the end of them. P6 pays by card instead: the browser opens a local
+ * page holding JS SDK v6 card fields and submits a sandbox test card.
  */
 
 const SANDBOX_HOME = "https://www.sandbox.paypal.com";
@@ -36,6 +38,31 @@ export interface ActivityReading {
   readonly entries: readonly string[];
 }
 
+/** A sandbox test card, as PayPal's testing pages list it. */
+export interface TestCard {
+  readonly number: string;
+  /** `MM/YY`. */
+  readonly expiry: string;
+  readonly cvv: string;
+  readonly name: string;
+}
+
+/** One card-fields submission, as the report keeps it. */
+export interface CardPayment {
+  readonly startedAt: string;
+  readonly seconds: number;
+  /** `isEligible("advanced_cards")` for GBP, or null when it could not be read. */
+  readonly eligible: boolean | null;
+  /** Why eligibility could not be read, if it could not. */
+  readonly eligibilityError: string | null;
+  /** The submit's `state` (`succeeded`, `canceled`, `failed`), or null when it never ran. */
+  readonly state: string | null;
+  /** The submit's `data`, as returned (ids and liability shift; no card data). */
+  readonly data: unknown;
+  /** What went wrong before a submit, if anything. */
+  readonly error: string | null;
+}
+
 /** A browser session held across steps (P9). */
 export interface BuyerSession {
   approve(url: string): Promise<Approval>;
@@ -49,6 +76,8 @@ export interface Buyer {
   approve(url: string): Promise<Approval>;
   /** Runs steps in one browser session, closed when they end. */
   session<T>(steps: (session: BuyerSession) => Promise<T>): Promise<T>;
+  /** Pays for an order with a test card through v6 card fields, in a browser of its own. */
+  payByCard(orderId: string, card: TestCard): Promise<CardPayment>;
 }
 
 /** The sandbox buyer's login. */
@@ -61,10 +90,15 @@ export interface BuyerLogin {
  * The buyer in a headless Chromium.
  *
  * @param login - The sandbox personal account's login; never logged.
+ * @param clientId - The app's client id, for the card page's SDK.
  * @param secrets - Values scrubbed from any error text.
  * @returns The buyer.
  */
-export function createBrowserBuyer(login: BuyerLogin, secrets: readonly string[]): Buyer {
+export function createBrowserBuyer(
+  login: BuyerLogin,
+  clientId: string,
+  secrets: readonly string[],
+): Buyer {
   const session = async <T>(steps: (s: BuyerSession) => Promise<T>): Promise<T> => {
     const browser: Browser = await chromium.launch({ headless: true });
     try {
@@ -82,10 +116,107 @@ export function createBrowserBuyer(login: BuyerLogin, secrets: readonly string[]
       await browser.close();
     }
   };
+  const payByCard = async (orderId: string, card: TestCard): Promise<CardPayment> => {
+    const server = await serveCardPage(clientId);
+    const browser: Browser = await chromium.launch({ headless: true });
+    try {
+      const page = await browser.newPage({ locale: "en-GB", timezoneId: "Europe/London" });
+      page.setDefaultTimeout(STEP_TIMEOUT_MS);
+      return await payIn(page, server.url, orderId, card, secrets);
+    } finally {
+      await browser.close();
+      await server.close();
+    }
+  };
   return {
     approve: (url) => session((s) => s.approve(url)),
     session,
+    payByCard,
   };
+}
+
+/** What the card page exposes to the probe. */
+interface CardPageState {
+  ready: boolean;
+  eligible: boolean | null;
+  eligibilityError: string | null;
+  error: string | null;
+}
+
+/**
+ * Fills the card fields (each in PayPal's own iframe) and submits them for
+ * the order.
+ *
+ * @param page - The page.
+ * @param url - The local card page.
+ * @param orderId - The order to pay for.
+ * @param card - The test card.
+ * @param secrets - Values scrubbed from error text.
+ * @returns The submission.
+ */
+async function payIn(
+  page: Page,
+  url: string,
+  orderId: string,
+  card: TestCard,
+  secrets: readonly string[],
+): Promise<CardPayment> {
+  const started = Date.now();
+  const done = (rest: Omit<CardPayment, "startedAt" | "seconds">): CardPayment => ({
+    startedAt: new Date(started).toISOString(),
+    seconds: Math.round((Date.now() - started) / 100) / 10,
+    ...rest,
+  });
+  await page.goto(url);
+  const probe = () =>
+    page.evaluate(() => (window as unknown as { __probe: CardPageState }).__probe);
+  await page
+    .waitForFunction(
+      () => {
+        const state = (window as unknown as { __probe?: CardPageState }).__probe;
+        return state !== undefined && (state.ready || state.error !== null);
+      },
+      undefined,
+      { timeout: STEP_TIMEOUT_MS },
+    )
+    .catch(() => undefined);
+  const state = await probe();
+  if (!state.ready) {
+    return done({
+      eligible: state.eligible,
+      eligibilityError: state.eligibilityError,
+      state: null,
+      data: null,
+      error: scrub(state.error ?? "the card fields did not render in time", secrets),
+    });
+  }
+  const fields: [string, string][] = [
+    ["name", card.name],
+    ["number", card.number],
+    ["expiry", card.expiry],
+    ["cvv", card.cvv],
+  ];
+  for (const [type, value] of fields) {
+    const input = page.frameLocator(`#paypal-card-fields-${type} iframe`).locator("input").first();
+    await input.click();
+    await input.pressSequentially(value, { delay: 20 });
+  }
+  const result = await page.evaluate(
+    (id) =>
+      (
+        window as unknown as {
+          __probeSubmit: (orderId: string) => Promise<{ state: string; data: unknown }>;
+        }
+      ).__probeSubmit(id),
+    orderId,
+  );
+  return done({
+    eligible: state.eligible,
+    eligibilityError: state.eligibilityError,
+    state: result.state,
+    data: result.data,
+    error: null,
+  });
 }
 
 /**

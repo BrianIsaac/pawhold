@@ -1,6 +1,6 @@
 import { createPayPalClient } from "@/paypal/client";
 
-import type { ActivityReading, Approval, Buyer, BuyerSession } from "./buyer";
+import type { ActivityReading, Approval, Buyer, BuyerSession, CardPayment } from "./buyer";
 import {
   type CleanCheck,
   checkClean,
@@ -17,7 +17,8 @@ import { retryingFetch } from "./retry";
 /** What the buyer's browser did in a run, in order. */
 export type BuyerEvent =
   | { readonly kind: "approval"; readonly value: Approval }
-  | { readonly kind: "activity"; readonly value: ActivityReading };
+  | { readonly kind: "activity"; readonly value: ActivityReading }
+  | { readonly kind: "card"; readonly value: CardPayment };
 
 /** One run of one probe: what was sent, what PayPal answered, the verdict and the clean-up. */
 export interface ProbeRun {
@@ -133,6 +134,11 @@ export function recordingBuyer(inner: Buyer, events: BuyerEvent[]): Buyer {
   return {
     approve: (url) => inner.session((s) => wrap(s).approve(url)),
     session: (steps) => inner.session((s) => steps(wrap(s))),
+    payByCard: async (orderId, card) => {
+      const value = await inner.payByCard(orderId, card);
+      events.push({ kind: "card", value });
+      return value;
+    },
   };
 }
 

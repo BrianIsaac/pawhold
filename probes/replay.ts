@@ -1,6 +1,6 @@
 import { readFileSync, writeFileSync } from "node:fs";
 
-import type { ActivityReading, Approval, Buyer, BuyerSession } from "./buyer";
+import type { ActivityReading, Approval, Buyer, BuyerSession, CardPayment } from "./buyer";
 import type { Probe } from "./probe";
 import type { Exchange } from "./recorder";
 import { type BuyerEvent, type ProbeRun, runOnce } from "./run-once";
@@ -94,7 +94,7 @@ export function replayFetch(exchanges: readonly Exchange[]): ReplayFetch {
  */
 export function replayBuyer(events: readonly BuyerEvent[]): Buyer {
   const queue = [...events];
-  const take = <K extends "approval" | "activity">(kind: K) => {
+  const take = (kind: BuyerEvent["kind"]) => {
     const next = queue.shift();
     if (!next || next.kind !== kind) {
       throw new Error(`replay: a buyer ${kind} was not the next step recorded`);
@@ -108,6 +108,7 @@ export function replayBuyer(events: readonly BuyerEvent[]): Buyer {
   return {
     approve: (url) => session.approve(url),
     session: (steps) => steps(session),
+    payByCard: () => Promise.resolve(take("card") as CardPayment),
   };
 }
 

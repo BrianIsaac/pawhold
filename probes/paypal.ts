@@ -81,6 +81,16 @@ export const order = z.looseObject({
           address: z.looseObject({ country_code: z.string().optional() }).optional(),
         })
         .optional(),
+      card: z
+        .looseObject({
+          brand: z.string().optional(),
+          type: z.string().optional(),
+          last_digits: z.string().optional(),
+          authentication_result: z
+            .looseObject({ liability_shift: z.string().optional() })
+            .optional(),
+        })
+        .optional(),
     })
     .optional(),
   purchase_units: z
@@ -112,11 +122,18 @@ export interface AuthorizeOrderRequest {
   readonly customId: string;
   /** The order's idempotency key. */
   readonly requestId: string;
+  /**
+   * How the buyer pays: `paypal` sends them to PayPal's checkout (the
+   * `payer-action` link); `card` leaves the payment source to the card
+   * fields' submit.
+   */
+  readonly payWith?: "paypal" | "card";
 }
 
 /**
- * Creates an `AUTHORIZE` order for the buyer to approve with their PayPal
- * account, returning to `RETURN_URL` with no shipping asked.
+ * Creates an `AUTHORIZE` order: for the buyer to approve with their PayPal
+ * account, returning to `RETURN_URL` with no shipping asked; or, for a card,
+ * with no payment source, which the card fields' submit supplies.
  *
  * @param client - A sandbox client.
  * @param request - The amount and the references.
@@ -142,18 +159,22 @@ export async function createAuthorizeOrder(
           },
         },
       ],
-      payment_source: {
-        paypal: {
-          experience_context: {
-            brand_name: "pawhold probes",
-            locale: "en-GB",
-            shipping_preference: "NO_SHIPPING",
-            user_action: "CONTINUE",
-            return_url: RETURN_URL,
-            cancel_url: CANCEL_URL,
-          },
-        },
-      },
+      ...(request.payWith === "card"
+        ? {}
+        : {
+            payment_source: {
+              paypal: {
+                experience_context: {
+                  brand_name: "pawhold probes",
+                  locale: "en-GB",
+                  shipping_preference: "NO_SHIPPING",
+                  user_action: "CONTINUE",
+                  return_url: RETURN_URL,
+                  cancel_url: CANCEL_URL,
+                },
+              },
+            },
+          }),
     },
     response: order,
   });

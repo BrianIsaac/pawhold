@@ -105,6 +105,11 @@ function renderRun(run: ProbeRun, index: number, of: number): string[] {
       lines.push(
         `- Buyer approval from ${clock(a.startedAt)} UTC, ${a.seconds} s, ${a.signedIn ? "signed in" : "already signed in"}, funding ${a.funding ?? "unread"}${a.notice ? `; the review page: "${a.notice}"` : ""}`,
       );
+    } else if (event.kind === "card") {
+      const c = event.value;
+      lines.push(
+        `- Card fields from ${clock(c.startedAt)} UTC, ${c.seconds} s: eligible for GBP ${c.eligible === null ? `unread${c.eligibilityError ? ` (${c.eligibilityError})` : ""}` : String(c.eligible)}; submit ${c.state ?? "not reached"}${c.data ? `, data \`${JSON.stringify(c.data)}\`` : ""}${c.error ? `; ${c.error}` : ""}`,
+      );
     } else {
       const r = event.value;
       lines.push(

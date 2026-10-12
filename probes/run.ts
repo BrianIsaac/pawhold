@@ -60,6 +60,7 @@ const env = readEnvironment(probeEnvironment);
 const secrets = secretsOf(env);
 const buyer = createBrowserBuyer(
   { email: env.PAYPAL_SANDBOX_BUYER_EMAIL, password: env.PAYPAL_SANDBOX_BUYER_PASSWORD },
+  env.PAYPAL_CLIENT_ID,
   secrets,
 );
 const say = (line: string): void => console.info(assertNoSecrets(line, secrets, "a log line"));
