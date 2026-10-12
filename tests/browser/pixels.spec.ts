@@ -129,6 +129,21 @@ for (const width of Object.keys(WIDTHS) as Width[]) {
       expect(inView).toBeGreaterThan(0);
     });
 
+    test("the day opens with no booking cut under the room names", async ({ page }) => {
+      await signInAsPractice(page);
+      await page.goto("/day");
+      const grid = page.getByRole("region", { name: "The day's bookings, by room and time" });
+      await expect(grid).toBeVisible();
+      const corner = (await grid.locator("[data-room-label]").boundingBox())!;
+      const edge = corner.x + corner.width;
+      for (const booking of await grid.getByRole("link").all()) {
+        const box = (await booking.boundingBox())!;
+        const whole = box.x >= edge - 0.5;
+        const away = box.x + box.width <= edge + 0.5;
+        expect(whole || away, (await booking.getAttribute("title")) ?? "").toBe(true);
+      }
+    });
+
     test("a case's title stands at the same height with or without a button beside it", async ({
       page,
     }) => {

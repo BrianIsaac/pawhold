@@ -23,8 +23,13 @@
   gap: var(--owner-space-5);
 }
 
+/*
+ * The owner's headings name the practice; balancing would split its name
+ * ("Hollins / Lane Veterinary Surgery"), so they only avoid a word alone.
+ */
 .header h1 {
   margin: 0 0 var(--owner-space-3);
+  text-wrap: pretty;
   font-size: 1.5rem;
   line-height: 1.25;
   letter-spacing: -0.01em;

@@ -51,6 +51,11 @@
   text-align: right;
 }
 
+/* A quiet button in the price column ends on the column's edge, as the prices do. */
+.linePrice > button {
+  margin-inline-end: calc(-1 * var(--space-4));
+}
+
 .unitPrice {
   color: var(--colour-ink-muted);
   font-size: var(--font-size-0);

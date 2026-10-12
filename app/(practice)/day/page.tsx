@@ -15,7 +15,8 @@ import { dismissMoveAction, moveItAction, undoHoldAction } from "./actions";
 import { DayActionButton } from "./DayActionButton";
 import { DayCheck } from "./DayCheck";
 import styles from "./day.module.css";
-import { LEAD_COLUMNS, ScrollIntoDay } from "./ScrollIntoDay";
+import { LEAD_COLUMNS, openingLine } from "./opening";
+import { ScrollIntoDay } from "./ScrollIntoDay";
 
 export const metadata: Metadata = { title: "The day" };
 
@@ -55,7 +56,10 @@ export default async function DayPage({
     }
     throw error;
   }
-  const scrollTo = firstLineInView(view);
+  const scrollTo = openingLine(
+    firstLineInView(view),
+    view.rooms.flatMap((lane) => lane.bookings.map((one) => one.column)),
+  );
 
   return (
     <>
