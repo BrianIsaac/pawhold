@@ -1,5 +1,9 @@
-import type { Executor } from "../../src/db/client";
-import { patientCase, practice, room, vet } from "../../src/db/schema";
+import { and, asc, eq } from "drizzle-orm";
+
+import type { Database, Executor } from "../../src/db/client";
+import { booking, patientCase, practice, room, vet } from "../../src/db/schema";
+import { createJudgeSessionHandlers } from "../../src/judge/session";
+import { seedFictionalPractice } from "../../seed/practice";
 
 /** A practice made for a schedule test: two theatres, a consult room and two vets. */
 export interface SchedulePractice {
@@ -88,4 +92,70 @@ export async function openScheduleCase(
     })
     .returning({ id: patientCase.id });
   return made!.id;
+}
+
+/** A judge's practice as the seed lays it, with the day's bookings the agent's tests act on. */
+export interface SeededDayPractice {
+  readonly practiceId: string;
+  /** The day's case, Juno: its update waits on the owner. */
+  readonly dueCaseId: string;
+  /** Juno's procedure in theatre 1, due inside the lead time from the seed. */
+  readonly due: BookingRow;
+  /** Biscuit's procedure, next in theatre 1. */
+  readonly next: BookingRow;
+  readonly theatre1: string;
+  readonly consultRoom: string;
+  readonly vets: Readonly<Record<string, string>>;
+}
+
+type BookingRow = typeof booking.$inferSelect;
+
+/**
+ * Starts a judge's session through U1's handler with the application's seed,
+ * and reads back the seeded day's bookings in theatre 1.
+ *
+ * @param db - The test database.
+ * @returns The practice and the day's bookings.
+ */
+export async function startSeededDay(db: Database["db"]): Promise<SeededDayPractice> {
+  const handlers = createJudgeSessionHandlers({
+    db,
+    secret: "test-session-secret-0123456789abcdef-not-real",
+    seed: seedFictionalPractice,
+  });
+  const started = await handlers.POST(
+    new Request("https://pawhold.test/api/judge/session", {
+      method: "POST",
+      headers: { "content-type": "application/json", origin: "https://pawhold.test" },
+      body: JSON.stringify({ door: "practice" }),
+    }),
+  );
+  const { practiceId } = (await started.json()) as { practiceId: string };
+  const rooms = await db
+    .select({ id: room.id, name: room.name })
+    .from(room)
+    .where(eq(room.practiceId, practiceId));
+  const vets = await db
+    .select({ id: vet.id, name: vet.name })
+    .from(vet)
+    .where(eq(vet.practiceId, practiceId));
+  const theatre1 = rooms.find((one) => one.name === "Theatre 1")!.id;
+  const inTheatre = await db
+    .select({ booking, patientName: patientCase.patientName })
+    .from(booking)
+    .innerJoin(patientCase, eq(patientCase.id, booking.caseId))
+    .where(and(eq(booking.practiceId, practiceId), eq(booking.roomId, theatre1)))
+    .orderBy(asc(booking.startsAt));
+  const named = (patientName: string): BookingRow =>
+    inTheatre.find((one) => one.patientName === patientName)!.booking;
+  const due = named("Juno");
+  return {
+    practiceId,
+    dueCaseId: due.caseId,
+    due,
+    next: named("Biscuit"),
+    theatre1,
+    consultRoom: rooms.find((one) => one.name === "Consult room")!.id,
+    vets: Object.fromEntries(vets.map((one) => [one.name, one.id])),
+  };
 }

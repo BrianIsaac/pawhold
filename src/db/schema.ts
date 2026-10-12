@@ -911,7 +911,103 @@ export const booking = pgTable(
       sql`extract(epoch from ${table.startsAt}) % 300 = 0 and extract(epoch from ${table.endsAt}) % 300 = 0`,
     ),
     unique("booking_id_practice_id_key").on(table.id, table.practiceId),
+    /** What the schedule agent's proposal names of the booking it holds: its case too. */
+    unique("booking_id_case_practice_key").on(table.id, table.caseId, table.practiceId),
     index("booking_practice_starts_at_idx").on(table.practiceId, table.startsAt),
     index("booking_case_id_idx").on(table.caseId),
+  ],
+);
+
+/**
+ * Where the schedule agent's proposed move stands (D9 (a): a move waits for
+ * the practice's click): `proposed` until the practice moves it or dismisses
+ * it, or the agent withdraws it (the update answered, the hold undone, or the
+ * slot started).
+ */
+export const scheduleMoveStatus = pgEnum("schedule_move_status", [
+  "proposed",
+  "applied",
+  "dismissed",
+  "withdrawn",
+]);
+
+/** Who released a held slot: the practice by its one click, or the agent once the update was answered. */
+export const scheduleReleasedBy = pgEnum("schedule_released_by", ["practice", "agent"]);
+
+/**
+ * One act of the schedule agent (plan 3.4's third job, D9 (a)): a procedure's
+ * slot held at once because its case's update waits on the owner inside the
+ * practice's lead time, and the move of the room's next procedure into it
+ * proposed beside it. Open while the hold stands; once per booking and update,
+ * so a hold the practice undid is not held again for the same update. Every
+ * change is an audit event in the same transaction.
+ */
+export const scheduleProposal = pgTable(
+  "schedule_proposal",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    practiceId: uuid("practice_id").notNull(),
+    caseId: uuid("case_id").notNull(),
+    bookingId: uuid("booking_id").notNull(),
+    /** The update waiting on the owner when the slot was held. */
+    versionId: uuid("version_id").notNull(),
+    /** Why, in section 6's words, as the agent wrote it when it held the slot. */
+    reason: text("reason").notNull(),
+    heldAt: timestamp("held_at", { withTimezone: true }).notNull(),
+    releasedAt: timestamp("released_at", { withTimezone: true }),
+    releasedBy: scheduleReleasedBy("released_by"),
+    /** The room's next procedure, proposed to move into the held slot. */
+    moveBookingId: uuid("move_booking_id"),
+    /** Where the move puts it: the held slot's start when the move was proposed. */
+    moveTo: timestamp("move_to", { withTimezone: true }),
+    moveStatus: scheduleMoveStatus("move_status"),
+    moveDecidedAt: timestamp("move_decided_at", { withTimezone: true }),
+    createdAt: createdAt(),
+  },
+  (table) => [
+    foreignKey({
+      name: "schedule_proposal_booking_fk",
+      columns: [table.bookingId, table.caseId, table.practiceId],
+      foreignColumns: [booking.id, booking.caseId, booking.practiceId],
+    }).onDelete("restrict"),
+    foreignKey({
+      name: "schedule_proposal_case_in_practice_fk",
+      columns: [table.caseId, table.practiceId],
+      foreignColumns: [patientCase.id, patientCase.practiceId],
+    }).onDelete("restrict"),
+    foreignKey({
+      name: "schedule_proposal_version_fk",
+      columns: [table.versionId, table.caseId, table.practiceId],
+      foreignColumns: [estimateVersion.id, estimateVersion.caseId, estimateVersion.practiceId],
+    }).onDelete("restrict"),
+    foreignKey({
+      name: "schedule_proposal_move_booking_fk",
+      columns: [table.moveBookingId, table.practiceId],
+      foreignColumns: [booking.id, booking.practiceId],
+    }).onDelete("restrict"),
+    check("schedule_proposal_reason_length", sql`char_length(${table.reason}) between 1 and 500`),
+    check(
+      "schedule_proposal_released_complete",
+      sql`(${table.releasedAt} is null) = (${table.releasedBy} is null)`,
+    ),
+    check(
+      "schedule_proposal_move_complete",
+      sql`(${table.moveBookingId} is null) = (${table.moveStatus} is null)
+        and (${table.moveBookingId} is null) = (${table.moveTo} is null)`,
+    ),
+    check(
+      "schedule_proposal_move_decided",
+      sql`(${table.moveDecidedAt} is not null) = (${table.moveStatus} is not null and ${table.moveStatus} <> 'proposed')`,
+    ),
+    check(
+      "schedule_proposal_move_another_booking",
+      sql`${table.moveBookingId} is null or ${table.moveBookingId} <> ${table.bookingId}`,
+    ),
+    unique("schedule_proposal_booking_version_key").on(table.bookingId, table.versionId),
+    uniqueIndex("schedule_proposal_one_open_per_booking_idx")
+      .on(table.bookingId)
+      .where(sql`${table.releasedAt} is null`),
+    index("schedule_proposal_practice_idx").on(table.practiceId, table.heldAt),
+    index("schedule_proposal_case_idx").on(table.caseId),
   ],
 );
