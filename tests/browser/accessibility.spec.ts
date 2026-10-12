@@ -114,7 +114,10 @@ const SCREENS: Record<string, (page: Page) => Promise<void>> = {
     await page.goto("/today");
     await page.getByRole("button", { name: "New case" }).click();
     await page.getByRole("button", { name: "Open the case" }).click();
-    await expect(page.getByRole("alert")).toBeVisible();
+    // The dialog's own alert: Next's route announcer is an alert too, once it mounts.
+    await expect(
+      page.getByRole("dialog", { name: "Open a case" }).getByRole("alert"),
+    ).toBeVisible();
   },
   "a new case": async (page) => {
     await signInAsPractice(page);
