@@ -3,10 +3,11 @@ import { z } from "zod";
 
 import { appendAuditEvent } from "@/audit/writer";
 import type { Executor } from "@/db/client";
-import { auditActor, priceCategory, priceList, priceListItem } from "@/db/schema";
+import { auditActor, practice, priceCategory, priceList, priceListItem } from "@/db/schema";
 import { type CurrencyCode, currencyCode } from "@/money/currency";
 
 import { CsvSyntaxError, readCsv } from "./csv";
+import { EstimateError } from "./errors";
 
 /** The columns a price list's CSV carries, in any order. */
 export const PRICE_LIST_COLUMNS = ["code", "name", "category", "unit", "unit_price_pence"] as const;
@@ -283,18 +284,33 @@ export interface ImportedPriceList {
  * @param request - The practice, who imported it, the file's name, its currency and its text.
  * @returns The stored list.
  * @throws PriceListImportError when the file or any row is refused.
+ * @throws EstimateError when the request is malformed or there is no such practice.
  */
 export async function importPriceList(
   executor: Executor,
   request: PriceListImportRequest,
 ): Promise<ImportedPriceList> {
-  const { practiceId, actor, sourceName, currency, csv } = importRequest.parse(request);
+  const parsed = importRequest.safeParse(request);
+  if (!parsed.success) {
+    throw new EstimateError(
+      "request_invalid",
+      `price list import refused: ${z.prettifyError(parsed.error)}`,
+    );
+  }
+  const { practiceId, actor, sourceName, currency, csv } = parsed.data;
   const entries = parsePriceList(csv);
 
   return executor.transaction(async (tx) => {
+    const [owner] = await tx
+      .select({ id: practice.id })
+      .from(practice)
+      .where(eq(practice.id, practiceId));
+    if (!owner) {
+      throw new EstimateError("request_invalid", `there is no practice ${practiceId}`);
+    }
     const [list] = await tx
       .insert(priceList)
-      .values({ practiceId, currencyCode: currency, sourceName })
+      .values({ practiceId, currencyCode: currency, sourceName, itemCount: entries.length })
       .returning();
     await tx.insert(priceListItem).values(
       entries.map((entry) => ({

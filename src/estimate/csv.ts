@@ -27,7 +27,8 @@ export class CsvSyntaxError extends Error {
 /**
  * Reads CSV as RFC 4180 writes it: comma-separated fields, double quotes
  * around a field holding a comma, a quote or a line break, a quote inside one
- * doubled. Rows end in CRLF or LF. A leading byte order mark is dropped, and
+ * doubled. Rows end in CRLF, LF or a lone CR (as old Mac spreadsheets
+ * write). A leading byte order mark is dropped, and
  * blank rows are skipped but still counted, so each record keeps the row
  * number a spreadsheet would show for it.
  *
@@ -36,13 +37,14 @@ export class CsvSyntaxError extends Error {
  * @throws CsvSyntaxError when a quote is out of place or never closed.
  */
 export function readCsv(text: string): CsvRecord[] {
-  const source = text.startsWith("﻿") ? text.slice(1) : text;
+  const source = text.startsWith("\uFEFF") ? text.slice(1) : text;
   const records: CsvRecord[] = [];
   let fields: string[] = [];
   let field = "";
   let row = 1;
   let quoted = false;
   let afterQuote = false;
+  let recordQuoted = false;
   let index = 0;
 
   const endField = () => {
@@ -52,11 +54,12 @@ export function readCsv(text: string): CsvRecord[] {
   };
   const endRecord = () => {
     endField();
-    const blank = fields.length === 1 && fields[0] === "";
+    const blank = !recordQuoted && fields.length === 1 && fields[0] === "";
     if (!blank) {
       records.push({ row, fields });
     }
     fields = [];
+    recordQuoted = false;
   };
 
   while (index < source.length) {
@@ -79,17 +82,22 @@ export function readCsv(text: string): CsvRecord[] {
 
     if (char === ",") {
       endField();
-    } else if (char === "\n" || (char === "\r" && source[index + 1] === "\n")) {
+    } else if (char === "\n" || char === "\r") {
       endRecord();
-      index += char === "\r" ? 1 : 0;
+      index += char === "\r" && source[index + 1] === "\n" ? 1 : 0;
       row += 1;
     } else if (afterQuote) {
       throw new CsvSyntaxError(row, "text after a closing quote");
     } else if (char === '"') {
       if (field !== "") {
-        throw new CsvSyntaxError(row, "a quote inside an unquoted field");
+        const reason =
+          field.trim() === ""
+            ? "a space before an opening quote"
+            : "a quote inside an unquoted field";
+        throw new CsvSyntaxError(row, reason);
       }
       quoted = true;
+      recordQuoted = true;
     } else {
       field += char;
     }

@@ -1,4 +1,4 @@
-import { and, asc, eq, isNull, max } from "drizzle-orm";
+import { and, asc, eq, isNull, max, sql } from "drizzle-orm";
 import { z } from "zod";
 
 import { appendAuditEvent } from "@/audit/writer";
@@ -13,13 +13,15 @@ import {
 } from "@/db/schema";
 import { type CurrencyCode, currencyCode, MAX_PENCE } from "@/money/currency";
 
+import { EstimateError, type EstimateLineIssue } from "./errors";
 import {
   currentPriceList,
-  loadPriceList,
   type PriceCategory,
   priceListCode,
   type PriceListWithItems,
 } from "./price-list";
+
+export { EstimateError, type EstimateLineIssue, type EstimateRefusal } from "./errors";
 
 /**
  * The most a line's quantity may be. With the largest unit price
@@ -53,45 +55,6 @@ export const estimateLineInput = z
   });
 
 export type EstimateLineInput = z.input<typeof estimateLineInput>;
-
-/** Why an estimate operation was refused. */
-export type EstimateRefusal =
-  | "request_invalid"
-  | "case_not_found"
-  | "version_not_found"
-  | "no_price_list"
-  | "currency_mismatch"
-  | "draft_exists"
-  | "sent"
-  | "empty"
-  | "different_cases"
-  | "too_large"
-  | "lines_refused";
-
-/** A refused line: its place (the first is 1), its code as given, and why. */
-export interface EstimateLineIssue {
-  readonly line: number;
-  readonly code: string | null;
-  readonly message: string;
-}
-
-/** An estimate operation refused, with the reason and, for lines, each fault. */
-export class EstimateError extends Error {
-  override readonly name = "EstimateError";
-
-  /**
-   * @param reason - Why, as a stable word a caller can branch on.
-   * @param message - Why, in words.
-   * @param issues - For refused lines, each fault.
-   */
-  constructor(
-    readonly reason: EstimateRefusal,
-    message: string,
-    readonly issues: readonly EstimateLineIssue[] = [],
-  ) {
-    super(message);
-  }
-}
 
 /** A range of money in pence: the low and the high end. */
 export interface PenceRange {
@@ -247,9 +210,10 @@ export async function makeEstimateVersion(
 }
 
 /**
- * Replaces a draft's lines, priced from the price list the draft was made
- * with, and writes `estimate.draft_changed`. A sent version's lines never
- * change: make a new version instead.
+ * Replaces a draft's lines, priced from the practice's current price list
+ * (so a draft made before a new import is repriced), and writes
+ * `estimate.draft_changed`. A sent version's lines never change: make a new
+ * version instead.
  *
  * @param executor - The pool or an open transaction.
  * @param request - The practice, the draft, who changed it and its new lines.
@@ -263,23 +227,37 @@ export async function replaceDraftLines(
   const { practiceId, versionId, actor: by, lines } = parseRequest(replaceRequest, request);
   return executor.transaction(async (tx) => {
     const version = await lockVersion(tx, practiceId, versionId);
-    const list = await loadPriceList(tx, practiceId, version.priceListId);
+    const list = await currentPriceList(tx, practiceId);
     const priced = priceLines(list!, lines);
     await tx.delete(estimateLine).where(eq(estimateLine.versionId, versionId));
-    await insertLines(tx, versionId, version.priceListId, priced);
+    if (list!.id !== version.priceListId) {
+      await tx
+        .update(estimateVersion)
+        .set({ priceListId: list!.id })
+        .where(eq(estimateVersion.id, versionId));
+    }
+    await insertLines(tx, versionId, list!.id, priced);
     await appendAuditEvent(tx, {
       practiceId,
       caseId: version.caseId,
       actor: by,
       action: "estimate.draft_changed",
-      detail: { versionId, number: version.number, lineCount: priced.length, ...totalsOf(priced) },
+      detail: {
+        versionId,
+        number: version.number,
+        priceListId: list!.id,
+        lineCount: priced.length,
+        ...totalsOf(priced),
+      },
     });
     return mustLoad(tx, practiceId, versionId);
   });
 }
 
 /**
- * Sends a draft to the owner: from now on it never changes. Its totals are
+ * Sends a draft to the owner: from now on it never changes. A draft priced
+ * from a list the practice has since replaced is refused until its lines are
+ * replaced (and so repriced). Its totals are
  * set from its lines (the database checks them, migration 0003) and
  * `estimate.sent` is written with the top of the range as the amount, the sum
  * a hold is made for (D3). The case's money state is the money lifecycle's to
@@ -301,10 +279,17 @@ export async function sendEstimateVersion(
     if (draft.lines.length === 0) {
       throw new EstimateError("empty", `version ${draft.number} has no lines to send`);
     }
+    const current = await currentPriceList(tx, practiceId);
+    if (current?.id !== draft.priceListId) {
+      throw new EstimateError(
+        "price_list_changed",
+        `version ${draft.number} is priced from a list since replaced; replace its lines to reprice it`,
+      );
+    }
     const { lowPence, highPence } = draft.totals;
     await tx
       .update(estimateVersion)
-      .set({ sentAt: new Date(), totalLowPence: lowPence, totalHighPence: highPence })
+      .set({ sentAt: sql`now()`, totalLowPence: lowPence, totalHighPence: highPence })
       .where(eq(estimateVersion.id, versionId));
     await appendAuditEvent(tx, {
       practiceId,

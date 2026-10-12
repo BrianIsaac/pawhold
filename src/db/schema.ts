@@ -230,12 +230,15 @@ export const priceList = pgTable(
       .references(() => practice.id, { onDelete: "restrict" }),
     currencyCode: char("currency_code", { length: 3 }).notNull().default("GBP"),
     sourceName: text("source_name").notNull(),
+    /** How many items the list was imported with; the database holds it to that (migration 0003). */
+    itemCount: integer("item_count").notNull(),
     importedAt: timestamp("imported_at", { withTimezone: true })
       .notNull()
       .default(sql`clock_timestamp()`),
   },
   (table) => [
     check("price_list_currency_code", sql`${table.currencyCode} in ('GBP', 'USD')`),
+    check("price_list_item_count_range", sql`${table.itemCount} between 1 and 2000`),
     unique("price_list_id_practice_id_key").on(table.id, table.practiceId),
     index("price_list_practice_id_idx").on(table.practiceId, table.importedAt),
   ],

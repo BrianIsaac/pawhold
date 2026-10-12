@@ -47,3 +47,26 @@ describe("reading CSV (RFC 4180)", () => {
     expect(() => readCsv('a,"b"c\n')).toThrow(new CsvSyntaxError(1, "text after a closing quote"));
   });
 });
+
+describe("reading CSV as spreadsheets write it", () => {
+  it("ends a row at a lone carriage return, as old Mac spreadsheets write", () => {
+    expect(readCsv("a,b\rc,d\r")).toEqual([
+      { row: 1, fields: ["a", "b"] },
+      { row: 2, fields: ["c", "d"] },
+    ]);
+  });
+
+  it("keeps a row whose one field is a quoted empty string", () => {
+    expect(readCsv('a\n""\nb\n')).toEqual([
+      { row: 1, fields: ["a"] },
+      { row: 2, fields: [""] },
+      { row: 3, fields: ["b"] },
+    ]);
+  });
+
+  it("says so when a space comes before an opening quote", () => {
+    expect(() => readCsv('a, "b"\n')).toThrow(
+      new CsvSyntaxError(1, "a space before an opening quote"),
+    );
+  });
+});

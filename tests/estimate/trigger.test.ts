@@ -268,3 +268,11 @@ describe("the trigger on a case's versions", () => {
     expect(await checkEstimateTrigger(db, { practiceId, versionId: original.id })).toBeNull();
   });
 });
+
+describe("a trigger request", () => {
+  it("is refused with a typed refusal when malformed", async () => {
+    await expect(
+      checkEstimateTrigger(db, { practiceId: "not-a-uuid", versionId: "nor-this" }),
+    ).rejects.toMatchObject({ name: "EstimateError", reason: "request_invalid" });
+  });
+});

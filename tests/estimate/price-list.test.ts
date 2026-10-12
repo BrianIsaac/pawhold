@@ -263,3 +263,29 @@ describe("importing a price list", () => {
     expect(await currentPriceList(db, practiceId)).toBeNull();
   });
 });
+
+describe("an import request", () => {
+  it("is refused with a typed refusal when malformed or for no practice", async () => {
+    const malformed = importPriceList(db, {
+      practiceId: "not-a-uuid",
+      actor: "vet",
+      sourceName: "p.csv",
+      csv: csv("CON-STD,Consultation,consultation,consultation,4800"),
+    });
+    const nobody = importPriceList(db, {
+      practiceId: "00000000-0000-4000-8000-000000000000",
+      actor: "vet",
+      sourceName: "p.csv",
+      csv: csv("CON-STD,Consultation,consultation,consultation,4800"),
+    });
+
+    await expect(malformed).rejects.toMatchObject({
+      name: "EstimateError",
+      reason: "request_invalid",
+    });
+    await expect(nobody).rejects.toMatchObject({
+      name: "EstimateError",
+      reason: "request_invalid",
+    });
+  });
+});

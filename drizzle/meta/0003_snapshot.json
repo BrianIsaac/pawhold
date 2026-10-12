@@ -1,6 +1,6 @@
 {
-  "id": "21386850-6ea1-4e56-8018-6496cf1f9a78",
-  "prevId": "f4d82893-e63d-41dd-9a3d-94f2c99f8642",
+  "id": "4981500e-c232-41af-b2ae-983878003b9c",
+  "prevId": "e7b0fb50-3607-44d9-b68d-8b0c0b29b087",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -734,6 +734,13 @@
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
+        },
+        "monetary_threshold_pence": {
+          "name": "monetary_threshold_pence",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 50000
         }
       },
       "indexes": {},
@@ -741,7 +748,12 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
-      "checkConstraints": {},
+      "checkConstraints": {
+        "practice_monetary_threshold_positive": {
+          "name": "practice_monetary_threshold_positive",
+          "value": "\"practice\".\"monetary_threshold_pence\" > 0"
+        }
+      },
       "isRLSEnabled": false
     },
     "public.price_list": {
@@ -771,6 +783,12 @@
         "source_name": {
           "name": "source_name",
           "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "item_count": {
+          "name": "item_count",
+          "type": "integer",
           "primaryKey": false,
           "notNull": true
         },
@@ -836,6 +854,10 @@
         "price_list_currency_code": {
           "name": "price_list_currency_code",
           "value": "\"price_list\".\"currency_code\" in ('GBP', 'USD')"
+        },
+        "price_list_item_count_range": {
+          "name": "price_list_item_count_range",
+          "value": "\"price_list\".\"item_count\" between 1 and 2000"
         }
       },
       "isRLSEnabled": false

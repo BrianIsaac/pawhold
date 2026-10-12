@@ -3,7 +3,9 @@ import { beforeEach, describe, expect, it } from "vitest";
 
 import { auditEvent, patientCase, practice } from "@/db/schema";
 import { importPriceList } from "@/estimate/price-list";
+import { checkEstimateTrigger } from "@/estimate/trigger";
 import {
+  caseEstimateVersions,
   EstimateError,
   estimateDelta,
   type EstimateLineInput,
@@ -394,5 +396,124 @@ describe("the delta between versions (plan 3.3)", () => {
     });
 
     expect(() => estimateDelta(first, other)).toThrow(EstimateError);
+  });
+});
+
+describe("an estimate version, kept to its practice and its prices", () => {
+  it("is not reached through another practice", async () => {
+    const draft = await makeEstimateVersion(db, {
+      practiceId,
+      caseId,
+      actor: "vet",
+      lines: DENTAL,
+    });
+    const [other] = await db
+      .insert(practice)
+      .values({ name: "Other practice", kind: "judge" })
+      .returning();
+    const otherId = other!.id;
+
+    const send = await refusal(
+      sendEstimateVersion(db, { practiceId: otherId, versionId: draft.id, actor: "vet" }),
+    );
+    const replace = await refusal(
+      replaceDraftLines(db, { practiceId: otherId, versionId: draft.id, actor: "vet", lines: [] }),
+    );
+    const trigger = await refusal(
+      checkEstimateTrigger(db, { practiceId: otherId, versionId: draft.id }),
+    );
+
+    expect([send.reason, replace.reason, trigger.reason]).toEqual([
+      "version_not_found",
+      "version_not_found",
+      "version_not_found",
+    ]);
+    expect(await loadEstimateVersion(db, otherId, draft.id)).toBeNull();
+    expect(await caseEstimateVersions(db, otherId, caseId)).toEqual([]);
+    expect((await loadEstimateVersion(db, practiceId, draft.id))?.lines).toHaveLength(4);
+  });
+
+  it("refuses a case in another currency than the list's", async () => {
+    const [dollars] = await db
+      .insert(patientCase)
+      .values({
+        practiceId,
+        patientName: "Rex",
+        ownerName: "D. Owner",
+        procedure: "Spay",
+        currencyCode: "USD",
+      })
+      .returning();
+
+    const refused = await refusal(
+      makeEstimateVersion(db, { practiceId, caseId: dollars!.id, actor: "vet", lines: [] }),
+    );
+
+    expect(refused.reason).toBe("currency_mismatch");
+  });
+
+  it("refuses a total past the largest amount stored", async () => {
+    await importPriceList(db, {
+      practiceId,
+      actor: "vet",
+      sourceName: "dear.csv",
+      csv: [
+        "code,name,category,unit,unit_price_pence",
+        "DEAR-1,Dear item,procedure,item,2000000",
+        "DEAR-2,Dearer item,procedure,item,2000000",
+      ].join("\n"),
+    });
+
+    const refused = await refusal(
+      makeEstimateVersion(db, {
+        practiceId,
+        caseId,
+        actor: "vet",
+        lines: [
+          { code: "DEAR-1", quantityLow: 1, quantityHigh: 1_000 },
+          { code: "DEAR-2", quantityLow: 1, quantityHigh: 1_000 },
+        ],
+      }),
+    );
+
+    expect(refused.reason).toBe("too_large");
+  });
+
+  it("refuses a malformed request with a typed refusal", async () => {
+    const refused = await refusal(
+      makeEstimateVersion(db, { practiceId: "not-a-uuid", caseId, actor: "vet", lines: [] }),
+    );
+
+    expect(refused.reason).toBe("request_invalid");
+  });
+
+  it("will not send a draft at the prices of a list since replaced, and reprices it from the current one", async () => {
+    const draft = await makeEstimateVersion(db, {
+      practiceId,
+      caseId,
+      actor: "vet",
+      lines: [{ code: "CON-STD", quantityLow: 1, quantityHigh: 1 }],
+    });
+    await importPriceList(db, {
+      practiceId,
+      actor: "vet",
+      sourceName: "prices-2027.csv",
+      csv: PRICES.replace("consultation,4800", "consultation,5200"),
+    });
+
+    const stale = await refusal(
+      sendEstimateVersion(db, { practiceId, versionId: draft.id, actor: "vet" }),
+    );
+    const repriced = await replaceDraftLines(db, {
+      practiceId,
+      versionId: draft.id,
+      actor: "vet",
+      lines: linesOf(draft),
+    });
+    const sent = await sendEstimateVersion(db, { practiceId, versionId: draft.id, actor: "vet" });
+
+    expect(stale.reason).toBe("price_list_changed");
+    expect(repriced.totals.highPence).toBe(5_200);
+    expect(sent.totals.highPence).toBe(5_200);
   });
 });

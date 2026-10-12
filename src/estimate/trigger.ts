@@ -7,7 +7,8 @@ import { auditActor, practice } from "@/db/schema";
 import { MAX_PENCE } from "@/money/currency";
 
 import { currentPriceList } from "./price-list";
-import { caseEstimateVersions, EstimateError, loadEstimateVersion } from "./version";
+import { EstimateError } from "./errors";
+import { caseEstimateVersions, loadEstimateVersion } from "./version";
 
 /**
  * The Monetary Threshold by default: £500 including VAT, the CMA's figure
@@ -103,13 +104,20 @@ const versionTriggerRequest = z.strictObject({ practiceId: z.uuid(), versionId: 
  * @param executor - The pool or an open transaction.
  * @param request - The practice and the version.
  * @returns The check, or null when the version is the original or no version before it was sent.
- * @throws EstimateError when the practice has no such version.
+ * @throws EstimateError when the request is malformed or the practice has no such version.
  */
 export async function checkEstimateTrigger(
   executor: Executor,
   request: z.input<typeof versionTriggerRequest>,
 ): Promise<EstimateTriggerCheck | null> {
-  const { practiceId, versionId } = versionTriggerRequest.parse(request);
+  const parsed = versionTriggerRequest.safeParse(request);
+  if (!parsed.success) {
+    throw new EstimateError(
+      "request_invalid",
+      `trigger check refused: ${z.prettifyError(parsed.error)}`,
+    );
+  }
+  const { practiceId, versionId } = parsed.data;
   const version = await loadEstimateVersion(executor, practiceId, versionId);
   if (!version) {
     throw new EstimateError(

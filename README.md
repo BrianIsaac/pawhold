@@ -10,7 +10,7 @@ drafted in the `paypal-ai-hack` repository (Idea 4, Go-Ahead in
 `docs/research/ideas-2026-10-11.md`; the research in
 `docs/research/hackathon-2026-10-11.md` there). Aimed at Most Impactful, Bryntum as the sponsor prize.
 
-Status: the skeleton (unit U1 of `docs/plans/pawhold-plan-2026-10-12.md`) is being built: the app, the schema, the PayPal client, the webhook listener and the audit trail.
+Status: units U1 (the skeleton: the app, the schema, the PayPal client, the webhook listener and the audit trail) and U2 (the price list, estimate versions and the CMA Order's update trigger, with a fictional practice seeded for each judge) of `docs/plans/pawhold-plan-2026-10-12.md` are built.
 
 ## Develop
 

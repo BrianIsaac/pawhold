@@ -25,51 +25,89 @@ let listId: string;
 let scaleId: string;
 let extractionId: string;
 
-beforeAll(async () => {
+type ItemRow = Omit<typeof priceListItem.$inferInsert, "priceListId">;
+
+const ITEMS: ItemRow[] = [
+  {
+    code: "DEN-SP",
+    name: "Dental scale and polish",
+    category: "procedure",
+    unit: "procedure",
+    unitPricePence: 18_500,
+  },
+  {
+    code: "DEN-EXT",
+    name: "Tooth extraction, surgical",
+    category: "procedure",
+    unit: "tooth",
+    unitPricePence: 9_800,
+  },
+];
+
+/**
+ * Stores a price list and its items in one transaction, as the import does.
+ *
+ * @param forPractice - The practice.
+ * @param items - The items.
+ * @returns The list's id and its items' ids, in order.
+ */
+async function storeList(
+  forPractice: string,
+  items: ItemRow[] = ITEMS,
+): Promise<{ listId: string; itemIds: string[] }> {
+  return db.transaction(async (tx) => {
+    const [list] = await tx
+      .insert(priceList)
+      .values({
+        practiceId: forPractice,
+        currencyCode: "GBP",
+        sourceName: "schema-test.csv",
+        itemCount: items.length,
+      })
+      .returning();
+    const stored = await tx
+      .insert(priceListItem)
+      .values(items.map((item) => ({ ...item, priceListId: list!.id })))
+      .returning();
+    return { listId: list!.id, itemIds: stored.map((item) => item.id) };
+  });
+}
+
+/**
+ * Makes a practice of its own.
+ *
+ * @returns The practice's id.
+ */
+async function newPractice(): Promise<string> {
   const [made] = await db
     .insert(practice)
     .values({ name: "Schema practice", kind: "judge" })
     .returning();
-  practiceId = made!.id;
-  const [list] = await db
-    .insert(priceList)
-    .values({ practiceId, currencyCode: "GBP", sourceName: "schema-test.csv" })
-    .returning();
-  listId = list!.id;
-  const items = await db
-    .insert(priceListItem)
-    .values([
-      {
-        priceListId: listId,
-        code: "DEN-SP",
-        name: "Dental scale and polish",
-        category: "procedure",
-        unit: "procedure",
-        unitPricePence: 18_500,
-      },
-      {
-        priceListId: listId,
-        code: "DEN-EXT",
-        name: "Tooth extraction, surgical",
-        category: "procedure",
-        unit: "tooth",
-        unitPricePence: 9_800,
-      },
-    ])
-    .returning();
-  scaleId = items[0]!.id;
-  extractionId = items[1]!.id;
+  return made!.id;
+}
+
+beforeAll(async () => {
+  practiceId = await newPractice();
+  const stored = await storeList(practiceId);
+  listId = stored.listId;
+  [scaleId, extractionId] = stored.itemIds as [string, string];
 });
 
 /**
  * Opens a case of its own for a test.
  *
+ * @param forPractice - The practice; the shared one when not given.
  * @returns The case's id.
  */
-async function newCase(): Promise<string> {
+async function newCase(forPractice: string = practiceId): Promise<string> {
   const [kase] = await db
     .insert(patientCase)
-    .values({ practiceId, patientName: "Biscuit", ownerName: "A. Owner", procedure: "Dental" })
+    .values({
+      practiceId: forPractice,
+      patientName: "Biscuit",
+      ownerName: "A. Owner",
+      procedure: "Dental",
+    })
     .returning();
   return kase!.id;
 }
@@ -194,19 +232,121 @@ describe("the estimate schema as migrated (plan 3.3)", () => {
     expect(sameNumber.code).toBe(UNIQUE_VIOLATION);
   });
 
-  it("keeps a version's case and price list inside one practice", async () => {
-    const [other] = await db
-      .insert(practice)
-      .values({ name: "Another practice", kind: "judge" })
-      .returning();
+  it("keeps a version's case inside the version's practice", async () => {
+    const other = await newPractice();
+    const { listId: otherList } = await storeList(other);
 
     const { code } = await refusalOf(
       db
         .insert(estimateVersion)
-        .values({ practiceId: other!.id, caseId: await newCase(), priceListId: listId, number: 1 }),
+        .values({ practiceId: other, caseId: await newCase(), priceListId: otherList, number: 1 }),
     );
 
     expect(code).toBe(FOREIGN_KEY_VIOLATION);
+  });
+
+  it("keeps a version's price list inside the version's practice", async () => {
+    const other = await newPractice();
+
+    const { code } = await refusalOf(
+      db.insert(estimateVersion).values({
+        practiceId: other,
+        caseId: await newCase(other),
+        priceListId: listId,
+        number: 1,
+      }),
+    );
+
+    expect(code).toBe(FOREIGN_KEY_VIOLATION);
+  });
+
+  it("refuses a line priced from an item of another list", async () => {
+    const { itemIds } = await storeList(practiceId);
+    const versionId = await draftVersion();
+
+    const { code } = await refusalOf(
+      db.insert(estimateLine).values({
+        versionId,
+        priceListId: listId,
+        position: 1,
+        priceListItemId: itemIds[0]!,
+        unitPricePence: 18_500,
+        quantityLow: 1,
+        quantityHigh: 1,
+      }),
+    );
+
+    expect(code).toBe(FOREIGN_KEY_VIOLATION);
+  });
+
+  it("refuses a version stored as already sent: it is made as a draft", async () => {
+    const { code } = await refusalOf(
+      db.insert(estimateVersion).values({
+        practiceId,
+        caseId: await newCase(),
+        priceListId: listId,
+        number: 1,
+        sentAt: new Date(),
+        totalLowPence: 1,
+        totalHighPence: 1,
+      }),
+    );
+
+    expect(code).toBe(RESTRICT_VIOLATION);
+  });
+
+  it("refuses an item added to a list after its import", async () => {
+    const { code } = await refusalOf(
+      db.insert(priceListItem).values({
+        priceListId: listId,
+        code: "LATE-1",
+        name: "Added later",
+        category: "consumable",
+        unit: "item",
+        unitPricePence: 100,
+      }),
+    );
+
+    expect(code).toBe(RESTRICT_VIOLATION);
+  });
+
+  it("refuses a list stored without the items it counts", async () => {
+    const { code } = await refusalOf(
+      db.insert(priceList).values({
+        practiceId,
+        currencyCode: "GBP",
+        sourceName: "empty.csv",
+        itemCount: 2,
+      }),
+    );
+
+    expect(code).toBe(RESTRICT_VIOLATION);
+  });
+
+  it("refuses TRUNCATE of the price lists and estimates", async () => {
+    // One table, so the test holds no other lock while it waits: a TRUNCATE
+    // of several tables here would deadlock with the files running beside it.
+    const { code } = await refusalOf(
+      db.transaction(async (tx) => {
+        await tx.execute(sql`set local lock_timeout = '5s'`);
+        await tx.execute(sql`truncate estimate_line`);
+        throw new Error("the truncate was not refused");
+      }),
+    );
+    const guarded = await db.execute<{ table_name: string }>(sql`
+      select c.relname as table_name from pg_trigger t join pg_class c on c.oid = t.tgrelid
+      where not t.tgisinternal and (t.tgtype & 32) <> 0
+        and c.relname in ('price_list', 'price_list_item', 'estimate_version', 'estimate_line')
+      order by c.relname
+    `);
+
+    expect(code).toBe(RESTRICT_VIOLATION);
+    expect(guarded.map((row) => row.table_name)).toEqual([
+      "estimate_line",
+      "estimate_version",
+      "price_list",
+      "price_list_item",
+    ]);
   });
 
   it("keeps a price list's items as imported", async () => {
@@ -251,6 +391,49 @@ describe("the estimate schema as migrated (plan 3.3)", () => {
       );
 
       expect(code).toBe(CHECK_VIOLATION);
+    });
+
+    it("counts a line written while the version is being sent, so the send is refused", async () => {
+      const racing = await draftVersion();
+      await db.insert(estimateLine).values({
+        versionId: racing,
+        priceListId: listId,
+        position: 1,
+        priceListItemId: scaleId,
+        unitPricePence: 18_500,
+        quantityLow: 1,
+        quantityHigh: 1,
+      });
+      let release!: () => void;
+      const held = new Promise<void>((resolve) => (release = resolve));
+      let written!: () => void;
+      const lineWritten = new Promise<void>((resolve) => (written = resolve));
+      const writer = db.transaction(async (tx) => {
+        await tx.insert(estimateLine).values({
+          versionId: racing,
+          priceListId: listId,
+          position: 2,
+          priceListItemId: extractionId,
+          unitPricePence: 9_800,
+          quantityLow: 1,
+          quantityHigh: 1,
+        });
+        written();
+        await held;
+      });
+      await lineWritten;
+
+      const send = refusalOf(
+        db
+          .update(estimateVersion)
+          .set({ sentAt: new Date(), totalLowPence: 18_500, totalHighPence: 18_500 })
+          .where(eq(estimateVersion.id, racing)),
+      );
+      await new Promise((resolve) => setTimeout(resolve, 200));
+      release();
+      await writer;
+
+      expect((await send).code).toBe(CHECK_VIOLATION);
     });
 
     it("cannot be sent with totals that are not its lines'", async () => {
