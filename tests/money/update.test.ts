@@ -226,6 +226,20 @@ describe("held, update declined (scope frozen at what is held)", () => {
     expect(refused.reason).toBe("wrong_state");
   });
 
+  it("refuses the owner's decline of an update they were not shown: a later one awaits (U6)", async () => {
+    const shown = await send();
+    await withdrawEstimate(db, { ...fixture, actor: "vet" });
+    const later = await send(DENTAL_UPDATE_LINES.slice(0, 5));
+
+    const refused = await refusal(
+      declineUpdate(db, { ...fixture, actor: "owner", versionId: shown }),
+    );
+    const state = await declineUpdate(db, { ...fixture, actor: "owner", versionId: later });
+
+    expect(refused.reason).toBe("version_not_awaiting");
+    expect(state).toBe("update_declined");
+  });
+
   it("an update withdrawn by the vet returns the case to where it was sent from", async () => {
     await send();
     await declineUpdate(db, { ...fixture, actor: "owner" });
