@@ -1,4 +1,4 @@
-import { asc, eq } from "drizzle-orm";
+import { and, asc, eq } from "drizzle-orm";
 import { beforeAll, describe, expect, it } from "vitest";
 
 import { checkExplanation, checkOwnerWording, findSpan } from "@/agent/guardrails";
@@ -39,7 +39,12 @@ beforeAll(async () => {
   const [kase] = await db
     .select({ id: patientCase.id })
     .from(patientCase)
-    .where(eq(patientCase.practiceId, practiceId));
+    .where(
+      and(
+        eq(patientCase.practiceId, practiceId),
+        eq(patientCase.patientName, SHOWCASE_CASE.patientName),
+      ),
+    );
   caseId = kase!.id;
 });
 
@@ -184,8 +189,11 @@ describe("the seeded showcase case", () => {
 
     expect(asked).toEqual([]);
     expect(report.reauthorised).toEqual([]);
-    expect(report.flagged).toHaveLength(1);
-    const chips = (await todaysCases(db, practiceId))[0]?.chips.map((chip) => chip.label);
+    const [showcaseHold] = (await caseMoney(db, practiceId, caseId)).holds;
+    expect(report.flagged).toContain(showcaseHold?.id);
+    const chips = (await todaysCases(db, practiceId))
+      .find((listed) => listed.id === caseId)
+      ?.chips.map((chip) => chip.label);
     expect(chips).toEqual(["Update declined", "Hold extended", "Honour period over"]);
   });
 });
