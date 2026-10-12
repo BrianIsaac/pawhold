@@ -198,10 +198,22 @@
 }
 
 .hours li {
-  padding: var(--space-2) var(--space-1);
+  min-width: 0;
   color: var(--colour-ink-muted);
   font-size: var(--font-size-0);
   font-variant-numeric: tabular-nums;
+}
+
+/*
+ * An hour's label stays in view, just inside the room names, while its hour
+ * scrolls past, as a booking's words do: the first hour in view is always
+ * labelled.
+ */
+.hour {
+  position: sticky;
+  left: calc(var(--label) + var(--space-1));
+  display: inline-block;
+  padding: var(--space-2) var(--space-1);
 }
 
 .lane {

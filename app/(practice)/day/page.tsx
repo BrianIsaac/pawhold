@@ -159,7 +159,7 @@ export default async function DayPage({
             <ol className={styles.hours} aria-hidden="true">
               {view.range.hours.slice(0, -1).map((hour) => (
                 <li key={hour.line} style={{ gridColumn: `${hour.line} / span 12` }}>
-                  {hour.label}
+                  <span className={styles.hour}>{hour.label}</span>
                 </li>
               ))}
             </ol>
