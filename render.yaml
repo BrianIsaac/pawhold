@@ -1,0 +1,70 @@
+# pawhold on Render (plan 7.3, decision D4): one web service, its Postgres
+# and the hourly cron job, all paid plans so nothing sleeps before
+# 16 December. Field names as the Blueprint YAML Reference reads on
+# 12 October 2026 (https://render.com/docs/blueprint-spec). The operator's
+# one-time steps are in docs/runbooks/render.md.
+
+services:
+  - type: web
+    name: pawhold
+    runtime: node
+    region: frankfurt
+    plan: 0.5c-512mb
+    branch: main
+    autoDeployTrigger: commit
+    # NODE_ENV=development for the install only: pnpm skips devDependencies
+    # (TypeScript, which `next build` needs) when NODE_ENV is production, and
+    # whether Render sets it at build time is not documented on the pages read.
+    buildCommand: NODE_ENV=development corepack pnpm install --frozen-lockfile && corepack pnpm build
+    preDeployCommand: corepack pnpm db:migrate
+    startCommand: corepack pnpm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: COREPACK_ENABLE_DOWNLOAD_PROMPT
+        value: "0"
+      - key: DATABASE_URL
+        fromDatabase:
+          name: pawhold-db
+          property: connectionString
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: PAYPAL_ENV
+        value: sandbox
+      - key: PAYPAL_CLIENT_ID
+        sync: false
+      - key: PAYPAL_CLIENT_SECRET
+        sync: false
+      - key: PAYPAL_WEBHOOK_ID
+        sync: false
+      - key: PAYPAL_ACCEPT_MOCK_WEBHOOKS
+        value: "false"
+
+  # The reauthorisation rule (U3) and the judge-session clean-up (U9) run
+  # here; until they land it checks the database and exits.
+  - type: cron
+    name: pawhold-hourly
+    runtime: node
+    region: frankfurt
+    plan: 0.5c-512mb
+    branch: main
+    schedule: "0 * * * *"
+    buildCommand: corepack pnpm install --frozen-lockfile
+    startCommand: corepack pnpm cron:hourly
+    envVars:
+      - key: COREPACK_ENABLE_DOWNLOAD_PROMPT
+        value: "0"
+      - key: DATABASE_URL
+        fromDatabase:
+          name: pawhold-db
+          property: connectionString
+
+databases:
+  - name: pawhold-db
+    databaseName: pawhold
+    user: pawhold
+    region: frankfurt
+    plan: 0.1c-256mb
+    postgresMajorVersion: "17"
+    # Internal connections only: the web service and the cron job reach it
+    # over Render's private network.
+    ipAllowList: []
