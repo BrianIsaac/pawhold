@@ -36,7 +36,7 @@ const run = (verdict: "pass" | "fail", over: Partial<ProbeRun> = {}): ProbeRun =
   probe: "P2",
   startedAt: "2026-10-12T11:00:00.000Z",
   endedAt: "2026-10-12T11:00:30.000Z",
-  options: { holds: [] },
+  options: { holds: [], run: 1 },
   outcome: {
     verdict,
     summary: "Captured £64.00.",

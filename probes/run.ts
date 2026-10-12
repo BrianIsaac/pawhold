@@ -74,7 +74,7 @@ for (const probe of selected) {
       clientSecret: env.PAYPAL_CLIENT_SECRET,
       fetch,
       buyer,
-      options: { holds },
+      options: { holds, run: n },
     });
     done.push(run);
     say(

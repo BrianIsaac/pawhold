@@ -137,7 +137,7 @@ describe("the clean-up of a run that ended early", () => {
     const { context, notes } = createContext(
       client,
       replayBuyer([]),
-      { holds: [] },
+      { holds: [], run: 1 },
       () => new Date("2026-10-12T11:00:00Z"),
     );
     for (const [i, id] of ["A1", "A2", "A3", "A4"].entries()) {

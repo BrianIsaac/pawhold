@@ -3,7 +3,8 @@
   "startedAt": "2026-10-12T11:26:47.571Z",
   "endedAt": "2026-10-12T11:27:10.524Z",
   "options": {
-    "holds": []
+    "holds": [],
+    "run": 1
   },
   "outcome": {
     "verdict": "pass",

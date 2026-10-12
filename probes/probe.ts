@@ -55,6 +55,8 @@ export interface ProbeOutcome {
 export interface ProbeOptions {
   /** P5 (b) and (c): the authorisations P5 (a) and P6 left standing. */
   readonly holds: readonly string[];
+  /** Which run of the probe this is, from 1. */
+  readonly run: number;
 }
 
 /** What a probe works with. */
@@ -124,6 +126,19 @@ export class HoldLedger {
       throw new Error(`order ${orderId} was not recorded by this run`);
     }
     entry.authorizationId = authorizationId;
+  }
+
+  /**
+   * Records an authorisation this run reached that it did not authorise
+   * from an order of its own: a reauthorisation, or a standing hold it
+   * closes.
+   *
+   * @param hold - The hold's name within the run.
+   * @param orderId - The order the authorisation belongs to.
+   * @param authorizationId - The authorisation.
+   */
+  record(hold: string, orderId: string, authorizationId: string): void {
+    this.entries.push({ hold, orderId, authorizationId, kept: null });
   }
 
   /**
