@@ -147,6 +147,7 @@ export default async function CasePage(props: PageProps<"/cases/[id]">) {
             Refund
           </h2>
           <RefundForm
+            key={refundable.map((one) => `${one.captureId}:${one.leftPence}`).join()}
             ownerFirstName={first}
             charges={refundable.map((one) => ({
               captureId: one.captureId,

@@ -1,6 +1,7 @@
 "use client";
 
-import { useActionState, useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useActionState, useCallback, useEffect, useRef, useState } from "react";
 
 import type { BillGroup, BillReview } from "@/discharge/bill";
 import { money } from "@/discharge/wording";
@@ -50,7 +51,7 @@ export function BillForm({
   confirm: (
     caseId: string,
     input: BillInput,
-    shown: { billedPence: number },
+    shown: { billedPence: number; capturePence: readonly number[] },
   ) => Promise<DischargeAnswer>;
 }) {
   const [input, setInput] = useState<BillInput>(() => ({
@@ -64,6 +65,13 @@ export function BillForm({
   const [answer, setAnswer] = useState<BillReview>(initial);
   const [message, setMessage] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  // Bumped to review the bill again as it stands, after the case moved on.
+  const [round, setRound] = useState(0);
+  const router = useRouter();
+  const onStale = useCallback(() => {
+    router.refresh();
+    setRound((before) => before + 1);
+  }, [router]);
   const asked = useRef(0);
   const first = useRef(true);
 
@@ -86,6 +94,9 @@ export function BillForm({
             setMessage(null);
           } else {
             setMessage(reply.message);
+            if (reply.refresh) {
+              router.refresh();
+            }
           }
         },
         () => {
@@ -97,7 +108,7 @@ export function BillForm({
       );
     }, REVIEW_PAUSE_MS);
     return () => clearTimeout(timer);
-  }, [caseId, input, review]);
+  }, [caseId, input, review, round, router]);
 
   const reviewed = new Map(answer.lines.map((line) => [line.estimateLineId, line]));
   const setQuantity = (lineId: string, quantity: string) =>
@@ -213,7 +224,16 @@ export function BillForm({
           answer={answer}
           currency={currency}
           ready={!pending && message === null}
-          confirm={() => confirm(caseId, input, { billedPence: answer.billedPence })}
+          confirm={() =>
+            confirm(caseId, input, {
+              billedPence: answer.billedPence,
+              capturePence:
+                answer.verdict.kind === "ready"
+                  ? answer.verdict.holds.map((one) => one.capturePence)
+                  : [],
+            })
+          }
+          onStale={onStale}
         />
       </section>
     </div>
@@ -230,6 +250,7 @@ export function BillForm({
  * @param props.currency - The case's currency.
  * @param props.ready - Whether the review is of the bill as it stands.
  * @param props.confirm - The confirm, bound to the bill as it stands.
+ * @param props.onStale - Draws the page again and reviews the bill again, once the case moved on.
  * @returns The control.
  */
 function ConfirmControl({
@@ -237,13 +258,21 @@ function ConfirmControl({
   currency,
   ready,
   confirm,
+  onStale,
 }: {
   answer: BillReview;
   currency: CurrencyCode;
   ready: boolean;
   confirm: () => Promise<DischargeAnswer>;
+  onStale: () => void;
 }) {
   const [state, submit, pending] = useActionState(confirm, { message: null });
+  // Once per answer: a confirm refused because the case moved on.
+  useEffect(() => {
+    if (state.refresh) {
+      onStale();
+    }
+  }, [state, onStale]);
   const verdict = answer.verdict;
   if (verdict.kind === "refused" || verdict.blocked !== null || !ready) {
     return (

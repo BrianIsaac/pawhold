@@ -8,7 +8,7 @@ import { z } from "zod";
 import { type BillReview, reviewBill } from "@/discharge/bill";
 import { confirmBill, runDischarge } from "@/discharge/confirm";
 import { refundOnCase } from "@/discharge/refund";
-import { dischargeRefusal, PAYPAL_NOT_SET_UP } from "@/discharge/wording";
+import { dischargeRefusal, PAYPAL_NOT_SET_UP, refundRefusal } from "@/discharge/wording";
 import { MoneyError } from "@/money/errors";
 import { PracticeError } from "@/practice/errors";
 import { refusalMessage } from "@/practice/messages";
@@ -28,10 +28,10 @@ const billInput = z.strictObject({
 
 export type BillInput = z.input<typeof billInput>;
 
-/** The review of a bill, or why it could not be reviewed. */
+/** The review of a bill, or why it could not be reviewed and whether the page must be drawn again. */
 export type ReviewAnswer =
-  | { readonly review: BillReview; readonly message?: never }
-  | { readonly message: string; readonly review?: never };
+  | { readonly review: BillReview; readonly message?: never; readonly refresh?: never }
+  | { readonly message: string; readonly review?: never; readonly refresh: boolean };
 
 /**
  * Reviews the bill as typed for the signed-in practice, writing nothing: the
@@ -44,14 +44,14 @@ export type ReviewAnswer =
 export async function reviewBillAction(caseId: string, input: BillInput): Promise<ReviewAnswer> {
   const session = await currentPracticeSession();
   if (!session) {
-    return { message: SESSION_ENDED };
+    return { message: SESSION_ENDED, refresh: false };
   }
   if (!z.uuid().safeParse(caseId).success) {
-    return { message: "That case is not this practice's." };
+    return { message: "That case is not this practice's.", refresh: false };
   }
   const bill = billInput.safeParse(input);
   if (!bill.success) {
-    return { message: "That bill could not be read." };
+    return { message: "That bill could not be read.", refresh: false };
   }
   try {
     const review = await reviewBill(database().db, {
@@ -61,17 +61,33 @@ export async function reviewBillAction(caseId: string, input: BillInput): Promis
     });
     return { review };
   } catch (error) {
-    const message = refusalMessage(error);
+    const message = dischargeMessage(error);
     if (message === null) {
       throw error;
     }
-    return { message };
+    return { message, refresh: isStale(error) };
   }
 }
 
 /** What a confirm or a resume answers when it does not move the page on. */
 export interface DischargeAnswer {
   readonly message: string | null;
+  /** Whether the case moved on, so the page must be drawn again to show it as it is now. */
+  readonly refresh?: boolean;
+}
+
+/**
+ * Whether a refusal means the case moved on since the page was drawn.
+ *
+ * @param error - What was thrown.
+ * @returns Whether the page should be drawn again.
+ */
+function isStale(error: unknown): boolean {
+  return (
+    (error instanceof PracticeError && error.reason === "stale") ||
+    (error instanceof MoneyError &&
+      (error.reason === "wrong_state" || error.reason === "bill_refused"))
+  );
 }
 
 /**
@@ -83,7 +99,7 @@ export interface DischargeAnswer {
  */
 function dischargeMessage(error: unknown): string | null {
   if (error instanceof MoneyError) {
-    return dischargeRefusal(error.reason, error.issues);
+    return dischargeRefusal(error.reason);
   }
   return refusalMessage(error);
 }
@@ -97,14 +113,15 @@ function dischargeMessage(error: unknown): string | null {
  *
  * @param caseId - The case, bound by the page.
  * @param input - The quantities and the work noted, as the page holds them.
- * @param shown - What the page showed the vet: the bill's total.
+ * @param shown - What the page showed the vet.
  * @param shown.billedPence - The bill's total.
+ * @param shown.capturePence - Each hold's capture, in the order the holds were made.
  * @returns The refusal in the vet's words; otherwise it redirects to the discharge.
  */
 export async function confirmDischargeAction(
   caseId: string,
   input: BillInput,
-  shown: { billedPence: number },
+  shown: { billedPence: number; capturePence: readonly number[] },
 ): Promise<DischargeAnswer> {
   const session = await currentPracticeSession();
   if (!session) {
@@ -114,7 +131,9 @@ export async function confirmDischargeAction(
     return { message: "That case is not this practice's." };
   }
   const bill = billInput.safeParse(input);
-  const total = z.strictObject({ billedPence: z.int().min(0) }).safeParse(shown);
+  const total = z
+    .strictObject({ billedPence: z.int().min(0), capturePence: z.array(z.int().min(0)).max(50) })
+    .safeParse(shown);
   if (!bill.success || !total.success) {
     return { message: "That bill could not be read." };
   }
@@ -131,7 +150,8 @@ export async function confirmDischargeAction(
     if (message === null) {
       throw error;
     }
-    return { message };
+    revalidatePath(`/cases/${caseId}/discharge`);
+    return { message, refresh: isStale(error) };
   }
   after(async () => {
     try {
@@ -177,7 +197,7 @@ export async function resumeDischargeAction(caseId: string): Promise<DischargeAn
       throw error;
     }
     revalidatePath(`/cases/${caseId}/discharge`);
-    return { message };
+    return { message, refresh: true };
   }
   revalidatePath(`/cases/${caseId}`);
   revalidatePath("/today");
@@ -223,7 +243,8 @@ export async function refundAction(
       },
     );
   } catch (error) {
-    const message = dischargeMessage(error);
+    const message =
+      error instanceof MoneyError ? refundRefusal(error.reason) : refusalMessage(error);
     if (message === null) {
       throw error;
     }

@@ -9,8 +9,8 @@ import { caseHolds, TAKEN_CAPTURE } from "@/money/view";
 import { holdTitle } from "./wording";
 
 /**
- * How long a signed-off bill with a hold still open may go before the page
- * offers to resume it: longer than one PayPal call may take (the client waits
+ * How long a discharge with a hold still open may go without a step landing
+ * before the page offers to resume it: longer than one PayPal call may take (the client waits
  * 20 s), far shorter than the hourly job's ten minutes.
  */
 export const STALL_AFTER_MS = 45_000;
@@ -55,6 +55,8 @@ export interface NotedWork {
 /** A discharge, from its sign-off to its last hold closed and confirmed. */
 export interface DischargeProgress {
   readonly signedOffAt: Date;
+  /** When the discharge last moved: its last step landed or was refused, or its sign-off. */
+  readonly lastStepAt: Date;
   readonly currency: CurrencyCode;
   readonly billedPence: number;
   readonly holds: readonly HoldProgress[];
@@ -90,6 +92,9 @@ const workDetail = z.object({
 
 /** The refusals of a discharge's steps U3 writes to the trail. */
 const REFUSALS = ["hold.capture_refused", "hold.capture_declined", "hold.void_refused"];
+
+/** The trail's events for a discharge's steps, landed or refused. */
+const STEPS = ["hold.captured", "hold.voided", "hold.expired", ...REFUSALS];
 
 /**
  * A case's discharge as it stands, for the page to show each hold's capture
@@ -130,7 +135,17 @@ export async function dischargeProgress(
     )
     .orderBy(asc(auditEvent.id));
   const signedOff = events.find((event) => event.action === "bill.signed_off");
-  const planned = signedOffDetail.parse(signedOff?.detail ?? { holds: [] }).holds;
+  if (!signedOff) {
+    // U3 writes the bill and its event in one transaction: a bill without one is not U3's.
+    throw new Error(`bill ${signed.id} of case ${caseId} has no bill.signed_off event`);
+  }
+  const planned = signedOffDetail.parse(signedOff.detail).holds;
+  const lastStepAt = events
+    .filter((event) => STEPS.includes(event.action))
+    .reduce(
+      (latest, event) => (event.occurredAt > latest ? event.occurredAt : latest),
+      signed.signedOffAt,
+    );
   const work = events.find((event) => event.action === "bill.work_not_charged");
   const all = await caseHolds(executor, caseId);
   const holds = planned.map((part) => ({ part, held: all.find((one) => one.id === part.holdId)! }));
@@ -203,6 +218,7 @@ export async function dischargeProgress(
   const steps = progress.flatMap((one) => [one.capture, one.release]).filter((one) => one !== null);
   return {
     signedOffAt: signed.signedOffAt,
+    lastStepAt,
     currency: currencyCode.parse(signed.currencyCode),
     billedPence: signed.totalPence,
     holds: progress,
@@ -224,7 +240,7 @@ export async function dischargeProgress(
     stalled:
       !finished &&
       (progress.some((one) => one.refused) ||
-        now.getTime() - signed.signedOffAt.getTime() >= STALL_AFTER_MS),
+        now.getTime() - lastStepAt.getTime() >= STALL_AFTER_MS),
   };
 }
 
@@ -236,8 +252,12 @@ export interface ProgressStepJson {
 }
 
 /** The progress as the page receives it, from the server's first render and from each poll. */
-export interface DischargeProgressJson extends Omit<DischargeProgress, "signedOffAt" | "holds"> {
+export interface DischargeProgressJson extends Omit<
+  DischargeProgress,
+  "signedOffAt" | "lastStepAt" | "holds"
+> {
   readonly signedOffAt: string;
+  readonly lastStepAt: string;
   readonly holds: readonly (Omit<HoldProgress, "capture" | "release"> & {
     readonly capture: ProgressStepJson | null;
     readonly release: ProgressStepJson | null;
@@ -262,6 +282,7 @@ export function progressJson(progress: DischargeProgress): DischargeProgressJson
   return {
     ...progress,
     signedOffAt: progress.signedOffAt.toISOString(),
+    lastStepAt: progress.lastStepAt.toISOString(),
     holds: progress.holds.map((one) => ({
       ...one,
       capture: step(one.capture),

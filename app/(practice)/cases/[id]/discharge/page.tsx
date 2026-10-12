@@ -165,6 +165,7 @@ export default async function DischargePage(props: PageProps<"/cases/[id]/discha
       </div>
       {initial ? (
         <BillForm
+          key={lines.map((line) => line.estimateLineId).join()}
           caseId={view.case.id}
           currency={view.currency}
           groups={view.groups}

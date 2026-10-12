@@ -147,7 +147,7 @@ describe.skipIf(!configured)("discharge against PayPal's sandbox (U7)", () => {
       ...fixture,
       quantities,
       extras: [],
-      shown: { billedPence: 79_500 },
+      shown: { billedPence: 79_500, capturePence: [67_500, 12_000] },
     });
     expect(plan.holds.map((one) => [one.capturePence, one.releasePence])).toEqual([
       [67_500, 9_800],

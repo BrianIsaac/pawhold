@@ -217,18 +217,18 @@ export const PAYPAL_NOT_SET_UP =
   "PayPal isn't set up on this server, so nothing can be charged. Nothing has been charged.";
 
 /**
- * A discharge step's refusal in the vet's words.
+ * A discharge step's refusal in the vet's words; PayPal's own issue names
+ * stay on the timeline's details.
  *
  * @param reason - U3's reason.
- * @param issues - PayPal's issue names, when PayPal refused.
  * @returns The sentence.
  */
-export function dischargeRefusal(reason: string, issues: readonly string[]): string {
+export function dischargeRefusal(reason: string): string {
   switch (reason) {
     case "paypal_unavailable":
       return "PayPal didn't answer. Nothing is captured twice: resume in a moment to finish.";
     case "paypal_refused":
-      return `PayPal refused a step${issues.length > 0 ? ` (${issues.join(", ")})` : ""}. What landed stands; the rest is shown as it is now.`;
+      return "PayPal refused a step. What landed stands; the case's timeline has PayPal's reason.";
     case "bill_refused":
     case "bill_above_holds":
       return "The bill was refused. The page shows it as it is now.";
@@ -266,4 +266,24 @@ export function chargeOption(
   return leftPence === capturedPence
     ? `${from}, ${money(capturedPence, currency)}`
     : `${from}, ${money(leftPence, currency)} of ${money(capturedPence, currency)} left`;
+}
+
+/**
+ * A refund's refusal in the vet's words. A refund is written before PayPal is
+ * asked, so one PayPal did not answer is sent again with the same request id.
+ *
+ * @param reason - U3's reason.
+ * @returns The sentence.
+ */
+export function refundRefusal(reason: string): string {
+  switch (reason) {
+    case "paypal_unavailable":
+      return "PayPal didn't answer. The refund is kept as asked: send it again to finish. It is never made twice.";
+    case "paypal_refused":
+      return "PayPal refused the refund. Nothing was refunded; the case's timeline has PayPal's reason.";
+    case "refund_refused":
+      return "That refund can't be made: less is left of the charge, or an earlier refund of it is still with PayPal.";
+    default:
+      return "The case moved on since the page was opened. It shows as it is now.";
+  }
 }

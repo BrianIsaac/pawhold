@@ -181,7 +181,12 @@ export async function dischargedCase(
   );
   const extractions = view.groups[1]!.lines.find((line) => line.code === "DEN-EXT-SG")!;
   quantities[extractions.estimateLineId] = "3";
-  await confirmBill(db, { ...kase, quantities, extras: [], shown: { billedPence: 105_700 } });
+  await confirmBill(db, {
+    ...kase,
+    quantities,
+    extras: [],
+    shown: { billedPence: 105_700, capturePence: [92_700, 13_000] },
+  });
   await runDischarge({ db, paypal: doubleClient() }, kase);
   const [firstHold] = await db
     .select()

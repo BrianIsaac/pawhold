@@ -97,7 +97,7 @@ describe("confirm and charge (U7's acceptance)", () => {
     const plan = await confirmBill(db, {
       ...fixture,
       ...bill,
-      shown: { billedPence: 83_000 },
+      shown: { billedPence: 83_000, capturePence: [67_500, 15_500] },
     });
     expect(plan.holds.map((one) => [one.capturePence, one.releasePence])).toEqual([
       [67_500, 9_800],
@@ -168,7 +168,11 @@ describe("confirm and charge (U7's acceptance)", () => {
     await heldVersion({ db, paypal }, fixture, DENTAL_UPDATE_LINES);
     const bill = await billOf({ "XR-DENT": "0", "MED-AB": "0" });
 
-    await confirmBill(db, { ...fixture, ...bill, shown: { billedPence: 57_700 } });
+    await confirmBill(db, {
+      ...fixture,
+      ...bill,
+      shown: { billedPence: 57_700, capturePence: [57_700, 0] },
+    });
     await runDischarge(deps(), fixture);
 
     expect(paypal.posts(/\/capture$/)).toHaveLength(1);
@@ -192,7 +196,11 @@ describe("confirm and charge (U7's acceptance)", () => {
     await heldVersion({ db, paypal }, fixture);
     await heldVersion({ db, paypal }, fixture, DENTAL_UPDATE_LINES);
     const bill = await billOf();
-    await confirmBill(db, { ...fixture, ...bill, shown: { billedPence: 73_200 } });
+    await confirmBill(db, {
+      ...fixture,
+      ...bill,
+      shown: { billedPence: 73_200, capturePence: [57_700, 15_500] },
+    });
     paypal.inject({
       method: "POST",
       path: /\/capture$/,
@@ -228,7 +236,11 @@ describe("confirm and charge (U7's acceptance)", () => {
 
   it("shows PayPal's refusal on the hold it refused, as a stall to resume", async () => {
     await heldVersion({ db, paypal }, fixture);
-    await confirmBill(db, { ...fixture, ...(await billOf()), shown: { billedPence: 57_700 } });
+    await confirmBill(db, {
+      ...fixture,
+      ...(await billOf()),
+      shown: { billedPence: 57_700, capturePence: [57_700] },
+    });
     paypal.inject({
       method: "POST",
       path: /\/capture$/,
@@ -252,7 +264,11 @@ describe("what confirm refuses", () => {
   it("a bill changed since it was shown", async () => {
     await heldVersion({ db, paypal }, fixture);
     await expect(
-      confirmBill(db, { ...fixture, ...(await billOf()), shown: { billedPence: 50_000 } }),
+      confirmBill(db, {
+        ...fixture,
+        ...(await billOf()),
+        shown: { billedPence: 50_000, capturePence: [50_000] },
+      }),
     ).rejects.toMatchObject({ reason: "stale" });
     expect(await dischargeProgress(db, fixture.practiceId, fixture.caseId)).toBeNull();
   });
@@ -262,7 +278,7 @@ describe("what confirm refuses", () => {
     const refusal = await confirmBill(db, {
       ...fixture,
       ...(await billOf({ "DEN-EXT": "5" })),
-      shown: { billedPence: 106_700 },
+      shown: { billedPence: 106_700, capturePence: [106_700] },
     }).catch((error: unknown) => error);
     expect(refusal).toBeInstanceOf(PracticeError);
     expect((refusal as PracticeError).message).toMatch(
@@ -276,7 +292,7 @@ describe("what confirm refuses", () => {
     const refusal = await confirmBill(db, {
       ...fixture,
       ...(await billOf()),
-      shown: { billedPence: 57_700 },
+      shown: { billedPence: 57_700, capturePence: [57_700] },
     }).catch((error: unknown) => error);
     expect(refusal).toMatchObject({ message: SEEDED_HOLDS });
     await expect(runDischarge(deps(), fixture)).rejects.toMatchObject({ message: SEEDED_HOLDS });
@@ -286,9 +302,101 @@ describe("what confirm refuses", () => {
   it("a second confirm of a bill signed off already", async () => {
     await heldVersion({ db, paypal }, fixture);
     const bill = await billOf();
-    await confirmBill(db, { ...fixture, ...bill, shown: { billedPence: 57_700 } });
+    await confirmBill(db, {
+      ...fixture,
+      ...bill,
+      shown: { billedPence: 57_700, capturePence: [57_700] },
+    });
     await expect(
-      confirmBill(db, { ...fixture, ...bill, shown: { billedPence: 57_700 } }),
+      confirmBill(db, {
+        ...fixture,
+        ...bill,
+        shown: { billedPence: 57_700, capturePence: [57_700] },
+      }),
     ).rejects.toMatchObject({ reason: "stale" });
+  });
+});
+
+describe("what confirm refuses, after the review", () => {
+  it("a bill whose split across the holds changed since it was shown, though its total did not", async () => {
+    await heldVersion({ db, paypal }, fixture);
+    await heldVersion({ db, paypal }, fixture, DENTAL_UPDATE_LINES);
+    await expect(
+      confirmBill(db, {
+        ...fixture,
+        ...(await billOf()),
+        shown: { billedPence: 73_200, capturePence: [73_200, 0] },
+      }),
+    ).rejects.toMatchObject({ reason: "stale" });
+    expect(await dischargeProgress(db, fixture.practiceId, fixture.caseId)).toBeNull();
+  });
+
+  it("two confirms at once sign one bill off; the other is told it was signed off already", async () => {
+    await heldVersion({ db, paypal }, fixture);
+    const bill = await billOf();
+    const request = { ...fixture, ...bill, shown: { billedPence: 57_700, capturePence: [57_700] } };
+
+    const outcomes = await Promise.allSettled([confirmBill(db, request), confirmBill(db, request)]);
+
+    expect(outcomes.filter((one) => one.status === "fulfilled")).toHaveLength(1);
+    const refused = outcomes.find((one) => one.status === "rejected") as PromiseRejectedResult;
+    expect(refused.reason).toMatchObject({ reason: "stale" });
+    expect((refused.reason as Error).message).toMatch(/signed off already/);
+  });
+
+  it("another practice's case: not reviewed, not confirmed, not discharged, no progress", async () => {
+    await heldVersion({ db, paypal }, fixture);
+    const bill = await billOf();
+    const other = await makeDentalCase(db, "Another practice");
+    const theirs = { practiceId: other.practiceId, caseId: fixture.caseId };
+
+    await expect(
+      confirmBill(db, {
+        ...theirs,
+        ...bill,
+        shown: { billedPence: 57_700, capturePence: [57_700] },
+      }),
+    ).rejects.toMatchObject({ reason: "case_not_found" });
+    await confirmBill(db, {
+      ...fixture,
+      ...bill,
+      shown: { billedPence: 57_700, capturePence: [57_700] },
+    });
+    await expect(runDischarge(deps(), theirs)).rejects.toMatchObject({ reason: "case_not_found" });
+    expect(paypal.posts(/capture|void/)).toEqual([]);
+    expect(await dischargeProgress(db, theirs.practiceId, theirs.caseId)).toBeNull();
+  });
+});
+
+describe("when a discharge counts as stalled", () => {
+  it("is measured from the last step that landed, not from the sign-off", async () => {
+    await heldVersion({ db, paypal }, fixture);
+    await heldVersion({ db, paypal }, fixture, DENTAL_UPDATE_LINES);
+    await confirmBill(db, {
+      ...fixture,
+      ...(await billOf({ "XR-DENT": "0", "MED-AB": "0" })),
+      shown: { billedPence: 57_700, capturePence: [57_700, 0] },
+    });
+    paypal.inject({
+      method: "POST",
+      path: /\/void$/,
+      status: 503,
+      body: { name: "SERVICE_UNAVAILABLE" },
+    });
+    await expect(runDischarge(deps(), fixture)).rejects.toMatchObject({
+      reason: "paypal_unavailable",
+    });
+
+    const progress = (await dischargeProgress(db, fixture.practiceId, fixture.caseId))!;
+    expect(progress.holds[0]!.capture).not.toBeNull();
+    expect(progress.lastStepAt.getTime()).toBeGreaterThan(progress.signedOffAt.getTime());
+    const at = (ms: number) =>
+      dischargeProgress(db, fixture.practiceId, fixture.caseId, new Date(ms));
+    expect(await at(progress.lastStepAt.getTime() + STALL_AFTER_MS - 1)).toMatchObject({
+      stalled: false,
+    });
+    expect(await at(progress.lastStepAt.getTime() + STALL_AFTER_MS)).toMatchObject({
+      stalled: true,
+    });
   });
 });

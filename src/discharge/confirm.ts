@@ -11,7 +11,7 @@ import {
 } from "@/money/discharge";
 import { MoneyError } from "@/money/errors";
 import type { MoneyDependencies } from "@/money/holds";
-import { caseHolds } from "@/money/view";
+import { caseMoney } from "@/money/view";
 import { PracticeError } from "@/practice/errors";
 
 import { billLines, reviewBill, SEEDED_ID_PREFIX } from "./bill";
@@ -22,8 +22,11 @@ const confirmRequest = z.strictObject({
   caseId: z.uuid(),
   quantities: z.record(z.uuid(), z.string().max(20)),
   extras: z.array(z.strictObject({ code: priceListCode, quantity: z.string().max(20) })).max(50),
-  /** What the page showed the vet when they confirmed. */
-  shown: z.strictObject({ billedPence: z.int().min(0) }),
+  /** What the page showed the vet when they confirmed: the total and each hold's capture, in order. */
+  shown: z.strictObject({
+    billedPence: z.int().min(0),
+    capturePence: z.array(z.int().min(0)).max(50),
+  }),
 });
 
 export type ConfirmBillRequest = z.input<typeof confirmRequest>;
@@ -59,7 +62,12 @@ export async function confirmBill(
     if (review.verdict.blocked) {
       throw new PracticeError("request_invalid", review.verdict.blocked);
     }
-    if (review.billedPence !== shown.billedPence) {
+    const split = review.verdict.holds.map((one) => one.capturePence);
+    if (
+      review.billedPence !== shown.billedPence ||
+      split.length !== shown.capturePence.length ||
+      split.some((pence, at) => pence !== shown.capturePence[at])
+    ) {
       throw new PracticeError("stale", BILL_CHANGED);
     }
     let plan: DischargePlan;
@@ -71,8 +79,14 @@ export async function confirmBill(
         lines: billLines(review.lines),
       });
     } catch (error) {
+      // U3 refuses a second sign-off and a line off the approved estimate
+      // with one reason; under the case's lock taken by the review, only an
+      // estimate approved since the review can bring the second.
       if (error instanceof MoneyError && error.reason === "bill_refused") {
-        throw new PracticeError("stale", SIGNED_ALREADY);
+        throw new PracticeError(
+          "stale",
+          error.message.includes("signed off already") ? SIGNED_ALREADY : BILL_CHANGED,
+        );
       }
       throw error;
     }
@@ -110,13 +124,13 @@ export async function confirmBill(
  * @param request.practiceId - The practice.
  * @param request.caseId - The case.
  * @returns What the discharge did.
- * @throws PracticeError `request_invalid` for seeded holds; MoneyError as `dischargeCase` refuses.
+ * @throws PracticeError `request_invalid` for seeded holds; MoneyError `case_not_found` for another practice's case, and as `dischargeCase` refuses.
  */
 export async function runDischarge(
   deps: MoneyDependencies,
   request: { readonly practiceId: string; readonly caseId: string },
 ): Promise<DischargeResult> {
-  const holds = await caseHolds(deps.db, request.caseId);
+  const { holds } = await caseMoney(deps.db, request.practiceId, request.caseId);
   if (
     holds.some(
       (one) => one.status === "authorised" && one.paypalOrderId.startsWith(SEEDED_ID_PREFIX),

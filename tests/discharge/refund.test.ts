@@ -8,6 +8,7 @@ import { parsePounds, refundableCaptures, refundOnCase } from "@/discharge/refun
 import type { EstimateVersionView } from "@/estimate/version";
 import { caseMoney } from "@/money/view";
 import { ownerPage } from "@/owner/view";
+import { dischargeRefusal, refundRefusal } from "@/discharge/wording";
 import { PracticeError } from "@/practice/errors";
 import { caseTimeline } from "@/practice/timeline";
 
@@ -59,7 +60,7 @@ beforeEach(async () => {
     ...fixture,
     quantities: quantitiesOf(view),
     extras: [],
-    shown: { billedPence: 73_200 },
+    shown: { billedPence: 73_200, capturePence: [57_700, 15_500] },
   });
   await runDischarge(deps(), fixture);
 });
@@ -151,6 +152,9 @@ describe("a refund after discharge (plan 3.2: captured --goodwill or correction-
     expect((await refused("10", "  ")).fields).toEqual({
       reason: "Say why: it is kept on the case's timeline.",
     });
+    expect((await refused("10", "x".repeat(501))).fields).toEqual({
+      reason: "At most 500 characters",
+    });
     expect(paypal.posts(/\/refund$/)).toEqual([]);
   });
 
@@ -175,5 +179,22 @@ describe("pounds as typed", () => {
     for (const text of ["", "abc", "1e3", "-5", "12.345", "1,00", "£", "25.00.00"]) {
       expect(parsePounds(text)).toBeNull();
     }
+  });
+});
+
+describe("PayPal's refusals in the vet's words", () => {
+  it("a refund with no answer is sent again, and is never made twice", () => {
+    expect(refundRefusal("paypal_unavailable")).toBe(
+      "PayPal didn't answer. The refund is kept as asked: send it again to finish. It is never made twice.",
+    );
+    expect(refundRefusal("paypal_refused")).toBe(
+      "PayPal refused the refund. Nothing was refunded; the case's timeline has PayPal's reason.",
+    );
+  });
+
+  it("a discharge step refused names no raw PayPal code", () => {
+    expect(dischargeRefusal("paypal_refused")).toBe(
+      "PayPal refused a step. What landed stands; the case's timeline has PayPal's reason.",
+    );
   });
 });

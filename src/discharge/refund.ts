@@ -21,6 +21,9 @@ export interface RefundableCapture {
   readonly leftPence: number;
 }
 
+/** The longest reason U3's `refundCaptured` keeps. */
+const MAX_REASON = 500;
+
 /** The capture statuses a refund can be made from (U3's `refundCaptured`). */
 const REFUNDABLE = ["completed", "partially_refunded"] as const;
 
@@ -121,8 +124,8 @@ const refundRequest = z.strictObject({
   captureId: z.uuid(),
   /** The amount as typed, in pounds. */
   amount: z.string().max(30),
-  /** Why, in the vet's words: the audit event's detail and the timeline's. */
-  reason: z.string().max(500),
+  /** Why, in the vet's words: the audit event's detail and the timeline's (500 characters at most, checked as a field). */
+  reason: z.string().max(5_000),
 });
 
 /**
@@ -166,6 +169,8 @@ export async function refundOnCase(
   }
   if (reason.trim() === "") {
     fields.reason = "Say why: it is kept on the case's timeline.";
+  } else if (reason.trim().length > MAX_REASON) {
+    fields.reason = `At most ${MAX_REASON} characters`;
   }
   if (Object.keys(fields).length > 0) {
     throw new PracticeError("request_invalid", "Check the fields marked below.", fields);

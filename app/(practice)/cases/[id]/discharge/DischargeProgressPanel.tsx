@@ -46,6 +46,13 @@ export function DischargeProgressPanel({
   const [gaveUp, setGaveUp] = useState(false);
   const [state, submitResume, resuming] = useActionState(resume, { message: null });
   const settled = progress.finished && progress.confirmed;
+
+  // A Resume or a refresh draws the page again: take its progress.
+  const [drawn, setDrawn] = useState(initial);
+  if (drawn !== initial) {
+    setDrawn(initial);
+    setProgress(initial);
+  }
   const router = useRouter();
   const finished = useRef(initial.finished);
 
