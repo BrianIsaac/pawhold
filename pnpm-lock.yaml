@@ -8,6 +8,9 @@ importers:
 
   .:
     dependencies:
+      '@paypal/paypal-js':
+        specifier: 11.2.2
+        version: 11.2.2
       drizzle-orm:
         specifier: 0.45.4
         version: 0.45.4(postgres@3.4.9)
@@ -925,6 +928,9 @@ packages:
 
   '@oxc-project/types@0.153.0':
     resolution: {integrity: sha512-jSNrRIyvPVLL5E1z/tS5zLAprosGz/FuI1PWwEOz59j3E4TTTzSpqKb/RDGqJhhW0QHYISGXxq582wGx6T11Tw==}
+
+  '@paypal/paypal-js@11.2.2':
+    resolution: {integrity: sha512-RVGfgu9lmcEtsi0LbMGwPL4ksmzQ6ws9nyOJyEmBVWtkMnf+WfA6JLPmi2aHvlwKbT+K6Sw153VbE5rUjYxE8g==}
 
   '@playwright/test@1.64.0':
     resolution: {integrity: sha512-oTN9FNYuN6bqQMwiho6jJKLCG2/QOYCixGXuCjRmzOq23eODeukuY2XiAVoVpAECbuezMt1MHQjAiQxK8F+Y+g==}
@@ -2385,6 +2391,9 @@ packages:
     engines: {node: '>=14'}
     hasBin: true
 
+  promise-polyfill@8.3.0:
+    resolution: {integrity: sha512-H5oELycFml5yto/atYqmjyigJoAo3+OXwolYiH7OfQuYlAqhxNvTfiNMbV9hsC6Yp83yE5r2KTVmtrG6R9i6Pg==}
+
   prop-types@15.8.1:
     resolution: {integrity: sha512-oj87CgZICdulUohogVAR7AjlC0327U4el4L6eAvOqCeudMDVU0NThNaV+b9Df4dXgSP1gXMTnPdhfe/2qDH5cg==}
 
@@ -3411,6 +3420,10 @@ snapshots:
   '@nolyfill/is-core-module@1.0.39': {}
 
   '@oxc-project/types@0.153.0': {}
+
+  '@paypal/paypal-js@11.2.2':
+    dependencies:
+      promise-polyfill: 8.3.0
 
   '@playwright/test@1.64.0':
     dependencies:
@@ -4912,6 +4925,8 @@ snapshots:
   prelude-ls@1.2.1: {}
 
   prettier@3.9.10: {}
+
+  promise-polyfill@8.3.0: {}
 
   prop-types@15.8.1:
     dependencies:

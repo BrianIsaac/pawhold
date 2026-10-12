@@ -27,6 +27,7 @@
     "eval": "tsx evals/run.ts"
   },
   "dependencies": {
+    "@paypal/paypal-js": "11.2.2",
     "drizzle-orm": "0.45.4",
     "next": "16.4.0",
     "openai": "7.32.0",

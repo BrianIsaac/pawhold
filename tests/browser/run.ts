@@ -8,9 +8,13 @@ import { connectAdmin, DEFAULT_ADMIN_URL } from "../setup/database";
 
 /**
  * `pnpm test:browser`: makes a database for the run and migrates it, finds a
- * free port, runs the Playwright walks against the built server on them with
- * the recorded model double (never the live model), and drops the database
- * whatever the outcome. Arguments are passed to `playwright test`.
+ * free port (or takes `PAWHOLD_BROWSER_PORT`, for a tunnel that must know it),
+ * runs both suites of walks (the practice's and the owner's, projects of
+ * playwright.config.ts) against the built server on them with the recorded
+ * model double (never the live model), and drops the database whatever the
+ * outcome. PayPal's sandbox values pass through when the environment has
+ * them, for the owner's sandbox walks; without them those walks are skipped.
+ * Arguments are passed to `playwright test`.
  */
 
 /**
@@ -47,34 +51,25 @@ async function main(): Promise<number> {
     const url = new URL(adminUrl);
     url.pathname = `/${name}`;
     await migrateDatabase(url.toString());
-    const port = await freePort();
+    const port = process.env.PAWHOLD_BROWSER_PORT ?? String(await freePort());
+    const secret = randomBytes(32).toString("base64url");
     return await new Promise<number>((resolve, reject) => {
-      const child = spawn(
-        "pnpm",
-        [
-          "exec",
-          "playwright",
-          "test",
-          "--config",
-          "tests/browser/playwright.config.ts",
-          ...process.argv.slice(2),
-        ],
-        {
-          stdio: "inherit",
-          env: {
-            ...process.env,
-            NODE_ENV: "production",
-            DATABASE_URL: url.toString(),
-            SESSION_SECRET: randomBytes(32).toString("base64url"),
-            AGENT_RECORDED_DIR: ["evals/recorded", "tests/browser/recorded"].join(delimiter),
-            AGENT_DRAFTS_PER_HOUR: "off",
-            BROWSER_TEST_PORT: String(port),
-            OPENAI_API_KEY: "",
-            PAYPAL_CLIENT_ID: "",
-            PAYPAL_CLIENT_SECRET: "",
-          },
+      const child = spawn("pnpm", ["exec", "playwright", "test", ...process.argv.slice(2)], {
+        stdio: "inherit",
+        env: {
+          ...process.env,
+          NODE_ENV: "production",
+          NEXT_TELEMETRY_DISABLED: "1",
+          DATABASE_URL: url.toString(),
+          SESSION_SECRET: secret,
+          PAWHOLD_BROWSER_SECRET: secret,
+          PAWHOLD_BROWSER_PORT: port,
+          AGENT_RECORDED_DIR: ["evals/recorded", "tests/browser/recorded"].join(delimiter),
+          AGENT_DRAFTS_PER_HOUR: "off",
+          OPENAI_API_KEY: "",
+          PAYPAL_ENV: "sandbox",
         },
-      );
+      });
       child.once("error", reject);
       child.once("exit", (code, signal) => resolve(code ?? (signal ? 1 : 0)));
     });

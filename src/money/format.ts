@@ -30,7 +30,25 @@ export function formatMoney(money: { pence: number; currency: CurrencyCode }): s
     });
     formatters.set(currency, formatter);
   }
+  // Pence are divided exactly: a safe integer over 100 has at most two decimals.
   return formatter.format(pence / 100);
+}
+
+/**
+ * An amount the owner is asked for, held for or paid, which is never
+ * negative: as `formatMoney`, refusing a negative amount rather than showing
+ * an owner a minus sign.
+ *
+ * @param pence - The amount in minor units: a whole, non-negative number.
+ * @param currency - The currency.
+ * @returns The amount as text.
+ * @throws RangeError when the amount is not whole, non-negative pence.
+ */
+export function formatPence(pence: number, currency: CurrencyCode): string {
+  if (!Number.isSafeInteger(pence) || pence < 0) {
+    throw new RangeError(`${pence} is not a whole, non-negative number of pence`);
+  }
+  return formatMoney({ pence, currency });
 }
 
 /**

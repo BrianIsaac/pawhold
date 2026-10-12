@@ -1,0 +1,9 @@
+/*
+ * The document around the owner's shell: no browser margin, and the shell's
+ * paper to the edges. Scoped by `:has`, so it applies only to a document
+ * showing an owner's page, never the practice's.
+ */
+body:has([data-owner-shell]) {
+  margin: 0;
+  background: #f7f5f0;
+}

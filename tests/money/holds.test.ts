@@ -226,6 +226,30 @@ describe("the case's money state machine (plan 3.2): draft estimate, awaiting ow
     );
   });
 
+  it("gives no checkout link for the JS SDK's window, and refuses a redirect with one URL (U6)", async () => {
+    const versionId = await sentEstimate();
+    const request = { practiceId: fixture.practiceId, caseId: fixture.caseId, versionId };
+
+    const refused = await refusal(
+      orderHold(deps(), {
+        ...request,
+        experience: {
+          brandName: "Money practice",
+          locale: "en-GB",
+          returnUrl: "https://example.com/return",
+        },
+      }),
+    );
+    const ordered = await orderHold(deps(), {
+      ...request,
+      experience: { brandName: "Money practice", locale: "en-GB" },
+    });
+
+    expect(refused.reason).toBe("request_invalid");
+    expect(ordered.approvalUrl).toBeNull();
+    expect(ordered.hold.status).toBe("ordered");
+  });
+
   it("refuses to order a version that is not the one awaiting the owner", async () => {
     await sentEstimate();
     const draft = await makeEstimateVersion(db, { ...fixture, actor: "vet", lines: DENTAL_LINES });

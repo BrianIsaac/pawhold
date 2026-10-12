@@ -12,6 +12,7 @@ import {
 import { createHealthHandler } from "@/health/handler";
 import { createJudgeSessionHandlers } from "@/judge/session";
 import { reconcileWebhookEvent } from "@/money/reconcile";
+import { createOwnerHandlers } from "@/owner/handlers";
 import { createPayPalClient, type PayPalClient } from "@/paypal/client";
 import { createWebhookHandler } from "@/paypal/webhook-handler";
 import { createCertificateCache } from "@/paypal/webhooks";
@@ -29,6 +30,7 @@ interface Runtime {
   judgeSessions?: ReturnType<typeof createJudgeSessionHandlers>;
   health?: () => Promise<Response>;
   agent?: ServerAgent;
+  owner?: ReturnType<typeof createOwnerHandlers>;
 }
 
 const holder = globalThis as typeof globalThis & { __pawholdRuntime?: Runtime };
@@ -142,4 +144,31 @@ export function healthHandler(): () => Promise<Response> {
 export function estimateAgent(): ServerAgent {
   runtime.agent ??= agentFromEnvironment(database().db);
   return runtime.agent;
+}
+
+/**
+ * The owner's endpoints under `/e/{token}/` (U6): the order, the
+ * authorisation, the hold's status and the decline.
+ *
+ * @returns The handlers.
+ * @throws EnvironmentError when `DATABASE_URL` or `SESSION_SECRET` is missing.
+ */
+export function ownerHandlers(): ReturnType<typeof createOwnerHandlers> {
+  runtime.owner ??= createOwnerHandlers({
+    db: database().db,
+    paypal: paypalClient,
+    secret: sessionSecret(),
+  });
+  return runtime.owner;
+}
+
+/**
+ * The sandbox app's client id for the owner's page, the one PayPal value
+ * that reaches the browser; null when the app's credentials are not set.
+ *
+ * @returns The client id, or null.
+ */
+export function paypalBrowserClientId(): string | null {
+  const parsed = paypalEnvironment.safeParse(process.env);
+  return parsed.success ? parsed.data.PAYPAL_CLIENT_ID : null;
 }

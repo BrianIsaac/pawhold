@@ -246,7 +246,7 @@ export function createJudgeSessionHandlers(dependencies: JudgeSessionDependencie
  * @param request - The request.
  * @returns True when there is no Origin or it matches the request's host.
  */
-function sameOrigin(request: Request): boolean {
+export function sameOrigin(request: Request): boolean {
   const origin = request.headers.get("origin");
   if (origin === null) {
     return true;
