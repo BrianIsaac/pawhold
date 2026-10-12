@@ -134,6 +134,36 @@ describe("the money schema as migrated (U3)", () => {
     expect(rows.reduce((sum, row) => sum + row.amountPence, 0)).toBe(77_300);
   });
 
+  it("does not count a capture PayPal declined against its hold (migration 0008)", async () => {
+    await db.insert(hold).values(authorisedHold());
+    await db.insert(capture).values(completedCapture({ amountPence: 77_300, status: "declined" }));
+
+    await db.insert(capture).values(completedCapture({ sequence: 2, amountPence: 77_300 }));
+
+    const { message } = await refusalOf(
+      db.insert(capture).values(completedCapture({ sequence: 3, amountPence: 1 })),
+    );
+    expect(message).toContain("captures of hold");
+  });
+
+  it("keeps a refund PayPal refused without a PayPal id, and an answered one with it (migration 0007)", async () => {
+    await db.insert(hold).values(authorisedHold());
+    const [captured] = await db.insert(capture).values(completedCapture()).returning();
+    const row = {
+      captureId: captured!.id,
+      amountPence: 1_000,
+      currencyCode: "GBP",
+      reason: "goodwill",
+      requestedBy: "vet" as const,
+    };
+
+    await db.insert(refund).values({ ...row, sequence: 1, status: "failed" });
+    const { message } = await refusalOf(
+      db.insert(refund).values({ ...row, sequence: 2, status: "completed" }),
+    );
+    expect(message).toContain("refund_answered_with_id");
+  });
+
   it("refuses refunds that take a capture's refunds above it", async () => {
     await db.insert(hold).values(authorisedHold());
     const [captured] = await db.insert(capture).values(completedCapture()).returning();

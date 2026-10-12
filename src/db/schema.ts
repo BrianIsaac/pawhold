@@ -615,7 +615,8 @@ export const refund = pgTable(
     check("refund_reason_length", sql`char_length(${table.reason}) between 1 and 500`),
     check(
       "refund_answered_with_id",
-      sql`(${table.status} = 'requested') = (${table.paypalRefundId} is null)`,
+      sql`(${table.status} <> 'requested' or ${table.paypalRefundId} is null)
+        and (${table.status} not in ('pending', 'completed') or ${table.paypalRefundId} is not null)`,
     ),
   ],
 );

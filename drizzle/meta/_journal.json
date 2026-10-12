@@ -50,6 +50,20 @@
       "when": 1791807868127,
       "tag": "0006_money_rules",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1791808927270,
+      "tag": "0007_refund_outcomes",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1791808927720,
+      "tag": "0008_capture_taken",
+      "breakpoints": true
     }
   ]
 }
