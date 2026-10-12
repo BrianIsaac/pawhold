@@ -1,0 +1,89 @@
+import "server-only";
+
+import { createDatabase, type Database } from "@/db/client";
+import {
+  databaseEnvironment,
+  paypalEnvironment,
+  readEnvironment,
+  sessionEnvironment,
+  webhookEnvironment,
+} from "@/env";
+import { createPayPalClient, type PayPalClient } from "@/paypal/client";
+import { createWebhookHandler } from "@/paypal/webhook-handler";
+import { createCertificateCache } from "@/paypal/webhooks";
+
+/**
+ * The server's long-lived pieces, built on first use from the environment and
+ * kept on `globalThis` so development reloads do not open a pool per edit.
+ */
+interface Runtime {
+  database?: Database;
+  paypal?: PayPalClient | null;
+  webhookHandler?: (request: Request) => Promise<Response>;
+}
+
+const holder = globalThis as typeof globalThis & { __pawholdRuntime?: Runtime };
+const runtime: Runtime = (holder.__pawholdRuntime ??= {});
+
+/**
+ * The application's database.
+ *
+ * @returns The database handle.
+ * @throws EnvironmentError when `DATABASE_URL` is missing.
+ */
+export function database(): Database {
+  runtime.database ??= createDatabase(readEnvironment(databaseEnvironment).DATABASE_URL);
+  return runtime.database;
+}
+
+/**
+ * The PayPal client, or null when the sandbox app's credentials are not set
+ * (before the operator's PayPal account exists).
+ *
+ * @returns The client, or null.
+ */
+export function paypalClient(): PayPalClient | null {
+  if (runtime.paypal === undefined) {
+    const parsed = paypalEnvironment.safeParse(process.env);
+    runtime.paypal = parsed.success
+      ? createPayPalClient({
+          clientId: parsed.data.PAYPAL_CLIENT_ID,
+          clientSecret: parsed.data.PAYPAL_CLIENT_SECRET,
+          environment: parsed.data.PAYPAL_ENV,
+        })
+      : null;
+  }
+  return runtime.paypal;
+}
+
+/**
+ * The webhook listener, wired to the database, the certificate cache and,
+ * when credentials are set, the postback fallback.
+ *
+ * @returns The request handler.
+ * @throws EnvironmentError when `DATABASE_URL` or `PAYPAL_WEBHOOK_ID` is missing.
+ */
+export function webhookHandler(): (request: Request) => Promise<Response> {
+  if (!runtime.webhookHandler) {
+    const webhook = readEnvironment(webhookEnvironment);
+    const postback = paypalClient();
+    runtime.webhookHandler = createWebhookHandler({
+      db: database().db,
+      webhookId: webhook.PAYPAL_WEBHOOK_ID,
+      certificates: createCertificateCache(),
+      acceptMockEvents: webhook.PAYPAL_ACCEPT_MOCK_WEBHOOKS,
+      ...(postback ? { postback } : {}),
+    });
+  }
+  return runtime.webhookHandler;
+}
+
+/**
+ * The secret judge-mode session cookies are signed with.
+ *
+ * @returns The secret.
+ * @throws EnvironmentError when `SESSION_SECRET` is missing or short.
+ */
+export function sessionSecret(): string {
+  return readEnvironment(sessionEnvironment).SESSION_SECRET;
+}
