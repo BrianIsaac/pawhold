@@ -21,6 +21,7 @@
     "db:migrate": "tsx scripts/migrate.ts",
     "cron:hourly": "tsx scripts/cron-hourly.ts",
     "paypal:smoke-order": "tsx scripts/sandbox-order-smoke.ts",
+    "probes": "tsx probes/run.ts",
     "eval": "tsx evals/run.ts"
   },
   "dependencies": {
@@ -42,6 +43,7 @@
     "eslint": "9.39.5",
     "eslint-config-next": "16.4.0",
     "eslint-config-prettier": "^10.1.8",
+    "playwright": "1.64.0",
     "prettier": "^3.9.10",
     "typescript": "6.0.3",
     "vitest": "5.0.3"
