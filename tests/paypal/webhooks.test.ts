@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import { createPayPalClient } from "@/paypal/client";
 import {
+  CertificateRefusedError,
   CertificateUnavailableError,
   createCertificateCache,
   isPayPalCertificateUrl,
@@ -172,6 +173,26 @@ describe("the certificate cache", () => {
     await expect(cache.get(new URL(SANDBOX_CERT_URL))).resolves.toBeDefined();
   });
 
+  it("refuses, rather than retries, a certificate URL PayPal answers 404 to", async () => {
+    const cache = createCertificateCache({
+      fetch: async () => new Response("not found", { status: 404 }),
+    });
+
+    await expect(cache.get(new URL(SANDBOX_CERT_URL))).rejects.toBeInstanceOf(
+      CertificateRefusedError,
+    );
+  });
+
+  it("refuses a body from PayPal's host that is not a certificate", async () => {
+    const cache = createCertificateCache({
+      fetch: async () => new Response("<html>not a certificate</html>", { status: 200 }),
+    });
+
+    await expect(cache.get(new URL(SANDBOX_CERT_URL))).rejects.toBeInstanceOf(
+      CertificateRefusedError,
+    );
+  });
+
   it("refuses a certificate outside its validity period", async () => {
     const fetchCertificate = vi.fn(
       async () => new Response(signer.certificatePem, { status: 200 }),
@@ -272,6 +293,23 @@ describe("postback verification (the fallback)", () => {
     });
 
     expect(result).toEqual({ outcome: "refused", reason: "postback_failure" });
+  });
+
+  it("refuses a delivery whose certificate PayPal does not have, without posting it back", async () => {
+    const result = await verifyWebhook({
+      rawBody: Buffer.from(guideRaw),
+      headers: guideHeaders,
+      webhookId: WEBHOOK_ID,
+      certificates: {
+        get: async () => {
+          throw new CertificateRefusedError("PayPal answered 404");
+        },
+      },
+      postback: client(),
+    });
+
+    expect(result).toEqual({ outcome: "refused", reason: "certificate_refused" });
+    expect(paypal.requests).toHaveLength(0);
   });
 
   it("answers unavailable, so PayPal retries, when neither the certificate nor a postback can be had", async () => {

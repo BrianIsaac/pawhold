@@ -48,6 +48,7 @@ export type RefusalReason =
   | "headers_invalid"
   | "auth_algo_unsupported"
   | "cert_url_not_paypal"
+  | "certificate_refused"
   | "signature_mismatch"
   | "postback_failure";
 
@@ -69,6 +70,14 @@ export class CertificateUnavailableError extends Error {
   override readonly name = "CertificateUnavailableError";
 }
 
+/**
+ * PayPal's host has no certificate at the URL (a 4xx, or a body that is not
+ * one). A forged delivery names such a URL; it is refused, never posted back.
+ */
+export class CertificateRefusedError extends Error {
+  override readonly name = "CertificateRefusedError";
+}
+
 /** Where verification gets the certificate at a `paypal-cert-url`. */
 export interface CertificateSource {
   /**
@@ -77,7 +86,8 @@ export interface CertificateSource {
    *
    * @param url - The certificate URL.
    * @returns The certificate.
-   * @throws CertificateUnavailableError when it cannot be had.
+   * @throws CertificateUnavailableError when it cannot be had now.
+   * @throws CertificateRefusedError when there is no certificate at the URL.
    */
   get(url: URL): Promise<X509Certificate>;
 }
@@ -234,6 +244,9 @@ export async function verifyWebhook(input: VerifyWebhookInput): Promise<WebhookV
   try {
     certificate = await input.certificates.get(new URL(transmission.certUrl));
   } catch (error) {
+    if (error instanceof CertificateRefusedError) {
+      return { outcome: "refused", reason: "certificate_refused" };
+    }
     if (!(error instanceof CertificateUnavailableError)) {
       throw error;
     }
@@ -313,7 +326,9 @@ export interface CertificateCacheOptions {
  * should automatically be downloaded and cached for future use") and keeps
  * it for a day or until it expires, whichever is sooner. Redirects are
  * refused, so a fetch never leaves the host that was checked; failures are
- * not cached.
+ * not cached. A 4xx or a body that is not a certificate is a refusal; a
+ * network failure, a 5xx or a certificate out of date is "unavailable", for
+ * which the postback is the fallback.
  *
  * @param options - Test seams and limits.
  * @returns The source.
@@ -338,17 +353,21 @@ export function createCertificateCache(options: CertificateCacheOptions = {}): C
     }
     if (answer.status !== 200) {
       await answer.body?.cancel();
-      throw new CertificateUnavailableError(`${url.toString()} answered ${answer.status}`);
+      const Failure =
+        answer.status >= 400 && answer.status < 500
+          ? CertificateRefusedError
+          : CertificateUnavailableError;
+      throw new Failure(`${url.toString()} answered ${answer.status}`);
     }
     const pem = await answer.text();
     if (pem.length > MAX_CERTIFICATE_BYTES) {
-      throw new CertificateUnavailableError(`${url.toString()} is larger than a certificate`);
+      throw new CertificateRefusedError(`${url.toString()} is larger than a certificate`);
     }
     let certificate: X509Certificate;
     try {
       certificate = new X509Certificate(pem);
     } catch (error) {
-      throw new CertificateUnavailableError(`${url.toString()} is not a certificate`, {
+      throw new CertificateRefusedError(`${url.toString()} is not a certificate`, {
         cause: error,
       });
     }
