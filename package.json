@@ -6,7 +6,7 @@
   "type": "module",
   "packageManager": "pnpm@9.15.0",
   "engines": {
-    "node": ">=22.12.0"
+    "node": ">=22.12.0 <23"
   },
   "scripts": {
     "dev": "next dev",
@@ -18,7 +18,9 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "tsx scripts/migrate.ts"
+    "db:migrate": "tsx scripts/migrate.ts",
+    "cron:hourly": "tsx scripts/cron-hourly.ts",
+    "paypal:smoke-order": "tsx scripts/sandbox-order-smoke.ts"
   },
   "dependencies": {
     "drizzle-orm": "0.45.4",
