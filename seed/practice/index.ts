@@ -46,9 +46,10 @@ export function readSeedPriceList(): string {
  *
  * @param tx - The transaction making the practice.
  * @param practiceId - The new practice.
+ * @param now - The session's start, which the seeded stories are told back from.
  * @returns Resolves once seeded.
  */
-export const seedFictionalPractice: PracticeSeed = async (tx, practiceId) => {
+export const seedFictionalPractice: PracticeSeed = async (tx, practiceId, now = new Date()) => {
   await tx
     .update(practice)
     .set({
@@ -62,7 +63,7 @@ export const seedFictionalPractice: PracticeSeed = async (tx, practiceId) => {
     sourceName: FICTIONAL_PRACTICE.priceListSource,
     csv: readSeedPriceList(),
   });
-  const showcase = await seedShowcase(tx, practiceId);
+  const showcase = await seedShowcase(tx, practiceId, now);
   await appendAuditEvent(tx, {
     practiceId,
     actor: "system",

@@ -19,3 +19,20 @@ export async function GET(
   const { door } = await context.params;
   return judgeDoors().GET(request, door);
 }
+
+/**
+ * A HEAD to a door, as a link preview sends: answered without starting a
+ * session (Next would otherwise answer it by running GET).
+ *
+ * @param request - The request.
+ * @param context - The route's parameters.
+ * @param context.params - The door.
+ * @returns 200, or 404 for a door that is not one of the two.
+ */
+export async function HEAD(
+  request: Request,
+  context: { params: Promise<{ door: string }> },
+): Promise<Response> {
+  const { door } = await context.params;
+  return judgeDoors().HEAD(request, door);
+}

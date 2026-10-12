@@ -37,9 +37,14 @@ const seededPractice = z.looseObject({ ownerDoorCaseId: z.uuid() });
  */
 export function createJudgeDoors(dependencies: JudgeSessionDependencies): {
   GET: (request: Request, segment: string) => Promise<Response>;
+  HEAD: (request: Request, segment: string) => Promise<Response>;
 } {
   const now = dependencies.now ?? Date.now;
   return {
+    // A link preview or a checker asks HEAD: it is answered, and seeds nothing.
+    HEAD: async (_request, segment) =>
+      new Response(null, { status: door.safeParse(segment).success ? 200 : 404, headers: HEADERS }),
+
     GET: async (request, segment) => {
       const parsed = door.safeParse(segment);
       if (!parsed.success) {

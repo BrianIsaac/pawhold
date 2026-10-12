@@ -166,13 +166,19 @@ test.describe("the README's testing instructions, walked as written", () => {
       const page = await context.newPage();
 
       const started = Date.now();
-      await walk(page, "Two minutes as the owner");
+      try {
+        await walk(page, "Two minutes as the owner");
+      } finally {
+        // Registered whatever became of the walk, so whatever it held is voided.
+        const session = await page.request.get("/api/judge/session");
+        if (session.ok()) {
+          practices.push(((await session.json()) as { practiceId: string }).practiceId);
+        }
+      }
       const took = Date.now() - started;
       test.info().annotations.push({ type: "owner door to held", description: `${took} ms` });
       expect(took).toBeLessThan(TWO_MINUTES_MS);
 
-      const session = await page.request.get("/api/judge/session");
-      practices.push(((await session.json()) as { practiceId: string }).practiceId);
       if (sandboxConfigured) {
         test.info().annotations.push({
           type: "practice",

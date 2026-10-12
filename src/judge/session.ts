@@ -24,9 +24,10 @@ const SIGNATURE_DOMAIN = "pawhold.session.v1";
 
 /**
  * Fills a new judge practice with its price list and cases. U2 supplies the
- * content; U1 calls it inside the transaction that makes the practice.
+ * content; U1 calls it inside the transaction that makes the practice, with
+ * the session's start, which the seeded stories are told back from.
  */
-export type PracticeSeed = (tx: Transaction, practiceId: string) => Promise<void>;
+export type PracticeSeed = (tx: Transaction, practiceId: string, now?: Date) => Promise<void>;
 
 /** The seed until U2's lands: an empty practice. */
 export const seedNothing: PracticeSeed = async () => {};
@@ -183,7 +184,7 @@ export async function startJudgeSession(
       .values({ name: JUDGE_PRACTICE_NAME, kind: "judge", createdAt })
       .returning({ id: practice.id });
     const practiceId = made!.id;
-    await seed(tx, practiceId);
+    await seed(tx, practiceId, createdAt);
     const [opened] = await tx
       .insert(session)
       .values({ practiceId, door, createdAt, expiresAt, lastSeenAt: createdAt })

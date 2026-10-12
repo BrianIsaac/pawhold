@@ -13,7 +13,7 @@ import {
   refund,
 } from "@/db/schema";
 import { caseEstimateVersions } from "@/estimate/version";
-import { createJudgeSessionHandlers } from "@/judge/session";
+import { createJudgeSessionHandlers, startJudgeSession } from "@/judge/session";
 import { refundableCaptures } from "@/discharge/refund";
 import { reauthoriseHolds } from "@/jobs/reauthorise";
 import { MoneyError } from "@/money/errors";
@@ -449,6 +449,24 @@ describe("the showcase (plan 3.2: cases at every money state)", () => {
     expect(await db.select().from(refund).where(eq(refund.captureId, taken!.id))).toEqual([]);
     for (const patient of ["Poppy", "Teddy", "Luna"]) {
       expect(await refundableCaptures(db, practiceId, caseOf(patient)), patient).toEqual([]);
+    }
+  });
+
+  it("tells its stories from the session's start, not the wall clock", async () => {
+    const startedAt = Date.now() - 8 * DAY_MS;
+    const old = await startJudgeSession(
+      { db, seed: seedFictionalPractice, now: () => startedAt },
+      "practice",
+    );
+    const events = await db
+      .select({ occurredAt: auditEvent.occurredAt, caseId: auditEvent.caseId })
+      .from(auditEvent)
+      .where(eq(auditEvent.practiceId, old.practiceId));
+    const onCases = events.filter((event) => event.caseId !== null);
+
+    expect(onCases.length).toBeGreaterThan(100);
+    for (const event of onCases) {
+      expect(event.occurredAt.getTime()).toBeLessThan(startedAt);
     }
   });
 });

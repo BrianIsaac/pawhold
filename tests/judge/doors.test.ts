@@ -181,6 +181,20 @@ describe("the landing page's doors (section 6, plan 7.4)", () => {
     expect((await click("practice", { site: "same-site" })).headers.get("location")).toBe("/today");
   });
 
+  it("starts no session for a HEAD request, as a link preview sends", async () => {
+    const before = practices();
+
+    const response = await doors.HEAD(
+      new Request(`${ORIGIN}/try/owner`, { method: "HEAD" }),
+      "owner",
+    );
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("set-cookie")).toBeNull();
+    expect(response.headers.get("x-robots-tag")).toBe("noindex, nofollow");
+    expect(practices()).toBe(before);
+  });
+
   it("answers 404 for a door that is not one of the two", async () => {
     const before = practices();
 
