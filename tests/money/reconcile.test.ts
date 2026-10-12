@@ -10,7 +10,7 @@ import {
   makeEstimateVersion,
 } from "@/estimate/version";
 import { discharge } from "@/money/discharge";
-import { authoriseHold, orderHold, sendEstimate } from "@/money/holds";
+import { authoriseHold, orderHold, sendEstimate, withdrawEstimate } from "@/money/holds";
 import { reconcilePendingWebhooks, reconcileWebhookEvent } from "@/money/reconcile";
 import { refundCaptured } from "@/money/refunds";
 import { caseMoney } from "@/money/view";
@@ -255,6 +255,51 @@ describe("reconciliation of PayPal's webhooks against the case's state (plan 3.2
     expect([declined.outcome, reversed.outcome]).toEqual(["flagged", "flagged"]);
     const [kept] = await db.select().from(capture).where(eq(capture.id, taken!.id));
     expect(kept!.status).toBe("completed");
+  });
+
+  it("reconciles a decline PayPal sends for a capture already recorded declined, and a late PENDING", async () => {
+    await discharge(
+      { db, paypal: paypal.client() },
+      {
+        ...fixture,
+        actor: "vet",
+        lines: [{ estimateLineId: version.lines[0]!.id, quantity: 1 }],
+      },
+    );
+    const [taken] = await db.select().from(capture).where(eq(capture.holdId, version.id));
+
+    const late = await reconcileWebhookEvent(
+      db,
+      await delivered("PAYMENT.CAPTURE.PENDING", taken!.paypalCaptureId),
+      { now: NOW },
+    );
+    await db.update(capture).set({ status: "declined" }).where(eq(capture.id, taken!.id));
+    const declined = await reconcileWebhookEvent(
+      db,
+      await delivered("PAYMENT.CAPTURE.DECLINED", taken!.paypalCaptureId),
+      { now: NOW },
+    );
+
+    expect([late.outcome, declined.outcome]).toEqual(["reconciled", "reconciled"]);
+  });
+
+  it("flags the owner's approval of an order whose estimate was withdrawn", async () => {
+    const other = await makeDentalCase(db, "Withdrawn practice");
+    const draft = await makeEstimateVersion(db, { ...other, actor: "vet", lines: DENTAL_LINES });
+    await sendEstimate(db, { practiceId: other.practiceId, versionId: draft.id, actor: "vet" });
+    const { hold: ordered } = await orderHold(
+      { db, paypal: paypal.client() },
+      { ...other, versionId: draft.id },
+    );
+    await withdrawEstimate(db, { ...other, actor: "vet" });
+
+    const outcome = await reconcileWebhookEvent(
+      db,
+      await delivered("CHECKOUT.ORDER.APPROVED", ordered.paypalOrderId),
+      { now: NOW },
+    );
+
+    expect(outcome.outcome).toBe("flagged");
   });
 
   it("never applies a simulator mock event (U1's decision 12)", async () => {

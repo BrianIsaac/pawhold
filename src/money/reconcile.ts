@@ -152,12 +152,15 @@ export interface ReconcileReport {
   readonly reconciled: number;
   readonly flagged: number;
   readonly pending: number;
+  /** Events whose reconciliation failed this sweep: left for the next. */
+  readonly failed: number;
 }
 
 /**
  * Reconciles every stored webhook event received by now and not yet
  * processed, oldest first: the hourly job's catch-up for events whose
- * reconciliation at receipt failed or waited out its grace.
+ * reconciliation at receipt failed or waited out its grace. One event's
+ * failure is counted and the sweep goes on.
  *
  * @param db - The pool.
  * @param options - The clock, the grace and how many to take.
@@ -175,11 +178,23 @@ export async function reconcilePendingWebhooks(
     .where(and(isNull(webhookEvent.processedAt), lte(webhookEvent.receivedAt, now)))
     .orderBy(asc(webhookEvent.receivedAt))
     .limit(options.limit ?? 500);
-  const report = { reconciled: 0, flagged: 0, pending: 0 };
+  const report = { reconciled: 0, flagged: 0, pending: 0, failed: 0 };
   for (const { eventId } of waiting) {
-    const done = await reconcileWebhookEvent(db, eventId, { ...options, now });
-    if (done.outcome === "reconciled" || done.outcome === "flagged" || done.outcome === "pending") {
-      report[done.outcome] += 1;
+    try {
+      const done = await reconcileWebhookEvent(db, eventId, { ...options, now });
+      if (
+        done.outcome === "reconciled" ||
+        done.outcome === "flagged" ||
+        done.outcome === "pending"
+      ) {
+        report[done.outcome] += 1;
+      }
+    } catch (error) {
+      console.error("pawhold: a webhook could not be reconciled", {
+        eventId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      report.failed += 1;
     }
   }
   return report;
@@ -364,7 +379,14 @@ async function captureEvent(
       },
     };
   }
-  if (eventType === "PAYMENT.CAPTURE.PENDING" && found.status === "pending") {
+  if (eventType === "PAYMENT.CAPTURE.PENDING" && (found.status === "pending" || taken)) {
+    // A late PENDING for a capture since completed: PayPal does not promise order.
+    return { kind: "expected", match, confirm: async () => {} };
+  }
+  if (
+    eventType === "PAYMENT.CAPTURE.DECLINED" &&
+    (found.status === "declined" || found.status === "failed")
+  ) {
     return { kind: "expected", match, confirm: async () => {} };
   }
   const contradiction =
@@ -438,8 +460,9 @@ async function refundEvent(tx: Transaction, refundId: string): Promise<Judgement
 
 /**
  * `CHECKOUT.ORDER.APPROVED`: the owner approved a hold's order on PayPal's
- * page; nothing is held until the authorise call, so it confirms the order
- * whatever became of the hold.
+ * page; nothing is held until the authorise call. Expected while the hold is
+ * ordered or later; flagged when its estimate was withdrawn or the update
+ * declined.
  *
  * @param tx - The open transaction.
  * @param orderId - The order.
@@ -453,6 +476,14 @@ async function orderApproved(tx: Transaction, orderId: string): Promise<Judgemen
       match: null,
       reason: `no hold has order ${orderId}`,
       final: false,
+    };
+  }
+  if (found.status === "withdrawn" || found.status === "declined") {
+    return {
+      kind: "unexpected",
+      match: holdMatch(found, { orderId }),
+      reason: `the owner approved order ${orderId}, whose hold is ${found.status}: nothing is held unless it is authorised`,
+      final: true,
     };
   }
   return { kind: "expected", match: holdMatch(found, { orderId }), confirm: async () => {} };

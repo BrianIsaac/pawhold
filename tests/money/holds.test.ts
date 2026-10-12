@@ -11,6 +11,7 @@ import { paypalRequestId } from "@/paypal/request-id";
 import { connectTestDatabase } from "../support/database";
 import { DENTAL_LINES, makeDentalCase, type MoneyFixture } from "../support/money";
 import { startPayPalDouble } from "../support/paypal-double";
+import { recordedAnswer } from "../support/recorded";
 
 const { db } = connectTestDatabase();
 const paypal = startPayPalDouble();
@@ -187,6 +188,22 @@ describe("the case's money state machine (plan 3.2): draft estimate, awaiting ow
     expect(again.hold.paypalOrderId).toBe(first.hold.paypalOrderId);
     expect(paypal.orders.size).toBe(1);
     expect(await db.select().from(hold).where(eq(hold.caseId, fixture.caseId))).toHaveLength(1);
+  });
+
+  it("refuses an order PayPal answers with another order than the hold's", async () => {
+    const versionId = await sentEstimate();
+    const request = { practiceId: fixture.practiceId, caseId: fixture.caseId, versionId };
+    const first = await orderHold(deps(), request);
+    const other = structuredClone(
+      recordedAnswer("P1", "POST", /^\/v2\/checkout\/orders$/).responseBody,
+    );
+    paypal.inject({ method: "POST", path: /^\/v2\/checkout\/orders$/, status: 200, body: other });
+
+    const refused = await refusal(orderHold(deps(), request));
+
+    expect(refused.reason).toBe("wrong_state");
+    const [kept] = await db.select().from(hold).where(eq(hold.id, versionId));
+    expect(kept!.paypalOrderId).toBe(first.hold.paypalOrderId);
   });
 
   it("gives PayPal's checkout link when the order is made for a redirect", async () => {

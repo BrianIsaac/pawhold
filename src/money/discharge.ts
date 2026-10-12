@@ -1,4 +1,4 @@
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, lte, sql } from "drizzle-orm";
 import { z } from "zod";
 
 import { appendAuditEvent } from "@/audit/writer";
@@ -248,6 +248,56 @@ export async function dischargeCase(
   return dischargeResult(deps.db, practiceId, caseId);
 }
 
+/** How long a signed-off bill waits before the hourly job resumes its discharge. */
+export const STALLED_DISCHARGE_MS = 10 * 60 * 1000;
+
+/** What one sweep of stalled discharges did, by case id. */
+export interface ResumedDischarges {
+  readonly resumed: string[];
+  readonly failed: string[];
+}
+
+/**
+ * Resumes every discharge stopped after its sign-off (a crash, PayPal not
+ * answering, a practice that never confirmed again): each case whose bill was
+ * signed off at least ten minutes ago and which still has an open hold is
+ * discharged again, which is safe, since every step's request id is the same.
+ * One case's failure is reported and the sweep goes on. Run hourly.
+ *
+ * @param deps - The database, the PayPal client, the clock and an optional practice scope.
+ * @returns The cases resumed to the end, and those that failed again.
+ */
+export async function resumeStalledDischarges(
+  deps: MoneyDependencies & { readonly now?: Date; readonly practiceId?: string },
+): Promise<ResumedDischarges> {
+  const now = deps.now ?? new Date();
+  const stalled = await deps.db
+    .selectDistinct({ practiceId: bill.practiceId, caseId: bill.caseId })
+    .from(bill)
+    .innerJoin(hold, eq(hold.caseId, bill.caseId))
+    .where(
+      and(
+        eq(hold.status, "authorised"),
+        lte(bill.signedOffAt, new Date(now.getTime() - STALLED_DISCHARGE_MS)),
+        deps.practiceId ? eq(bill.practiceId, deps.practiceId) : undefined,
+      ),
+    );
+  const report: ResumedDischarges = { resumed: [], failed: [] };
+  for (const one of stalled) {
+    try {
+      await dischargeCase(deps, one);
+      report.resumed.push(one.caseId);
+    } catch (error) {
+      console.error("pawhold: a stalled discharge failed again", {
+        caseId: one.caseId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      report.failed.push(one.caseId);
+    }
+  }
+  return report;
+}
+
 /** The next step of a discharge. */
 type Step =
   | {
@@ -375,7 +425,7 @@ async function captureStep(
   await deps.db.transaction(async (tx) => {
     const kase = await lockCase(tx, practiceId, caseId);
     const amount = answer.amount ? moneyFromPayPal(answer.amount) : target.amount;
-    await tx
+    const [inserted] = await tx
       .insert(capture)
       .values({
         holdId: target.id,
@@ -390,7 +440,12 @@ async function captureStep(
         netPence: pence(answer.seller_receivable_breakdown?.net_amount),
         capturedAt: answer.create_time ? parsePayPalTime(answer.create_time) : new Date(),
       })
-      .onConflictDoNothing({ target: capture.paypalCaptureId });
+      .onConflictDoNothing({ target: capture.paypalCaptureId })
+      .returning({ id: capture.id });
+    if (!inserted) {
+      // Another discharge of this case recorded PayPal's same answer first.
+      return;
+    }
     if (taken) {
       await tx
         .update(hold)
@@ -448,10 +503,14 @@ async function recordExpired(
 ): Promise<void> {
   await deps.db.transaction(async (tx) => {
     const kase = await lockCase(tx, practiceId, caseId);
-    await tx
+    const [expired] = await tx
       .update(hold)
       .set({ status: "expired", closedAt: sql`now()`, updatedAt: sql`now()` })
-      .where(and(eq(hold.id, target.id), eq(hold.status, "authorised")));
+      .where(and(eq(hold.id, target.id), eq(hold.status, "authorised")))
+      .returning({ id: hold.id });
+    if (!expired) {
+      return;
+    }
     const to = await dischargedState(tx, kase);
     await moveCase(tx, caseId, to);
     await appendAuditEvent(tx, {
@@ -510,10 +569,15 @@ async function voidStep(
   );
   await deps.db.transaction(async (tx) => {
     const kase = await lockCase(tx, practiceId, caseId);
-    await tx
+    const [voided] = await tx
       .update(hold)
       .set({ status: "voided", closedAt: sql`now()`, updatedAt: sql`now()` })
-      .where(and(eq(hold.id, target.id), eq(hold.status, "authorised")));
+      .where(and(eq(hold.id, target.id), eq(hold.status, "authorised")))
+      .returning({ id: hold.id });
+    if (!voided) {
+      // Another discharge of this case recorded the void first.
+      return;
+    }
     const to = await dischargedState(tx, kase);
     await moveCase(tx, caseId, to);
     const releasedPence = target.amount.pence - target.capturedPence;
@@ -707,6 +771,8 @@ function priceBillLines(
  * @param status - PayPal's status.
  * @returns The stored status.
  */
-function lowerStatus(status: z.infer<typeof paypalCaptureStatus>) {
+function lowerStatus(
+  status: z.infer<typeof paypalCaptureStatus>,
+): Lowercase<z.infer<typeof paypalCaptureStatus>> {
   return status.toLowerCase() as Lowercase<typeof status>;
 }

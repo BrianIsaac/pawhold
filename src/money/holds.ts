@@ -1,9 +1,9 @@
-import { and, desc, eq, isNotNull, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNotNull, sql } from "drizzle-orm";
 import { z } from "zod";
 
 import { appendAuditEvent, type AuditEventInput } from "@/audit/writer";
 import type { Database, Executor, Transaction } from "@/db/client";
-import { auditActor, estimateVersion, hold } from "@/db/schema";
+import { auditActor, bill, estimateVersion, hold } from "@/db/schema";
 import {
   type EstimateVersionView,
   loadEstimateVersion,
@@ -99,6 +99,13 @@ export async function sendEstimate(
     const isUpdate = kase.moneyState === "held" || kase.moneyState === "update_declined";
     const to = nextState(isUpdate ? "send_update" : "send_estimate", kase.moneyState)!;
     if (isUpdate) {
+      const [signed] = await tx.select({ id: bill.id }).from(bill).where(eq(bill.caseId, kase.id));
+      if (signed) {
+        throw new MoneyError(
+          "wrong_state",
+          "the case's bill is signed off: no update is sent after it, since discharge could only void its hold",
+        );
+      }
       const held = await heldTotal(tx, kase.id);
       if (draft.totals.highPence <= held) {
         throw new MoneyError(
@@ -218,6 +225,12 @@ export async function orderHold(
       return inserted;
     }
     const [current] = await tx.select().from(hold).where(eq(hold.id, versionId));
+    if (current!.paypalOrderId !== order.id) {
+      throw new MoneyError(
+        "wrong_state",
+        `PayPal answered with order ${order.id}, but the hold is for order ${current!.paypalOrderId}: the hold's order is kept`,
+      );
+    }
     return current!;
   });
   return { hold: holdView(stored, 0), approvalUrl: experience ? approvalUrl(order) : null };
@@ -409,8 +422,11 @@ export async function authoriseHold(
         closedAt: sql`now()`,
         updatedAt: sql`now()`,
       })
-      .where(eq(hold.id, holdId))
+      .where(and(eq(hold.id, holdId), inArray(hold.status, ["ordered", "withdrawn", "declined"])))
       .returning();
+    if (!updated) {
+      return loadHold(tx, practiceId, caseId, holdId);
+    }
     await appendAuditEvent(tx, {
       practiceId,
       caseId,
@@ -444,7 +460,16 @@ interface ReadAuthorisation {
  * @throws MoneyError when PayPal did not hold the money (an authorisation not `CREATED`) or the answer lacks what a hold records.
  */
 function readAuthorisation(authorised: Order): ReadAuthorisation {
-  const found = onlyAuthorization(authorised);
+  let found;
+  try {
+    found = onlyAuthorization(authorised);
+  } catch (error) {
+    throw new MoneyError(
+      "paypal_unavailable",
+      `PayPal's authorise answer does not hold one authorisation; ask again`,
+      { cause: error },
+    );
+  }
   if (found.status !== "CREATED") {
     throw new MoneyError(
       "paypal_refused",

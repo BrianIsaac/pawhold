@@ -1,10 +1,11 @@
-import { and, asc, eq, isNull, notExists, sql } from "drizzle-orm";
+import { and, asc, eq, isNull, lte, sql } from "drizzle-orm";
 
 import { appendAuditEvent } from "@/audit/writer";
-import type { Database } from "@/db/client";
+import type { Database, Transaction } from "@/db/client";
 import { bill, hold } from "@/db/schema";
 import { askPayPal, MoneyError } from "@/money/errors";
 import { holdRequestId } from "@/money/holds";
+import { lockCase } from "@/money/state";
 import { currencyCode } from "@/money/currency";
 import type { PayPalClient } from "@/paypal/client";
 import { parsePayPalTime, reauthorizeAuthorization } from "@/paypal/payments";
@@ -49,10 +50,15 @@ type HoldRow = typeof hold.$inferSelect;
  * go against the new authorisation. A card hold past day 3 is flagged
  * (`hold.honour_period_over`) and never reauthorised: PayPal documents
  * reauthorisation for PayPal-account payments only. A wallet hold whose one
- * reauthorisation is spent, or refused, is flagged when its honour period is
- * over in turn. Every rule reads the hold's own record, so a run repeated, or
- * two runs at once, change nothing twice; PayPal's too-soon refusal leaves the
- * hold for the next run.
+ * reauthorisation is spent or refused, or that is past its 29 days, is
+ * flagged when its honour period is over in turn; so is a hold whose bill is
+ * signed off but whose capture has not landed (never reauthorised: its
+ * discharge is resumed hourly instead). Each hold is reviewed in one
+ * transaction holding its case's lock across PayPal's answer, so a sign-off
+ * and its discharge never interleave with a reauthorisation, and a run
+ * repeated, or two at once, change nothing twice. One hold's failure is
+ * reported and the run goes on; PayPal's too-soon refusal leaves the hold for
+ * the next run.
  *
  * Unverified until P5 (b) (17 October 2026): the sandbox's answer to a
  * reauthorisation on day 4 or later. The code follows PayPal's documented
@@ -71,82 +77,135 @@ export async function reauthoriseHolds(deps: ReauthoriseDependencies): Promise<R
     failed: [],
   };
   const open = await deps.db
-    .select()
+    .select({ id: hold.id, practiceId: hold.practiceId, caseId: hold.caseId })
     .from(hold)
     .where(
       and(
         eq(hold.status, "authorised"),
         isNull(hold.honourPeriodFlaggedAt),
+        lte(hold.authorisedAt, new Date(now.getTime() - HONOUR_PERIOD_MS)),
         deps.practiceId ? eq(hold.practiceId, deps.practiceId) : undefined,
-        notExists(
-          deps.db
-            .select({ one: sql`1` })
-            .from(bill)
-            .where(eq(bill.caseId, hold.caseId)),
-        ),
       ),
     )
     .orderBy(asc(hold.authorisedAt));
 
-  for (const row of open) {
-    const sinceAuthorised = now.getTime() - row.authorisedAt!.getTime();
-    if (sinceAuthorised < HONOUR_PERIOD_MS) {
-      continue;
-    }
-    const reauthorisable =
-      row.paymentKind === "paypal" &&
-      row.reauthorisedAt === null &&
-      row.reauthoriseRefusedAt === null &&
-      sinceAuthorised < AUTHORISATION_PERIOD_MS;
-    if (reauthorisable) {
-      const done = await reauthorise(deps, row, now);
-      report[done].push(row.id);
-      if (done !== "refused") {
-        continue;
+  for (const candidate of open) {
+    try {
+      for (const outcome of await reviewHold(deps, candidate, now)) {
+        report[outcome].push(candidate.id);
       }
-    }
-    const current = (await deps.db.select().from(hold).where(eq(hold.id, row.id)))[0]!;
-    if (honourPeriodOver(current, now) && (await flag(deps, current, now))) {
-      report.flagged.push(row.id);
+    } catch (error) {
+      console.error("pawhold: reauthorisation rule failed for a hold", {
+        holdId: candidate.id,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      report.failed.push(candidate.id);
     }
   }
   return report;
 }
 
-/**
- * Whether a hold that will not be reauthorised is past the honour period it has.
- *
- * @param row - The hold.
- * @param now - The clock.
- * @returns True when it is.
- */
-function honourPeriodOver(row: HoldRow, now: Date): boolean {
-  const from = row.reauthorisedAt ?? row.authorisedAt!;
-  const canStillReauthorise =
-    row.paymentKind === "paypal" &&
-    row.reauthorisedAt === null &&
-    row.reauthoriseRefusedAt === null;
-  return !canStillReauthorise && now.getTime() - from.getTime() >= HONOUR_PERIOD_MS;
-}
+type Outcome = keyof ReauthoriseReport;
 
 /**
- * Reauthorises one wallet hold and records PayPal's answer.
+ * Applies the rule to one hold in one transaction holding its case's lock,
+ * across PayPal's answer too: a sign-off, and so a discharge, waits for it,
+ * and it sees a sign-off made before it. The hold is read again under the
+ * lock, so what the batch selected is never acted on stale.
  *
  * @param deps - The database and the PayPal client.
- * @param row - The hold.
+ * @param candidate - The hold as selected.
+ * @param candidate.id - The hold.
+ * @param candidate.practiceId - Its practice.
+ * @param candidate.caseId - Its case.
  * @param now - The clock.
  * @returns What became of it.
  */
-async function reauthorise(
+async function reviewHold(
   deps: ReauthoriseDependencies,
+  candidate: { id: string; practiceId: string; caseId: string },
+  now: Date,
+): Promise<Outcome[]> {
+  return deps.db.transaction(async (tx) => {
+    await lockCase(tx, candidate.practiceId, candidate.caseId);
+    const [row] = await tx.select().from(hold).where(eq(hold.id, candidate.id)).for("update");
+    if (!row || row.status !== "authorised" || row.honourPeriodFlaggedAt !== null) {
+      return [];
+    }
+    const [signed] = await tx.select({ id: bill.id }).from(bill).where(eq(bill.caseId, row.caseId));
+    const billed = signed !== undefined;
+    const outcomes: Outcome[] = [];
+    let current = row;
+    if (!billed && canReauthorise(row, now)) {
+      const done = await reauthorise(tx, deps.paypal, row, now);
+      outcomes.push(done.outcome);
+      if (done.outcome !== "refused") {
+        return outcomes;
+      }
+      current = done.row;
+    }
+    if (honourPeriodOver(current, now, billed)) {
+      await flag(tx, current, now, billed);
+      outcomes.push("flagged");
+    }
+    return outcomes;
+  });
+}
+
+/**
+ * Whether the rule may still reauthorise a hold: a wallet hold, never
+ * reauthorised nor refused, inside its 29 days.
+ *
+ * @param row - The hold.
+ * @param now - The clock.
+ * @returns True when it may.
+ */
+function canReauthorise(row: HoldRow, now: Date): boolean {
+  return (
+    row.paymentKind === "paypal" &&
+    row.reauthorisedAt === null &&
+    row.reauthoriseRefusedAt === null &&
+    now.getTime() - row.authorisedAt!.getTime() < AUTHORISATION_PERIOD_MS
+  );
+}
+
+/**
+ * Whether a hold that will not be reauthorised is past the honour period it
+ * has: its own, or its reauthorisation's.
+ *
+ * @param row - The hold.
+ * @param now - The clock.
+ * @param billed - Whether its case's bill is signed off (never reauthorised then).
+ * @returns True when it is.
+ */
+function honourPeriodOver(row: HoldRow, now: Date, billed: boolean): boolean {
+  const from = row.reauthorisedAt ?? row.authorisedAt!;
+  return (
+    (billed || !canReauthorise(row, now)) && now.getTime() - from.getTime() >= HONOUR_PERIOD_MS
+  );
+}
+
+/**
+ * Reauthorises one wallet hold and records PayPal's answer, inside the
+ * transaction holding its case's lock.
+ *
+ * @param tx - The open transaction.
+ * @param paypal - The PayPal client.
+ * @param row - The hold, locked.
+ * @param now - The clock.
+ * @returns What became of it, and the hold as it now stands.
+ */
+async function reauthorise(
+  tx: Transaction,
+  paypal: PayPalClient,
   row: HoldRow,
   now: Date,
-): Promise<"reauthorised" | "tooSoon" | "refused" | "failed"> {
+): Promise<{ outcome: Outcome; row: HoldRow }> {
   let renewed;
   try {
     renewed = await askPayPal("reauthorise the hold", () =>
       reauthorizeAuthorization(
-        deps.paypal,
+        paypal,
         row.authorizationId!,
         holdRequestId(row.caseId, row.id, "reauthorize"),
         { pence: row.amountPence, currency: currencyCode.parse(row.currencyCode) },
@@ -157,108 +216,107 @@ async function reauthorise(
       throw error;
     }
     if (error.issues.includes("REAUTHORIZATION_TOO_SOON")) {
-      return "tooSoon";
+      return { outcome: "tooSoon", row };
     }
     if (error.reason !== "paypal_refused") {
       console.error("pawhold: reauthorisation not answered", {
         holdId: row.id,
         error: error.message,
       });
-      return "failed";
+      return { outcome: "failed", row };
     }
-    await deps.db.transaction(async (tx) => {
-      const [updated] = await tx
-        .update(hold)
-        .set({ reauthoriseRefusedAt: now, updatedAt: sql`now()` })
-        .where(and(eq(hold.id, row.id), isNull(hold.reauthoriseRefusedAt)))
-        .returning({ id: hold.id });
-      if (updated) {
-        await appendAuditEvent(tx, {
-          practiceId: row.practiceId,
-          caseId: row.caseId,
-          actor: "system",
-          action: "hold.reauthorise_refused",
-          paypal: {
-            orderId: row.paypalOrderId,
-            authorizationId: row.authorizationId!,
-            ...(error.debugId ? { debugId: error.debugId } : {}),
-          },
-          detail: { holdId: row.id, reason: error.message, issues: [...error.issues] },
-        });
-      }
-    });
-    return "refused";
-  }
-
-  await deps.db.transaction(async (tx) => {
-    const [updated] = await tx
+    const [refused] = await tx
       .update(hold)
-      .set({
-        authorizationId: renewed.id,
-        reauthorisedAt: renewed.create_time ? parsePayPalTime(renewed.create_time) : now,
-        ...(renewed.expiration_time ? { expiresAt: parsePayPalTime(renewed.expiration_time) } : {}),
-        updatedAt: sql`now()`,
-      })
-      .where(and(eq(hold.id, row.id), isNull(hold.reauthorisedAt)))
+      .set({ reauthoriseRefusedAt: now, updatedAt: sql`now()` })
+      .where(eq(hold.id, row.id))
       .returning();
-    if (updated) {
-      await appendAuditEvent(tx, {
-        practiceId: row.practiceId,
-        caseId: row.caseId,
-        actor: "system",
-        action: "hold.reauthorised",
-        amount: { pence: row.amountPence, currency: currencyCode.parse(row.currencyCode) },
-        paypal: { orderId: row.paypalOrderId, authorizationId: renewed.id },
-        detail: {
-          holdId: row.id,
-          previousAuthorizationId: row.authorizationId,
-          originalAuthorizationId: row.originalAuthorizationId,
-          authorisedAt: row.authorisedAt!.toISOString(),
-          newStatus: renewed.status,
-        },
-      });
-    }
-  });
-  return "reauthorised";
-}
-
-/**
- * Flags a hold past its honour period, once.
- *
- * @param deps - The database.
- * @param row - The hold.
- * @param now - The clock.
- * @returns True when this run flagged it.
- */
-async function flag(deps: ReauthoriseDependencies, row: HoldRow, now: Date): Promise<boolean> {
-  return deps.db.transaction(async (tx) => {
-    const [updated] = await tx
-      .update(hold)
-      .set({ honourPeriodFlaggedAt: now, updatedAt: sql`now()` })
-      .where(and(eq(hold.id, row.id), isNull(hold.honourPeriodFlaggedAt)))
-      .returning({ id: hold.id });
-    if (!updated) {
-      return false;
-    }
     await appendAuditEvent(tx, {
       practiceId: row.practiceId,
       caseId: row.caseId,
       actor: "system",
-      action: "hold.honour_period_over",
-      amount: { pence: row.amountPence, currency: currencyCode.parse(row.currencyCode) },
-      paypal: { orderId: row.paypalOrderId, authorizationId: row.authorizationId! },
-      detail: {
-        holdId: row.id,
-        paymentKind: row.paymentKind,
-        reason:
-          row.paymentKind === "card"
-            ? "a card hold is never reauthorised: PayPal documents reauthorisation for PayPal accounts only"
-            : row.reauthorisedAt
-              ? "reauthorised once, which is all PayPal allows; its new honour period is over"
-              : "PayPal refused to reauthorise it",
-        honourPeriodFrom: (row.reauthorisedAt ?? row.authorisedAt!).toISOString(),
+      action: "hold.reauthorise_refused",
+      paypal: {
+        orderId: row.paypalOrderId,
+        authorizationId: row.authorizationId!,
+        ...(error.debugId ? { debugId: error.debugId } : {}),
       },
+      detail: { holdId: row.id, reason: error.message, issues: [...error.issues] },
     });
-    return true;
+    return { outcome: "refused", row: refused! };
+  }
+
+  if (renewed.status !== "CREATED") {
+    console.error("pawhold: reauthorisation answered without holding", {
+      holdId: row.id,
+      status: renewed.status,
+    });
+    return { outcome: "failed", row };
+  }
+  const reauthorisedAt = renewed.create_time ? parsePayPalTime(renewed.create_time) : now;
+  const expiresAt = renewed.expiration_time ? parsePayPalTime(renewed.expiration_time) : null;
+  const [updated] = await tx
+    .update(hold)
+    .set({
+      authorizationId: renewed.id,
+      reauthorisedAt,
+      ...(expiresAt ? { expiresAt } : {}),
+      updatedAt: sql`now()`,
+    })
+    .where(eq(hold.id, row.id))
+    .returning();
+  await appendAuditEvent(tx, {
+    practiceId: row.practiceId,
+    caseId: row.caseId,
+    actor: "system",
+    action: "hold.reauthorised",
+    amount: { pence: row.amountPence, currency: currencyCode.parse(row.currencyCode) },
+    paypal: { orderId: row.paypalOrderId, authorizationId: renewed.id },
+    detail: {
+      holdId: row.id,
+      previousAuthorizationId: row.authorizationId,
+      originalAuthorizationId: row.originalAuthorizationId,
+      authorisedAt: row.authorisedAt!.toISOString(),
+      newStatus: renewed.status,
+    },
+  });
+  return { outcome: "reauthorised", row: updated! };
+}
+
+/**
+ * Flags a hold past its honour period, inside the transaction holding its
+ * case's lock.
+ *
+ * @param tx - The open transaction.
+ * @param row - The hold, locked.
+ * @param now - The clock.
+ * @param billed - Whether its case's bill is signed off.
+ * @returns Resolves once flagged.
+ */
+async function flag(tx: Transaction, row: HoldRow, now: Date, billed: boolean): Promise<void> {
+  await tx
+    .update(hold)
+    .set({ honourPeriodFlaggedAt: now, updatedAt: sql`now()` })
+    .where(eq(hold.id, row.id));
+  await appendAuditEvent(tx, {
+    practiceId: row.practiceId,
+    caseId: row.caseId,
+    actor: "system",
+    action: "hold.honour_period_over",
+    amount: { pence: row.amountPence, currency: currencyCode.parse(row.currencyCode) },
+    paypal: { orderId: row.paypalOrderId, authorizationId: row.authorizationId! },
+    detail: {
+      holdId: row.id,
+      paymentKind: row.paymentKind,
+      reason: billed
+        ? "its bill is signed off and its capture has not landed"
+        : row.paymentKind === "card"
+          ? "a card hold is never reauthorised: PayPal documents reauthorisation for PayPal accounts only"
+          : row.reauthorisedAt
+            ? "reauthorised once, which is all PayPal allows; its new honour period is over"
+            : row.reauthoriseRefusedAt
+              ? "PayPal refused to reauthorise it"
+              : "it is past its 29 days and was never reauthorised",
+      honourPeriodFrom: (row.reauthorisedAt ?? row.authorisedAt!).toISOString(),
+    },
   });
 }

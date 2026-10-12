@@ -1,7 +1,7 @@
 import { asc, eq } from "drizzle-orm";
 import { beforeEach, describe, expect, it } from "vitest";
 
-import { auditEvent, capture, refund } from "@/db/schema";
+import { auditEvent, bill, capture, refund } from "@/db/schema";
 import {
   type EstimateVersionView,
   loadEstimateVersion,
@@ -12,6 +12,7 @@ import {
   discharge,
   dischargeCase,
   planDischarge,
+  resumeStalledDischarges,
   signOffBill,
 } from "@/money/discharge";
 import { MoneyError } from "@/money/errors";
@@ -291,6 +292,66 @@ describe("discharge of a two-hold case (plan 3.2; U7's acceptance as U3 can hold
     expect(result).toMatchObject({ capturedPence: 12_000, unpaidPence: 32_000 });
     const expired = (await eventsSince()).find((event) => event.action === "hold.expired");
     expect(expired).toMatchObject({ paypalDebugId: "70c28ae654da" });
+  });
+});
+
+describe("discharge's edges (the review of 12 October 2026)", () => {
+  it("refuses to send an update once the bill is signed off", async () => {
+    const first = await held();
+    await signOffBill(db, { ...fixture, actor: "vet", lines: [done(first, "GA-DENT")] });
+    const draft = await makeEstimateVersion(db, {
+      ...fixture,
+      actor: "vet",
+      lines: DENTAL_UPDATE_LINES,
+    });
+
+    const refused = await refusal(
+      sendEstimate(db, { practiceId: fixture.practiceId, versionId: draft.id, actor: "vet" }),
+    );
+
+    expect(refused.reason).toBe("wrong_state");
+    expect(refused.message).toContain("signed off");
+  });
+
+  it("two discharges at once capture once and write one event per step", async () => {
+    const first = await held();
+    const update = await held(DENTAL_UPDATE_LINES);
+    await signOffBill(db, { ...fixture, actor: "vet", lines: [done(update, "GA-DENT")] });
+
+    const results = await Promise.allSettled([
+      dischargeCase(deps(), fixture),
+      dischargeCase(deps(), fixture),
+    ]);
+
+    expect(results.some((one) => one.status === "fulfilled")).toBe(true);
+    await dischargeCase(deps(), fixture);
+    expect(paypal.captures.size).toBe(1);
+    const actions = (await eventsSince()).map((event) => event.action);
+    expect(actions.filter((action) => action === "hold.captured")).toHaveLength(1);
+    expect(actions.filter((action) => action === "hold.voided")).toHaveLength(1);
+    expect((await caseMoney(db, fixture.practiceId, fixture.caseId)).holds[0]!.id).toBe(first.id);
+  });
+
+  it("resumes, hourly, a discharge stopped after its sign-off", async () => {
+    const first = await held();
+    paypal.inject({ method: "POST", path: /\/capture$/, status: 503, body: null });
+    await refusal(discharge(deps(), { ...fixture, actor: "vet", lines: [done(first, "GA-DENT")] }));
+    const [signed] = await db.select().from(bill).where(eq(bill.caseId, fixture.caseId));
+
+    const soon = await resumeStalledDischarges({
+      ...deps(),
+      now: new Date(signed!.signedOffAt.getTime() + 60 * 1000),
+      practiceId: fixture.practiceId,
+    });
+    const later = await resumeStalledDischarges({
+      ...deps(),
+      now: new Date(signed!.signedOffAt.getTime() + 11 * 60 * 1000),
+      practiceId: fixture.practiceId,
+    });
+
+    expect(soon.resumed).toEqual([]);
+    expect(later.resumed).toEqual([fixture.caseId]);
+    expect((await caseMoney(db, fixture.practiceId, fixture.caseId)).state).toBe("released");
   });
 });
 

@@ -28,8 +28,8 @@ import { recordedAnswer } from "./recorded";
  *   for PayPal accounts; the issue name is this double's, P5 (c) is owed);
  * - `PayPal-Mock-Response` `AUTHORIZATION_EXPIRED` on a capture is refused as
  *   P5 (a) recorded it;
- * - a POST with a `PayPal-Request-Id` already answered is answered the same
- *   again and acts once.
+ * - a POST with a `PayPal-Request-Id` already answered with a success is
+ *   answered the same again and acts once.
  */
 
 const TOKEN = paypalFixture("api/oauth-token.json");
@@ -466,25 +466,27 @@ export function startPayPalDouble(): PayPalDouble {
       requests.push(request);
       const requestId = incoming.headers["paypal-request-id"];
       const key = typeof requestId === "string" ? `${request.path} ${requestId}` : null;
-      let answer = key ? answered.get(key) : undefined;
-      if (!answer) {
-        const at = injected.findIndex(
-          (one) => one.method === request.method && one.path.test(request.path),
-        );
-        if (at >= 0) {
-          const [one] = injected.splice(at, 1);
-          if (one!.acts) {
-            const acted = act(request);
-            if (key) {
-              answered.set(key, acted);
-            }
+      // An injected answer wins; else a request id already answered with a
+      // success is answered the same again (PayPal documents its idempotent
+      // replay for successes; whether it replays refusals is unverified, so
+      // the double does not).
+      const at = injected.findIndex(
+        (one) => one.method === request.method && one.path.test(request.path),
+      );
+      let answer: { status: number; body: unknown };
+      if (at >= 0) {
+        const [one] = injected.splice(at, 1);
+        if (one!.acts) {
+          const acted = (key ? answered.get(key) : undefined) ?? act(request);
+          if (key && acted.status >= 200 && acted.status < 300) {
+            answered.set(key, acted);
           }
-          answer = { status: one!.status, body: one!.body };
-        } else {
-          answer = act(request);
-          if (key && answer.status < 500) {
-            answered.set(key, answer);
-          }
+        }
+        answer = { status: one!.status, body: one!.body };
+      } else {
+        answer = (key ? answered.get(key) : undefined) ?? act(request);
+        if (key && answer.status >= 200 && answer.status < 300) {
+          answered.set(key, answer);
         }
       }
       outgoing.writeHead(answer.status, { "content-type": "application/json" });

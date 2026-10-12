@@ -1,7 +1,7 @@
 import { asc, eq } from "drizzle-orm";
 import { beforeEach, describe, expect, it } from "vitest";
 
-import { auditEvent, hold } from "@/db/schema";
+import { auditEvent, hold, patientCase } from "@/db/schema";
 import { loadEstimateVersion, makeEstimateVersion } from "@/estimate/version";
 import { reauthoriseHolds } from "@/jobs/reauthorise";
 import { discharge, signOffBill } from "@/money/discharge";
@@ -165,7 +165,7 @@ describe("the reauthorisation job (plan 3.2, U0's P5 (a): once per wallet hold, 
     expect(paypal.posts(/\/reauthorize$/)).toHaveLength(0);
   });
 
-  it("leaves a hold whose case is being discharged alone", async () => {
+  it("never reauthorises a hold whose bill is signed off, and flags it once past its honour period", async () => {
     holdId = await heldBy("paypal");
     const version = (await loadEstimateVersion(db, fixture.practiceId, holdId))!;
     await signOffBill(db, {
@@ -177,7 +177,102 @@ describe("the reauthorisation job (plan 3.2, U0's P5 (a): once per wallet hold, 
     const report = await runAt(day(4));
 
     expect(report.reauthorised).toEqual([]);
+    expect(report.flagged).toEqual([holdId]);
     expect(paypal.posts(/\/reauthorize$/)).toHaveLength(0);
+  });
+
+  it("excludes a sign-off and its discharge while it reauthorises: captures go against the hold's live authorisation", async () => {
+    holdId = await heldBy("paypal");
+    const version = (await loadEstimateVersion(db, fixture.practiceId, holdId))!;
+    paypal.clock.now = day(4);
+
+    await Promise.all([
+      reauthoriseHolds({
+        db,
+        paypal: paypal.client(),
+        now: day(4),
+        practiceId: fixture.practiceId,
+      }),
+      discharge(
+        { db, paypal: paypal.client() },
+        {
+          ...fixture,
+          actor: "vet",
+          lines: [{ estimateLineId: version.lines[0]!.id, quantity: 1 }],
+        },
+      ),
+    ]);
+
+    const row = await stored();
+    expect(row.status).toBe("captured");
+    const [captured] = paypal.posts(/\/capture$/);
+    expect(captured!.path).toBe(`/v2/payments/authorizations/${row.authorizationId}/capture`);
+    const live = [...paypal.authorizations.values()].filter(
+      (one) => one.status === "CREATED" && one.reauthorisedAs === null,
+    );
+    expect(live).toEqual([]);
+  });
+
+  it("flags a wallet hold past its 29 days that was never reauthorised", async () => {
+    holdId = await heldBy("paypal");
+
+    const report = await runAt(day(30));
+
+    expect(report.reauthorised).toEqual([]);
+    expect(report.flagged).toEqual([holdId]);
+  });
+
+  it("keeps the hold's authorisation when PayPal answers a reauthorisation not CREATED", async () => {
+    holdId = await heldBy("paypal");
+    const first = (await stored()).authorizationId;
+    paypal.inject({
+      method: "POST",
+      path: /\/reauthorize$/,
+      status: 201,
+      body: { id: "DENIEDREAUTH00001", status: "DENIED", links: [] },
+    });
+
+    const report = await runAt(day(4));
+
+    expect(report.failed).toEqual([holdId]);
+    expect((await stored()).authorizationId).toBe(first);
+  });
+
+  it("goes on to the next hold when one fails", async () => {
+    holdId = await heldBy("paypal");
+    // A second case in the same practice, so the run stays inside it.
+    const firstFixture = fixture;
+    const [other] = await db
+      .insert(patientCase)
+      .values({
+        practiceId: fixture.practiceId,
+        patientName: "Pepper",
+        ownerName: "B. Owner",
+        procedure: "Dental",
+      })
+      .returning();
+    fixture = { practiceId: firstFixture.practiceId, caseId: other!.id };
+    const secondHold = await heldBy("paypal");
+    fixture = firstFixture;
+    paypal.inject({
+      method: "POST",
+      path: /\/reauthorize$/,
+      status: 201,
+      body: { id: "BADTIME000000001", status: "CREATED", create_time: "not a time", links: [] },
+    });
+    paypal.clock.now = day(4);
+
+    const report = await reauthoriseHolds({
+      db,
+      paypal: paypal.client(),
+      now: day(4),
+      practiceId: fixture.practiceId,
+    });
+
+    // Both holds are as old: whichever goes first meets the bad answer.
+    expect(report.failed).toHaveLength(1);
+    expect(report.reauthorised).toHaveLength(1);
+    expect([...report.failed, ...report.reauthorised].sort()).toEqual([holdId, secondHold].sort());
   });
 
   it("leaves a hold PayPal says is too soon for the next run, writing nothing", async () => {
