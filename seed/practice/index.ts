@@ -8,8 +8,7 @@ import { importPriceList } from "@/estimate/price-list";
 import { DEFAULT_MONETARY_THRESHOLD_PENCE } from "@/estimate/trigger";
 import type { PracticeSeed } from "@/judge/session";
 
-import { seedPracticeDay } from "./day";
-import { seedShowcaseCase } from "./showcase";
+import { seedShowcase } from "../showcase";
 
 /**
  * The fictional practice every judge's session is given (D2). Its name is
@@ -40,9 +39,10 @@ export function readSeedPriceList(): string {
 /**
  * Seeds a new judge practice inside the transaction that makes it: names it,
  * sets the Order's default threshold, imports the price list through the
- * same import a practice uses, opens the showcase case (U5), lays the
- * practice's day (U8a: its rooms, vets, the day's cases and their bookings),
- * and writes `practice.seeded`.
+ * same import a practice uses, seeds the showcase (U9: U5's showcase case,
+ * U8a's day with its rooms, vets, cases and bookings, and a case at every
+ * other money state of plan 3.2), and writes `practice.seeded`, which names
+ * the case the owner's door opens.
  *
  * @param tx - The transaction making the practice.
  * @param practiceId - The new practice.
@@ -62,8 +62,7 @@ export const seedFictionalPractice: PracticeSeed = async (tx, practiceId) => {
     sourceName: FICTIONAL_PRACTICE.priceListSource,
     csv: readSeedPriceList(),
   });
-  const showcaseCaseId = await seedShowcaseCase(tx, practiceId);
-  const day = await seedPracticeDay(tx, practiceId, { showcaseCaseId });
+  const showcase = await seedShowcase(tx, practiceId);
   await appendAuditEvent(tx, {
     practiceId,
     actor: "system",
@@ -72,9 +71,10 @@ export const seedFictionalPractice: PracticeSeed = async (tx, practiceId) => {
       name: FICTIONAL_PRACTICE.name,
       priceListId: list.id,
       itemCount: list.itemCount,
-      showcaseCaseId,
-      dayCaseId: day.dayCaseId,
-      bookings: day.bookings,
+      showcaseCaseId: showcase.showcaseCaseId,
+      dayCaseId: showcase.dayCaseId,
+      ownerDoorCaseId: showcase.ownerDoorCaseId,
+      bookings: showcase.bookings,
     },
   });
 };

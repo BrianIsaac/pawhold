@@ -1,0 +1,53 @@
+.landing {
+  min-height: 100dvh;
+  display: grid;
+  align-items: center;
+  padding: var(--space-7) var(--gutter);
+}
+
+.inner {
+  width: 100%;
+  max-width: 40rem;
+  margin: 0 auto;
+}
+
+.brand {
+  margin: 0 0 var(--space-5);
+  color: var(--colour-accent-strong);
+  font-size: var(--font-size-2);
+  font-weight: var(--font-weight-bold);
+  letter-spacing: 0.01em;
+}
+
+.heading {
+  margin: 0 0 var(--space-4);
+  font-size: var(--font-size-4);
+}
+
+.lede {
+  margin: 0 0 var(--space-6);
+  color: var(--colour-ink-muted);
+  font-size: var(--font-size-2);
+}
+
+.doors {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+}
+
+.doors > a {
+  flex: 1 1 14rem;
+}
+
+.note {
+  margin: 0;
+  color: var(--colour-ink-muted);
+}
+
+@media (min-width: 48rem) {
+  .heading {
+    font-size: var(--font-size-5);
+  }
+}
