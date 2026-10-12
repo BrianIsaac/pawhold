@@ -7,9 +7,13 @@ import {
   approveLabel,
   authoriseLabel,
   authorisingUnavailable,
+  ESTIMATE_WITHDRAWN_HEADING,
+  estimateWithdrawn,
   linkReplaced,
   REPLACED_HEADING,
   updateDeclined,
+  UPDATE_WITHDRAWN_HEADING,
+  updateWithdrawn,
 } from "@/owner/wording";
 import { readSandboxBuyer } from "@/owner/sandbox";
 import { database, paypalBrowserClientId, sessionSecret } from "@/server/runtime";
@@ -66,6 +70,26 @@ export default async function OwnerLinkPage({ params }: PageProps<"/e/[token]">)
   if (!held && !awaiting && !page.isLatest) {
     return <Notice heading={REPLACED_HEADING} text={linkReplaced(page.header.practiceName)} />;
   }
+  const declined = page.kind === "update" && page.isLatest && page.state === "update_declined";
+  // The practice withdrew the latest version: a first estimate leaves the case
+  // withdrawn; an update leaves its order unapproved or never made.
+  const withdrawn =
+    !held &&
+    !awaiting &&
+    !declined &&
+    (page.kind === "estimate"
+      ? page.state === "withdrawn"
+      : page.hold === null || page.hold.status === "withdrawn");
+  if (withdrawn) {
+    return page.kind === "estimate" ? (
+      <Notice
+        heading={ESTIMATE_WITHDRAWN_HEADING}
+        text={estimateWithdrawn(page.header.practiceName)}
+      />
+    ) : (
+      <Notice heading={UPDATE_WITHDRAWN_HEADING} text={updateWithdrawn(page.header.practiceName)} />
+    );
+  }
 
   const money = (pence: number) => formatPence(pence, page.currency);
   const sandbox = awaiting && !held ? <SandboxDetails login={readSandboxBuyer()} /> : null;
@@ -118,10 +142,10 @@ export default async function OwnerLinkPage({ params }: PageProps<"/e/[token]">)
   }
 
   const delta = money(page.increasePence);
-  const declined = page.isLatest && page.state === "update_declined";
   return (
     <Update
       page={page}
+      answered={!awaiting}
       answer={
         held ? (
           authorise(delta, approveLabel(delta))

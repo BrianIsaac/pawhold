@@ -3,7 +3,13 @@ import type { ReactNode } from "react";
 import { updateHeading } from "@/agent/wording";
 import { formatPence } from "@/money/format";
 import type { OwnerUpdatePage } from "@/owner/view";
-import { ADDED_LABEL, capitalised, updateAdds, vetCalled } from "@/owner/wording";
+import {
+  ADDED_LABEL,
+  answeredUpdateHeading,
+  capitalised,
+  updateAdds,
+  vetCalled,
+} from "@/owner/wording";
 
 import { OwnerLines } from "./lines";
 import styles from "./page.module.css";
@@ -17,21 +23,25 @@ import styles from "./page.module.css";
  * @param props - The page and its answers.
  * @param props.page - The update.
  * @param props.answer - PayPal's buttons and card fields with "Don't go ahead", the hold, or the decline.
+ * @param props.answered - Whether the owner has answered it, so the heading tells it in the past.
  * @returns The page.
  */
 export function Update({
   page,
   answer,
+  answered,
 }: {
   readonly page: OwnerUpdatePage;
   readonly answer?: ReactNode;
+  readonly answered: boolean;
 }) {
   const delta = formatPence(page.increasePence, page.currency);
+  const vet = capitalised(vetCalled(page.header.vetName));
   return (
     <article className={styles.page} aria-labelledby="update-heading">
       <header className={styles.header}>
         <p className={styles.eyebrow}>{page.header.practiceName}</p>
-        <h1 id="update-heading">{updateHeading(capitalised(vetCalled(page.header.vetName)))}</h1>
+        <h1 id="update-heading">{answered ? answeredUpdateHeading(vet) : updateHeading(vet)}</h1>
         {page.explanation ? <p className={styles.explanation}>{page.explanation}</p> : null}
       </header>
 
