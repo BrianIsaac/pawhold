@@ -1,10 +1,11 @@
 import { z } from "zod";
 
 import { appendAuditEvent } from "@/audit/writer";
-import { currentPriceList } from "@/estimate/price-list";
+import type { Executor } from "@/db/client";
+import { currentPriceList, type PriceListWithItems } from "@/estimate/price-list";
 import { EstimateError, type EstimateVersionView } from "@/estimate/version";
 
-import { type AskFailure, askModel, asJson } from "./ask";
+import { type AskFailure, askModel } from "./ask";
 import {
   guardLines,
   type GuardedLines,
@@ -14,7 +15,9 @@ import {
 } from "./guardrails";
 import {
   type AgentDependencies,
+  askAuditEvent,
   askContext,
+  type CaseEstimateState,
   caseEstimateState,
   parseAgentRequest,
   writeDraft,
@@ -44,6 +47,8 @@ export interface DraftedLineNote {
   readonly start: number;
   readonly end: number;
   readonly ownerWordingFellBack: OwnerWordingFault | null;
+  /** Why the line's condition fell back to the vet's words, or null. */
+  readonly dependsOnFellBack: OwnerWordingFault | null;
 }
 
 /** A draft as the vet's screen shows it. */
@@ -121,7 +126,9 @@ export function draftRequest(items: Iterable<PromptItem>, notes: string): ModelR
  * @returns The draft, its spans, what was unmatched or left out, and any failure.
  * @throws EstimateError when the request is malformed, the case is not the
  *   practice's, its estimate was sent (an update changes it), or the practice
- *   has no price list; each before the model is asked.
+ *   has no price list in the case's currency, each before the model is asked;
+ *   or when the write is refused after the ask (the draft was sent
+ *   meanwhile), the ask then audited with why.
  */
 export async function draftEstimate(
   dependencies: AgentDependencies,
@@ -129,78 +136,123 @@ export async function draftEstimate(
 ): Promise<DraftedEstimate> {
   const { practiceId, caseId, notes } = parseAgentRequest(draftRequestInput, request);
   const { db, model } = dependencies;
-  const state = await caseEstimateState(db, practiceId, caseId);
+  refuseIfSent(await caseEstimateState(db, practiceId, caseId));
+  const list = await draftableList(db, practiceId, caseId);
+
+  const modelRequest = draftRequest(list.items.values(), notes);
+  const asked = await askModel(askContext(dependencies, practiceId), modelRequest, draftEnvelope);
+  const guard = (items: PriceListWithItems["items"]): GuardedLines =>
+    asked.answer ? guardLines(asked.answer.lines, asked.answer.unmatched, notes, items) : NOTHING;
+  const audit = {
+    practiceId,
+    caseId,
+    action: "estimate.drafted",
+    modelId: model.settings.model,
+    promptVersion: DRAFT_PROMPT_VERSION,
+    asked,
+  } as const;
+
+  try {
+    return await db.transaction(async (tx) => {
+      const state = await caseEstimateState(tx, practiceId, caseId, true);
+      refuseIfSent(state);
+      const current = (await currentPriceList(tx, practiceId)) ?? list;
+      const guarded = guard(current.items);
+      const failed = asked.failure !== null;
+      const version = await writeDraft(tx, {
+        practiceId,
+        caseId,
+        open: state.open,
+        lines: guarded.kept.map((kept) => kept.line),
+        failed,
+      });
+      await appendAuditEvent(
+        tx,
+        askAuditEvent({
+          ...audit,
+          guarded,
+          version,
+          preserved: failed && state.open !== null,
+          refused: null,
+        }),
+      );
+      return {
+        version,
+        lines: guarded.kept.map((kept, at) => ({
+          position: at + 1,
+          start: kept.start,
+          end: kept.end,
+          ownerWordingFellBack: kept.ownerWordingFellBack,
+          dependsOnFellBack: kept.dependsOnFellBack,
+        })),
+        unmatched: guarded.unmatched,
+        unsupported: guarded.unsupported,
+        failure: asked.failure,
+        model: {
+          id: model.settings.model,
+          servedModel: asked.servedModel,
+          inputSha256: asked.hash,
+          promptVersion: DRAFT_PROMPT_VERSION,
+        },
+      };
+    });
+  } catch (error) {
+    if (error instanceof EstimateError) {
+      await appendAuditEvent(
+        db,
+        askAuditEvent({
+          ...audit,
+          guarded: guard(list.items),
+          version: null,
+          preserved: false,
+          refused: error.reason,
+        }),
+      );
+    }
+    throw error;
+  }
+}
+
+/**
+ * Refuses a draft once the estimate has been sent: an update changes it.
+ *
+ * @param state - The case's estimate.
+ * @throws EstimateError `sent`.
+ */
+function refuseIfSent(state: CaseEstimateState): void {
   if (state.lastSent) {
     throw new EstimateError(
       "sent",
       `version ${state.lastSent.number} of this estimate was sent; draft an update to change it`,
     );
   }
+}
+
+/**
+ * The practice's current price list, refused before the model is asked when
+ * there is none or its currency is not the case's.
+ *
+ * @param db - The database.
+ * @param practiceId - The practice.
+ * @param caseId - The case.
+ * @returns The list.
+ * @throws EstimateError `no_price_list` or `currency_mismatch`.
+ */
+export async function draftableList(
+  db: Executor,
+  practiceId: string,
+  caseId: string,
+): Promise<PriceListWithItems> {
+  const state = await caseEstimateState(db, practiceId, caseId);
   const list = await currentPriceList(db, practiceId);
   if (!list) {
     throw new EstimateError("no_price_list", "the practice has no price list to draft from");
   }
-
-  const modelRequest = draftRequest(list.items.values(), notes);
-  const asked = await askModel(askContext(dependencies, practiceId), modelRequest, draftEnvelope);
-
-  return db.transaction(async (tx) => {
-    const current = (await currentPriceList(tx, practiceId)) ?? list;
-    const guarded = asked.answer
-      ? guardLines(asked.answer.lines, asked.answer.unmatched, notes, current.items)
-      : NOTHING;
-    const version = await writeDraft(tx, {
-      practiceId,
-      caseId,
-      open: state.open,
-      lines: guarded.kept.map((kept) => kept.line),
-      failed: asked.failure !== null,
-    });
-    await appendAuditEvent(tx, {
-      practiceId,
-      caseId,
-      actor: "system",
-      action: "estimate.drafted",
-      model: {
-        id: model.settings.model,
-        inputSha256: asked.hash,
-        output: asJson({
-          servedModel: asked.servedModel,
-          answer: asked.answer,
-          failure: asked.failure,
-          kept: guarded.kept.map((kept) => kept.line.code),
-          unmatched: guarded.unmatched,
-          unsupported: guarded.unsupported,
-        }),
-      },
-      detail: {
-        versionId: version.id,
-        number: version.number,
-        promptVersion: DRAFT_PROMPT_VERSION,
-        source: asked.source,
-        lineCount: guarded.kept.length,
-        unmatchedCount: guarded.unmatched.length,
-        unsupportedCount: guarded.unsupported.length,
-        failure: asked.failure?.reason ?? null,
-      },
-    });
-    return {
-      version,
-      lines: guarded.kept.map((kept, at) => ({
-        position: at + 1,
-        start: kept.start,
-        end: kept.end,
-        ownerWordingFellBack: kept.ownerWordingFellBack,
-      })),
-      unmatched: guarded.unmatched,
-      unsupported: guarded.unsupported,
-      failure: asked.failure,
-      model: {
-        id: model.settings.model,
-        servedModel: asked.servedModel,
-        inputSha256: asked.hash,
-        promptVersion: DRAFT_PROMPT_VERSION,
-      },
-    };
-  });
+  if (list.currencyCode !== state.currencyCode) {
+    throw new EstimateError(
+      "currency_mismatch",
+      `the case is in ${state.currencyCode}, the price list in ${list.currencyCode}`,
+    );
+  }
+  return list;
 }

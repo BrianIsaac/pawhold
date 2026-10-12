@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 
 import { draftEstimate, draftRequest } from "@/agent/draft";
 import { agentEnvironment, DEFAULT_DRAFTS_PER_HOUR, modelCallsInLastHour } from "@/agent/limits";
+import { MODEL_SETTINGS, requestHash } from "@/agent/model";
 import { createRecordedModel, memoryRecordedStore, type RecordedStore } from "@/agent/recorded";
 import { agentAnswer, auditEvent, patientCase, practice } from "@/db/schema";
 import { readEnvironment } from "@/env";
@@ -281,5 +282,27 @@ describe("the per-session draft cap (D8)", () => {
       { practiceId, caseId, notes: NOTES_B },
     );
     expect(drafted.failure).toBeNull();
+  });
+});
+
+describe("a cached answer that no longer reads", () => {
+  it("is replaced by the model's next answer", async () => {
+    const hash = requestHash(MODEL_SETTINGS, draftRequest(list.items.values(), NOTES_A));
+    await db.insert(agentAnswer).values({
+      practiceId,
+      inputSha256: hash,
+      job: "draft",
+      modelId: "gpt-6.1-sol",
+      servedModel: "gpt-6.1-sol",
+      answer: { lines: "stale" },
+    });
+    const counted = countingModel(createRecordedModel(store));
+
+    await draftEstimate({ db, model: counted.model }, { practiceId, caseId, notes: NOTES_A });
+    await draftEstimate({ db, model: counted.model }, { practiceId, caseId, notes: NOTES_A });
+
+    expect(counted.calls).toHaveLength(1);
+    const [row] = await db.select().from(agentAnswer).where(eq(agentAnswer.inputSha256, hash));
+    expect(row!.answer).toEqual(ANSWER_A);
   });
 });

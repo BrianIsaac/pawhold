@@ -13,7 +13,11 @@ import {
   replaceDraftLines,
 } from "@/estimate/version";
 
-import type { AskContext } from "./ask";
+import type { AuditEventInput } from "@/audit/writer";
+import { type CurrencyCode, currencyCode } from "@/money/currency";
+
+import { type AskContext, type Asked, asJson } from "./ask";
+import type { GuardedLines } from "./guardrails";
 import { DEFAULT_DRAFTS_PER_HOUR } from "./limits";
 import type { DraftModel } from "./model";
 
@@ -31,6 +35,7 @@ export interface AgentDependencies {
 /** A case's estimate as a job finds it. */
 export interface CaseEstimateState {
   readonly patientName: string;
+  readonly currencyCode: CurrencyCode;
   /** The draft open on the case, if any. */
   readonly open: EstimateVersionView | null;
   /** The last version sent to the owner, if any. */
@@ -57,11 +62,14 @@ export function askContext(dependencies: AgentDependencies, practiceId: string):
 }
 
 /**
- * Reads a case's estimate: its open draft and its last sent version.
+ * Reads a case's estimate: its open draft and its last sent version. Inside
+ * a transaction, `lock` holds the case's row until it ends, so two presses of
+ * "Draft" at once write one after the other (a draft, then its redraft).
  *
- * @param db - The database.
+ * @param db - The database or the open transaction.
  * @param practiceId - The practice.
  * @param caseId - The case.
+ * @param lock - Whether to lock the case's row.
  * @returns The case's state.
  * @throws EstimateError `case_not_found` when the case is not the practice's.
  */
@@ -69,17 +77,20 @@ export async function caseEstimateState(
   db: Executor,
   practiceId: string,
   caseId: string,
+  lock = false,
 ): Promise<CaseEstimateState> {
-  const [kase] = await db
-    .select({ patientName: patientCase.patientName })
+  const query = db
+    .select({ patientName: patientCase.patientName, currencyCode: patientCase.currencyCode })
     .from(patientCase)
     .where(and(eq(patientCase.id, caseId), eq(patientCase.practiceId, practiceId)));
+  const [kase] = lock ? await query.for("update") : await query;
   if (!kase) {
     throw new EstimateError("case_not_found", `the practice has no case ${caseId}`);
   }
   const versions = await caseEstimateVersions(db, practiceId, caseId);
   return {
     patientName: kase.patientName,
+    currencyCode: currencyCode.parse(kase.currencyCode),
     open: versions.find((version) => version.sentAt === null) ?? null,
     lastSent: versions.filter((version) => version.sentAt !== null).at(-1) ?? null,
   };
@@ -135,4 +146,69 @@ export function parseAgentRequest<T extends z.ZodType>(schema: T, request: unkno
     );
   }
   return parsed.data;
+}
+
+/** What an ask's audit event records beyond the ask itself. */
+export interface AskAudit {
+  readonly practiceId: string;
+  readonly caseId: string;
+  readonly action: "estimate.drafted" | "estimate.update_drafted";
+  readonly modelId: string;
+  readonly promptVersion: string;
+  readonly asked: Asked<unknown>;
+  readonly guarded: GuardedLines;
+  /** The version written, or null when the write was refused. */
+  readonly version: EstimateVersionView | null;
+  /** Whether an open draft was left as it was because the model failed. */
+  readonly preserved: boolean;
+  /** Why the write was refused after the ask, or null. */
+  readonly refused: string | null;
+  /** The job's own fields for the output and the detail. */
+  readonly output?: Record<string, unknown>;
+  readonly detail?: Record<string, unknown>;
+}
+
+/**
+ * The audit event of one ask (plan 3.5: for a model step, the model id, the
+ * input's hash and the validated output), written for every ask: answered by
+ * the model or the cache, capped, failed, or refused at the write.
+ *
+ * @param audit - The ask and what came of it.
+ * @returns The event.
+ */
+export function askAuditEvent(audit: AskAudit): AuditEventInput {
+  const { asked, guarded, version } = audit;
+  return {
+    practiceId: audit.practiceId,
+    caseId: audit.caseId,
+    actor: "system",
+    action: audit.action,
+    model: {
+      id: audit.modelId,
+      inputSha256: asked.hash,
+      output: asJson({
+        servedModel: asked.servedModel,
+        answer: asked.answer,
+        failure: asked.failure,
+        kept: guarded.kept.map((kept) => kept.line.code),
+        unmatched: guarded.unmatched,
+        unsupported: guarded.unsupported,
+        ...audit.output,
+      }),
+    },
+    detail: asJson({
+      versionId: version?.id ?? null,
+      number: version?.number ?? null,
+      promptVersion: audit.promptVersion,
+      source: asked.source,
+      draftedLines: guarded.kept.length,
+      versionLines: version?.lines.length ?? null,
+      preserved: audit.preserved,
+      unmatchedCount: guarded.unmatched.length,
+      unsupportedCount: guarded.unsupported.length,
+      failure: asked.failure?.reason ?? null,
+      refused: audit.refused,
+      ...audit.detail,
+    }) as Record<string, z.core.util.JSONType>,
+  };
 }

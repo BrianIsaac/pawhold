@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { checkOwnerWording, findSpan, guardLines, type GuardItem } from "@/agent/guardrails";
+import {
+  checkExplanation,
+  checkOwnerWording,
+  findSpan,
+  guardLines,
+  type GuardItem,
+} from "@/agent/guardrails";
 import { parsePriceList } from "@/estimate/price-list";
 
 import { readSeedPriceList } from "../../seed/practice";
@@ -241,5 +247,90 @@ describe("a line the model got wrong in shape", () => {
       notesSpan: "probable two extractions upper PM",
       ownerWording: "A plain description",
     });
+  });
+});
+
+describe("the review's findings, 12 October", () => {
+  it.each([
+    ["a dose in words", "Ten milligrams twice daily", "dose"],
+    ["tablets counted in words", "Two tablets with food", "dose"],
+    ["a daily frequency", "Antibiotic, twice daily", "dose"],
+    ["a fullwidth percentage", "Covers ３０％ of it", "percentage"],
+    ["millilitres in words", "Five millilitres of liquid", "dose"],
+  ])("refuses %s in the owner's wording", (_case, wording, fault) => {
+    expect(checkOwnerWording(wording)).toBe(fault);
+  });
+
+  it("checks the line's condition as the owner's wording: it falls back to the vet's words", () => {
+    const guarded = guardLines(
+      [
+        line({
+          code: "DEN-EXT-SG",
+          notesSpan: "probable two extractions upper PM",
+          quantityLow: 0,
+          quantityHigh: 2,
+          dependsOn: "it costs over £500",
+        }),
+      ],
+      [],
+      NOTES,
+      ITEMS,
+    );
+    expect(guarded.kept[0]).toMatchObject({
+      line: { dependsOn: "probable two extractions upper PM" },
+      dependsOnFellBack: "currency",
+    });
+  });
+
+  it("shows a malformed unknown code's span as unmatched, not unsupported", () => {
+    const guarded = guardLines(
+      [line({ code: "dental x-ray", notesSpan: "dental scale and polish" })],
+      [],
+      NOTES,
+      ITEMS,
+    );
+    expect(guarded.unmatched).toEqual([
+      expect.objectContaining({ notesSpan: "dental scale and polish", code: "dental x-ray" }),
+    ]);
+    expect(guarded.unsupported).toEqual([]);
+  });
+
+  it("leaves out a line whose span, as the notes write it, is longer than U2 keeps", () => {
+    const notes = `GA${" ".repeat(3_000)}dental`;
+    const guarded = guardLines(
+      [line({ code: "GA-DENT", notesSpan: "GA dental" })],
+      [],
+      notes,
+      ITEMS,
+    );
+    expect(guarded.kept).toEqual([]);
+    expect(guarded.unsupported[0]?.reason).toBe("invalid_line");
+  });
+
+  it("keeps no more lines than the version has room for", () => {
+    const guarded = guardLines(
+      [
+        line({ code: "GA-DENT", notesSpan: "GA" }),
+        line({ code: "LAB-PRE", notesSpan: "pre-op bloods" }),
+      ],
+      [],
+      NOTES,
+      ITEMS,
+      1,
+    );
+    expect(guarded.kept.map((kept) => kept.line.code)).toEqual(["GA-DENT"]);
+    expect(guarded.unsupported[0]?.reason).toBe("too_many_lines");
+  });
+
+  it("does not find a span that ends before a combining mark", () => {
+    expect(findSpan("café au lait", "cafe")).toBeNull();
+  });
+
+  it("withholds an explanation with a figure in words the vet did not write", () => {
+    expect(checkExplanation("Biscuit needs two more weeks of rest.", "Rest advised.")).toBe(
+      "new_number",
+    );
+    expect(checkExplanation("Two teeth need to come out.", "two teeth to extract")).toBeNull();
+    expect(checkExplanation("Two teeth need to come out.", "2 teeth to extract")).toBeNull();
   });
 });

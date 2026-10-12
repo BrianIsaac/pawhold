@@ -28,6 +28,11 @@ export interface KeptLine {
   readonly end: number;
   /** Why the model's wording was replaced by the item's name, or null when it was kept. */
   readonly ownerWordingFellBack: OwnerWordingFault | null;
+  /**
+   * Why the model's condition ("Only if: ...", shown to the owner) was
+   * replaced by the vet's own words, or null when it was kept.
+   */
+  readonly dependsOnFellBack: OwnerWordingFault | null;
 }
 
 /** A span of the notes no price list item matched: "add one by hand". */
@@ -65,13 +70,14 @@ export interface FoundSpan {
   readonly text: string;
 }
 
-const WORD = /[\p{L}\p{N}]/u;
+const WORD = /[\p{L}\p{N}\p{M}]/u;
 
 /**
  * Finds a span verbatim in the notes. Runs of whitespace match any run of
  * whitespace (a pasted line break against a space), case is exact, and the
  * match may not start or end inside a word ("GA" is not found in "GAstric").
- * A span of no letters or digits is never found.
+ * A span of no letters or digits is never found, and a match may not end
+ * before a combining mark of the notes' last letter.
  *
  * @param notes - The vet's notes.
  * @param span - The span the model quoted.
@@ -129,19 +135,23 @@ const PERCENTAGE = [/%/, /\bper\s?cent\b/i, /\bpercent(?:age)?\b/i];
 const DOSE = [
   /\d+(?:[.,]\d+)?\s*(?:mg|mcg|µg|μg|ug|ng|g|ml|mL|cc|l|L|iu|IU|units?|mmol|mEq|meq)\b/,
   /\b(?:mg|mcg|µg|μg|ml|mL|iu|IU)\s*\/\s*(?:kg|day|d|h|hr|hour)\b/,
-  /\b\d+(?:[.,]\d+)?\s*(?:tablets?|tabs?|capsules?|caps?|drops?|sachets?|puffs?|pumps?)\b/i,
+  /\b(?:milligrams?|micrograms?|millilitres?|milliliters?|millimoles?)\b/i,
+  /\b(?:\d+(?:[.,]\d+)?|a|an|one|two|three|four|five|six|half|quarter)\s*(?:tablets?|tabs?|capsules?|caps?|drops?|sachets?|puffs?|pumps?)\b/i,
   /\b(?:SID|BID|BD|TID|TDS|QID|QDS|EOD|PRN|q\d+h)\b/,
-  /\b(?:once|twice|\d+\s+times|(?:three|four)\s+times)\s+(?:a|per|every)\s+day\b/i,
+  /\b(?:once|twice|\d+\s+times|(?:three|four)\s+times)\s+(?:(?:a|per|every)\s+day|daily)\b/i,
 ];
 
 /**
  * Checks an owner's wording for what plan 3.4 forbids in it: a currency
- * amount, a percentage or a dose. Money is only ever shown by code.
+ * amount, a percentage or a dose. Money is only ever shown by code. The
+ * wording is read in Unicode compatibility form, so a fullwidth "３０％" is
+ * "30%".
  *
- * @param wording - The wording.
+ * @param text - The wording.
  * @returns What it carries that it may not, or null when it is clean.
  */
-export function checkOwnerWording(wording: string): OwnerWordingFault | null {
+export function checkOwnerWording(text: string): OwnerWordingFault | null {
+  const wording = text.normalize("NFKC");
   if (PERCENTAGE.some((pattern) => pattern.test(wording))) {
     return "percentage";
   }
@@ -158,6 +168,48 @@ export function checkOwnerWording(wording: string): OwnerWordingFault | null {
 export type ExplanationFault = OwnerWordingFault | "new_number" | "empty";
 
 const NUMBER = /\d+(?:[.,]\d+)?/g;
+
+/**
+ * Number words read as figures. "one" is left out: it is as often a pronoun
+ * ("one of the teeth") as a figure.
+ */
+const NUMBER_WORDS: Readonly<Record<string, number>> = {
+  two: 2,
+  three: 3,
+  four: 4,
+  five: 5,
+  six: 6,
+  seven: 7,
+  eight: 8,
+  nine: 9,
+  ten: 10,
+  eleven: 11,
+  twelve: 12,
+  dozen: 12,
+  fifteen: 15,
+  twenty: 20,
+  thirty: 30,
+  forty: 40,
+  fifty: 50,
+  hundred: 100,
+  thousand: 1000,
+};
+
+const NUMBER_WORD = new RegExp(`\\b(?:${Object.keys(NUMBER_WORDS).join("|")})\\b`, "gi");
+
+/**
+ * The figures a text gives, in digits or in words, as digits.
+ *
+ * @param text - The text.
+ * @returns Its figures.
+ */
+function figuresOf(text: string): string[] {
+  const normal = text.normalize("NFKC");
+  return [
+    ...(normal.match(NUMBER) ?? []),
+    ...(normal.match(NUMBER_WORD) ?? []).map((word) => String(NUMBER_WORDS[word.toLowerCase()])),
+  ];
+}
 
 /**
  * Checks the owner's explanation of an update (plan 3.4, job 2: it
@@ -178,10 +230,8 @@ export function checkExplanation(explanation: string, vetNote: string): Explanat
   if (fault) {
     return fault;
   }
-  const written = new Set(vetNote.match(NUMBER) ?? []);
-  return (explanation.match(NUMBER) ?? []).every((number) => written.has(number))
-    ? null
-    : "new_number";
+  const written = new Set(figuresOf(vetNote));
+  return figuresOf(explanation).every((figure) => written.has(figure)) ? null : "new_number";
 }
 
 /**
@@ -189,12 +239,15 @@ export function checkExplanation(explanation: string, vetNote: string): Explanat
  * malformed, with its span not in the notes, or beyond a version's size is
  * left out as unsupported; a line whose code is not on the list is left out
  * and its span shown as unmatched; a line's owner's wording that carries money,
- * a percentage or a dose falls back to the item's own name.
+ * a percentage or a dose falls back to the item's own name, and a condition
+ * that does falls back to the vet's own words it came from.
  *
  * @param lines - The answer's lines, as the model gave them.
  * @param unmatched - The spans the model said no item matched.
  * @param notes - The vet's notes (or finding) the spans must come from.
  * @param items - The practice's price list items by code.
+ * @param room - How many lines the version has room for (an update's sent
+ *   lines take some of a version's {@link MAX_VERSION_LINES}).
  * @returns What was kept, what is unmatched and what was left out.
  */
 export function guardLines(
@@ -202,6 +255,7 @@ export function guardLines(
   unmatched: readonly unknown[],
   notes: string,
   items: ReadonlyMap<string, GuardItem>,
+  room: number = MAX_VERSION_LINES,
 ): GuardedLines {
   const kept: KeptLine[] = [];
   const spans: UnmatchedSpan[] = [];
@@ -216,6 +270,12 @@ export function guardLines(
       ? estimateLineInput.safeParse(toEstimateLine(drafted.data))
       : null;
     if (!drafted.success || !input?.success) {
+      const place =
+        code !== null && quoted !== null && !items.has(code) ? findSpan(notes, quoted) : null;
+      if (place) {
+        spans.push({ notesSpan: place.text, start: place.start, end: place.end, code });
+        return;
+      }
       const issues = drafted.success ? input!.error!.issues : drafted.error.issues;
       unsupported.push({
         reason: "invalid_line",
@@ -241,25 +301,43 @@ export function guardLines(
       spans.push({ notesSpan: found.text, start: found.start, end: found.end, code: line.code });
       return;
     }
-    if (kept.length === MAX_VERSION_LINES) {
+    if (kept.length >= room) {
       unsupported.push({
         reason: "too_many_lines",
         code: line.code,
         notesSpan: found.text,
-        message: `a version holds at most ${MAX_VERSION_LINES} lines`,
+        message: `the version has room for ${room} lines from this draft`,
       });
       return;
     }
     const fault = checkOwnerWording(line.ownerWording);
+    const conditionFault = line.dependsOn === null ? null : checkOwnerWording(line.dependsOn);
+    const dependsOn =
+      line.dependsOn === null ? null : conditionFault === null ? line.dependsOn : found.text;
+    const final = {
+      code: line.code,
+      quantityLow: line.quantityLow,
+      quantityHigh: line.quantityHigh,
+      ...(dependsOn === null ? {} : { dependsOn }),
+      notesSpan: found.text,
+      ownerWording: fault === null ? line.ownerWording : item.name,
+    };
+    const checked = estimateLineInput.safeParse(final);
+    if (!checked.success) {
+      unsupported.push({
+        reason: "invalid_line",
+        code: line.code,
+        notesSpan: line.notesSpan,
+        message: `the draft's line ${at + 1} was not a well-formed line: ${firstIssue(checked.error.issues)}`,
+      });
+      return;
+    }
     kept.push({
-      line: {
-        ...toEstimateLine(line),
-        notesSpan: found.text,
-        ownerWording: fault === null ? line.ownerWording : item.name,
-      },
+      line: final,
       start: found.start,
       end: found.end,
       ownerWordingFellBack: fault,
+      dependsOnFellBack: conditionFault,
     });
   });
 

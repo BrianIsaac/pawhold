@@ -17,11 +17,16 @@ import { type EvalResult, loadNoteSets, runEval } from "./grade";
  *   pnpm eval --only=01-dental-plan-example,02-cat-spay   runs only those sets
  *
  * The live run needs OPENAI_API_KEY in this process's environment only; it
- * is never printed. It exits non-zero when anything is invented, and with
- * --require-all when any set has no answer.
+ * is never printed. It exits non-zero when anything is invented or the model
+ * failed on a set, and with --require-all when any set has no recording.
+ * --write-results is refused with --only, so a partial run never overwrites
+ * the full results.
  */
 
 const args = new Set(process.argv.slice(2));
+if (args.has("--write-results") && [...args].some((arg) => arg.startsWith("--only="))) {
+  throw new Error("--write-results writes the full results: run it without --only");
+}
 const only = [...args]
   .find((arg) => arg.startsWith("--only="))
   ?.slice("--only=".length)
@@ -48,8 +53,8 @@ if (args.has("--write-results")) {
 }
 
 const invented = result.hardBar.inventedCodes + result.hardBar.inventedSpans > 0;
-const missing = args.has("--require-all") && !result.hardBar.complete;
-process.exitCode = invented || missing ? 1 : 0;
+const missing = args.has("--require-all") && result.notRecorded.length > 0;
+process.exitCode = invented || result.failures.length > 0 || missing ? 1 : 0;
 
 /**
  * Prints the run's result.

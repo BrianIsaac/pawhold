@@ -3,16 +3,17 @@ import { createHash } from "node:crypto";
 import { z } from "zod";
 
 import { appendAuditEvent } from "@/audit/writer";
-import { currentPriceList } from "@/estimate/price-list";
+import { currentPriceList, type PriceListWithItems } from "@/estimate/price-list";
 import {
   type EstimateDelta,
   estimateDelta,
   EstimateError,
   type EstimateVersionView,
   linesOf,
+  MAX_VERSION_LINES,
 } from "@/estimate/version";
 
-import { type AskFailure, askModel, asJson } from "./ask";
+import { type AskFailure, askModel } from "./ask";
 import {
   checkExplanation,
   type ExplanationFault,
@@ -21,10 +22,12 @@ import {
   type UnmatchedSpan,
   type UnsupportedLine,
 } from "./guardrails";
-import type { DraftedLineNote } from "./draft";
+import { type DraftedLineNote, draftableList } from "./draft";
 import {
   type AgentDependencies,
+  askAuditEvent,
   askContext,
+  type CaseEstimateState,
   caseEstimateState,
   parseAgentRequest,
   writeDraft,
@@ -171,14 +174,8 @@ export async function draftUpdate(
   const { practiceId, caseId, finding, photo } = parseAgentRequest(updateRequestInput, request);
   const { db, model } = dependencies;
   const state = await caseEstimateState(db, practiceId, caseId);
-  const basedOn = state.lastSent;
-  if (!basedOn) {
-    throw new EstimateError("version_not_found", "the case has no sent estimate to update");
-  }
-  const list = await currentPriceList(db, practiceId);
-  if (!list) {
-    throw new EstimateError("no_price_list", "the practice has no price list to draft from");
-  }
+  const basedOn = refuseIfNotSent(state);
+  const list = await draftableList(db, practiceId, caseId);
 
   const modelRequest = updateRequest({
     items: list.items.values(),
@@ -188,85 +185,114 @@ export async function draftUpdate(
     photo,
   });
   const asked = await askModel(askContext(dependencies, practiceId), modelRequest, updateEnvelope);
+  const room = MAX_VERSION_LINES - basedOn.lines.length;
+  const guard = (items: PriceListWithItems["items"]): GuardedLines =>
+    asked.answer ? guardLines(asked.answer.lines, [], finding, items, room) : NOTHING;
+  const explanationFellBack = asked.answer
+    ? checkExplanation(asked.answer.explanation, finding)
+    : null;
+  const explanation =
+    asked.answer && explanationFellBack === null ? asked.answer.explanation.trim() : null;
+  const photoRecord = photo
+    ? {
+        mediaType: photo.mediaType,
+        sha256: createHash("sha256").update(Buffer.from(photo.dataBase64, "base64")).digest("hex"),
+        bytes: Buffer.from(photo.dataBase64, "base64").length,
+      }
+    : null;
+  const audit = {
+    practiceId,
+    caseId,
+    action: "estimate.update_drafted",
+    modelId: model.settings.model,
+    promptVersion: UPDATE_PROMPT_VERSION,
+    asked,
+    output: { explanation, explanationFellBack },
+    detail: { basedOnVersionId: basedOn.id, photo: photoRecord },
+  } as const;
 
-  return db.transaction(async (tx) => {
-    const current = (await currentPriceList(tx, practiceId)) ?? list;
-    const guarded = asked.answer
-      ? guardLines(asked.answer.lines, [], finding, current.items)
-      : NOTHING;
-    const explanationFellBack = asked.answer
-      ? checkExplanation(asked.answer.explanation, finding)
-      : null;
-    const explanation =
-      asked.answer && explanationFellBack === null ? asked.answer.explanation.trim() : null;
-    const version = await writeDraft(tx, {
-      practiceId,
-      caseId,
-      open: state.open,
-      lines: [...linesOf(basedOn), ...guarded.kept.map((kept) => kept.line)],
-      failed: asked.failure !== null,
-    });
-    await appendAuditEvent(tx, {
-      practiceId,
-      caseId,
-      actor: "system",
-      action: "estimate.update_drafted",
-      model: {
-        id: model.settings.model,
-        inputSha256: asked.hash,
-        output: asJson({
-          servedModel: asked.servedModel,
-          answer: asked.answer,
-          failure: asked.failure,
-          kept: guarded.kept.map((kept) => kept.line.code),
-          unmatched: guarded.unmatched,
-          unsupported: guarded.unsupported,
-          explanation,
-          explanationFellBack,
+  try {
+    return await db.transaction(async (tx) => {
+      const now = await caseEstimateState(tx, practiceId, caseId, true);
+      if (now.lastSent?.id !== basedOn.id) {
+        throw new EstimateError(
+          "sent",
+          "another version was sent while the update was drafted; draft the update again",
+        );
+      }
+      const current = (await currentPriceList(tx, practiceId)) ?? list;
+      const guarded = guard(current.items);
+      const failed = asked.failure !== null;
+      const version = await writeDraft(tx, {
+        practiceId,
+        caseId,
+        open: now.open,
+        lines: [...linesOf(basedOn), ...guarded.kept.map((kept) => kept.line)],
+        failed,
+      });
+      await appendAuditEvent(
+        tx,
+        askAuditEvent({
+          ...audit,
+          guarded,
+          version,
+          preserved: failed && now.open !== null,
+          refused: null,
         }),
-      },
-      detail: {
-        versionId: version.id,
-        number: version.number,
-        basedOnVersionId: basedOn.id,
-        promptVersion: UPDATE_PROMPT_VERSION,
-        source: asked.source,
-        photo: photo
-          ? {
-              mediaType: photo.mediaType,
-              sha256: createHash("sha256")
-                .update(Buffer.from(photo.dataBase64, "base64"))
-                .digest("hex"),
-              bytes: Buffer.from(photo.dataBase64, "base64").length,
-            }
-          : null,
-        lineCount: guarded.kept.length,
-        failure: asked.failure?.reason ?? null,
-      },
+      );
+      const offset = basedOn.lines.length;
+      return {
+        basedOn,
+        version,
+        delta: estimateDelta(basedOn, version),
+        lines: guarded.kept.map((kept, at) => ({
+          position: offset + at + 1,
+          start: kept.start,
+          end: kept.end,
+          ownerWordingFellBack: kept.ownerWordingFellBack,
+          dependsOnFellBack: kept.dependsOnFellBack,
+        })),
+        unmatched: guarded.unmatched,
+        unsupported: guarded.unsupported,
+        explanation,
+        explanationFellBack,
+        vetNote: finding,
+        failure: asked.failure,
+        model: {
+          id: model.settings.model,
+          servedModel: asked.servedModel,
+          inputSha256: asked.hash,
+          promptVersion: UPDATE_PROMPT_VERSION,
+        },
+      };
     });
-    const offset = basedOn.lines.length;
-    return {
-      basedOn,
-      version,
-      delta: estimateDelta(basedOn, version),
-      lines: guarded.kept.map((kept, at) => ({
-        position: offset + at + 1,
-        start: kept.start,
-        end: kept.end,
-        ownerWordingFellBack: kept.ownerWordingFellBack,
-      })),
-      unmatched: guarded.unmatched,
-      unsupported: guarded.unsupported,
-      explanation,
-      explanationFellBack,
-      vetNote: finding,
-      failure: asked.failure,
-      model: {
-        id: model.settings.model,
-        servedModel: asked.servedModel,
-        inputSha256: asked.hash,
-        promptVersion: UPDATE_PROMPT_VERSION,
-      },
-    };
-  });
+  } catch (error) {
+    if (error instanceof EstimateError) {
+      await appendAuditEvent(
+        db,
+        askAuditEvent({
+          ...audit,
+          guarded: guard(list.items),
+          version: null,
+          preserved: false,
+          refused: error.reason,
+        }),
+      );
+    }
+    throw error;
+  }
+}
+
+/**
+ * The last version sent to the owner, which an update changes.
+ *
+ * @param state - The case's estimate.
+ * @returns The version.
+ * @throws EstimateError `version_not_found` when nothing has been sent.
+ */
+function refuseIfNotSent(state: CaseEstimateState): EstimateVersionView {
+  if (!state.lastSent) {
+    throw new EstimateError("version_not_found", "the case has no sent estimate to update");
+  }
+  return state.lastSent;
 }

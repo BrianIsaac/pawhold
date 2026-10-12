@@ -365,3 +365,92 @@ describe("what is refused before the model is asked", () => {
     expect((error as EstimateError).reason).toBe("request_invalid");
   });
 });
+
+describe("what happens after the model is asked (the review's findings, 12 October)", () => {
+  it("audits the ask when the write is then refused: the draft was sent meanwhile", async () => {
+    answerWith({ lines: GOOD_LINES, unmatched: [] });
+    const open = await makeEstimateVersion(db, {
+      practiceId,
+      caseId,
+      actor: "vet",
+      lines: [{ code: "DEN-SP", quantityLow: 1, quantityHigh: 1 }],
+    });
+    const recorded = createRecordedModel(store);
+    const sendsMeanwhile = {
+      settings: recorded.settings,
+      answer: async (request: Parameters<typeof recorded.answer>[0]) => {
+        await sendEstimateVersion(db, { practiceId, versionId: open.id, actor: "vet" });
+        return recorded.answer(request);
+      },
+    };
+
+    const error = await draftEstimate(
+      { db, model: sendsMeanwhile },
+      { practiceId, caseId, notes: NOTES },
+    ).catch((caught: unknown) => caught);
+
+    expect((error as EstimateError).reason).toBe("sent");
+    const [event] = await db
+      .select()
+      .from(auditEvent)
+      .where(and(eq(auditEvent.caseId, caseId), eq(auditEvent.action, "estimate.drafted")));
+    expect(event).toMatchObject({
+      modelId: "gpt-6.1-sol",
+      modelInputSha256: requestHash(MODEL_SETTINGS, draftRequest(list.items.values(), NOTES)),
+    });
+    expect(event!.detail).toMatchObject({ versionId: null, source: "model", refused: "sent" });
+  });
+
+  it("takes two presses at once as a draft and its redraft", async () => {
+    answerWith({ lines: GOOD_LINES, unmatched: [] });
+    const model = createRecordedModel(store);
+
+    const [first, second] = await Promise.all([
+      draftEstimate({ db, model }, { practiceId, caseId, notes: NOTES }),
+      draftEstimate({ db, model }, { practiceId, caseId, notes: NOTES }),
+    ]);
+
+    expect(second.version.id).toBe(first.version.id);
+    expect(second.version.lines).toHaveLength(4);
+  });
+
+  it("refuses a case in another currency than the list before the model is asked", async () => {
+    const [kase] = await db
+      .insert(patientCase)
+      .values({
+        practiceId,
+        patientName: "Rex",
+        ownerName: "A. Owner",
+        procedure: "X",
+        currencyCode: "USD",
+      })
+      .returning();
+    const counted = countingModel(createRecordedModel(store));
+
+    const error = await draftEstimate(
+      { db, model: counted.model },
+      { practiceId, caseId: kase!.id, notes: NOTES },
+    ).catch((caught: unknown) => caught);
+
+    expect((error as EstimateError).reason).toBe("currency_mismatch");
+    expect(counted.calls).toEqual([]);
+  });
+
+  it("records what the preserved draft holds when a redraft fails", async () => {
+    await makeEstimateVersion(db, {
+      practiceId,
+      caseId,
+      actor: "vet",
+      lines: [{ code: "DEN-SP", quantityLow: 1, quantityHigh: 1 }],
+    });
+    await draftEstimate(
+      { db, model: failingModel("refused") },
+      { practiceId, caseId, notes: NOTES },
+    );
+    const [event] = await db
+      .select()
+      .from(auditEvent)
+      .where(and(eq(auditEvent.caseId, caseId), eq(auditEvent.action, "estimate.drafted")));
+    expect(event!.detail).toMatchObject({ draftedLines: 0, versionLines: 1, preserved: true });
+  });
+});

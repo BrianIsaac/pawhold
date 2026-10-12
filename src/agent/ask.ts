@@ -55,7 +55,7 @@ export interface AskContext {
  * Asks for a job's answer (D8): from the practice's draft cache when the same
  * request was answered before; otherwise, unless the practice's hourly cap is
  * reached, from the model, keeping an answer that passed the envelope in the
- * cache. Every failure, the model's, the answer's or the cap's, is returned
+ * cache (replacing a cached answer that no longer reads in it). Every failure, the model's, the answer's or the cap's, is returned
  * rather than thrown: the caller leaves the vet an empty estimate and audits
  * why.
  *
@@ -145,7 +145,15 @@ export async function askModel<T>(
       servedModel,
       answer: asJson(json),
     })
-    .onConflictDoNothing();
+    .onConflictDoUpdate({
+      target: [agentAnswer.practiceId, agentAnswer.inputSha256],
+      set: {
+        answer: asJson(json),
+        servedModel,
+        modelId: model.settings.model,
+        createdAt: new Date(),
+      },
+    });
   return { hash, source: "model", answer: parsed.data, servedModel, failure: null };
 }
 
