@@ -1,0 +1,25 @@
+.panel {
+  display: grid;
+  gap: var(--space-4);
+  max-width: 36rem;
+  padding: var(--space-5);
+  border: 1px solid var(--colour-line-soft);
+  border-radius: var(--radius-3);
+  background: var(--colour-surface);
+  box-shadow: var(--shadow-1);
+}
+
+.heading {
+  margin: 0;
+  font-size: var(--font-size-4);
+}
+
+.text {
+  margin: 0;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}

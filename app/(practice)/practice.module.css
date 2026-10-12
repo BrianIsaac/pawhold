@@ -65,6 +65,7 @@
 }
 
 .navLink {
+  position: relative;
   display: inline-flex;
   align-items: center;
   min-height: var(--target-min);
@@ -144,6 +145,7 @@
 }
 
 .patientLink {
+  position: relative;
   display: inline-flex;
   align-items: center;
   min-height: var(--target-min);

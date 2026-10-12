@@ -3,6 +3,7 @@ import Link from "next/link";
 import type { ButtonHTMLAttributes, ReactNode } from "react";
 
 import styles from "./Button.module.css";
+import { LinkPending } from "./LinkPending";
 
 /** How loud a button is: one primary action per area, the rest secondary or quiet. */
 export type ButtonVariant = "primary" | "secondary" | "quiet" | "danger";
@@ -74,6 +75,7 @@ export function ButtonLink({ href, variant = "primary", children }: ButtonLinkPr
   return (
     <Link href={href} className={styles.button} data-variant={variant}>
       {children}
+      <LinkPending />
     </Link>
   );
 }

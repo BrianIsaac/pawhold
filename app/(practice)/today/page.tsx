@@ -6,6 +6,7 @@ import { currentPracticeSession } from "@/server/practice-session";
 import { database } from "@/server/runtime";
 
 import { Chip } from "../../components/Chip";
+import { LinkPending } from "../../components/LinkPending";
 import { List, ListRow } from "../../components/List";
 import styles from "../practice.module.css";
 import { SignedOut } from "../SignedOut";
@@ -52,6 +53,7 @@ export default async function TodayPage() {
                 content: (
                   <Link href={`/cases/${kase.id}`} className={styles.patientLink}>
                     {kase.patientName}
+                    <LinkPending />
                   </Link>
                 ),
               },

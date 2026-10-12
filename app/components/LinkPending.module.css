@@ -1,0 +1,32 @@
+/*
+ * A bar along the link's foot, growing while its page is fetched. It is laid
+ * over the link (which is `position: relative`), so it moves nothing.
+ */
+.bar {
+  display: none;
+}
+
+.bar[data-pending] {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  display: block;
+  height: 3px;
+  border-radius: var(--radius-pill);
+  background: currentColor;
+  transform-origin: left center;
+  animation: grow 1.2s ease-out infinite;
+}
+
+@keyframes grow {
+  from {
+    transform: scaleX(0.1);
+    opacity: 1;
+  }
+
+  to {
+    transform: scaleX(1);
+    opacity: 0.4;
+  }
+}
