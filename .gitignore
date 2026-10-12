@@ -1,0 +1,30 @@
+# secrets and local environment
+.env
+.env.*
+!.env.example
+
+# dependencies and build output (the stack is not chosen yet; these are the usual ones)
+node_modules/
+dist/
+build/
+.venv/
+__pycache__/
+*.tsbuildinfo
+coverage/
+
+# Agent tooling, copied in from the primary checkout, never committed
+.claude/
+CLAUDE.md
+AGENTS.md
+
+# local tooling state and logs
+.playwright-mcp/
+test-results/
+playwright-report/
+*.log
+.DS_Store
+
+# research store: raw downloads are reproducible from the committed manifest
+data/raw/
+.pytest_cache/
+.ruff_cache/
