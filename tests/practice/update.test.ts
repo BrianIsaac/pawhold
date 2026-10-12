@@ -11,6 +11,7 @@ import { approveAndSend, editDraftLine, loadCaseView, removeDraftLine } from "@/
 import { draftUpdateForCase, loadSourcePhoto } from "@/practice/update";
 
 import { seedFictionalPractice } from "../../seed/practice";
+import { SHOWCASE_CASE } from "../../seed/practice/showcase";
 import { primeAnswer } from "../support/agent";
 import { connectTestDatabase } from "../support/database";
 import {
@@ -45,7 +46,12 @@ beforeEach(async () => {
   const [kase] = await db
     .select({ id: patientCase.id })
     .from(patientCase)
-    .where(eq(patientCase.practiceId, practiceId));
+    .where(
+      and(
+        eq(patientCase.practiceId, practiceId),
+        eq(patientCase.patientName, SHOWCASE_CASE.patientName),
+      ),
+    );
   caseId = kase!.id;
   store = memoryRecordedStore();
   primeAnswer(store, await walkUpdateRequest(db, practiceId, caseId), WALK_UPDATE_ANSWER);

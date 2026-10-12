@@ -1,0 +1,393 @@
+.heading {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.date {
+  margin: 0;
+  color: var(--colour-ink-muted);
+}
+
+.days {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.dayLink {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--target-min);
+  min-width: var(--target-min);
+  padding: 0 var(--space-3);
+  border: 1px solid var(--colour-line);
+  border-radius: var(--radius-2);
+  background: var(--colour-surface);
+  color: var(--colour-accent-strong);
+  font-weight: var(--font-weight-medium);
+  text-decoration: none;
+}
+
+.dayLink:hover {
+  background: var(--colour-accent-soft);
+}
+
+.check {
+  margin: 0 0 var(--space-5);
+  color: var(--colour-ink-muted);
+  font-size: var(--font-size-0);
+}
+
+.sectionTitle {
+  margin: 0 0 var(--space-3);
+  font-size: var(--font-size-2);
+}
+
+/* The agent's open holds and the moves it proposes. */
+
+.held {
+  margin-bottom: var(--space-6);
+}
+
+.proposals {
+  display: grid;
+  gap: var(--space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.proposal {
+  display: grid;
+  gap: var(--space-4);
+  padding: var(--space-4) var(--space-5);
+  border: 1px solid var(--colour-line-soft);
+  border-left: 4px solid var(--colour-danger-strong);
+  border-radius: var(--radius-3);
+  background: var(--colour-surface);
+  box-shadow: var(--shadow-1);
+}
+
+.proposalTitle {
+  margin: 0;
+  font-size: var(--font-size-1);
+}
+
+.proposalPart {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3) var(--space-5);
+}
+
+.proposalPart + .proposalPart {
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--colour-line-soft);
+}
+
+.proposalWords {
+  flex: 1 1 20rem;
+  margin: 0;
+}
+
+.heldNote {
+  font-weight: var(--font-weight-medium);
+  color: var(--colour-danger-strong);
+}
+
+.buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.buttonForm {
+  display: grid;
+  gap: var(--space-2);
+  justify-items: start;
+}
+
+.refusal {
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-2);
+  background: var(--colour-danger-soft);
+  color: var(--colour-danger-strong);
+  font-size: var(--font-size-0);
+}
+
+/* The day's grid: a row per room, a column per five minutes. */
+
+/* The grid is as wide as the day; it scrolls inside its own box, never the page. */
+.bookings {
+  contain: inline-size;
+}
+
+.empty {
+  margin: 0 0 var(--space-3);
+  color: var(--colour-ink-muted);
+}
+
+.scroller {
+  --label: 6rem;
+  --slot: 1.5rem;
+
+  overflow-x: auto;
+  border: 1px solid var(--colour-line-soft);
+  border-radius: var(--radius-3);
+  background: var(--colour-surface);
+  box-shadow: var(--shadow-1);
+  overscroll-behavior-x: contain;
+}
+
+@media (min-width: 48rem) {
+  .scroller {
+    --label: 8.5rem;
+  }
+}
+
+.grid {
+  position: relative;
+  display: grid;
+  grid-template-columns: var(--label) repeat(var(--slots), var(--slot));
+  grid-template-rows: auto repeat(var(--rooms), minmax(6rem, auto));
+  width: max-content;
+}
+
+.corner {
+  grid-row: 1;
+}
+
+.corner,
+.room {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  grid-column: 1;
+  background: var(--colour-surface);
+  border-right: 1px solid var(--colour-line);
+}
+
+.room {
+  display: flex;
+  align-items: center;
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  border-top: 1px solid var(--colour-line-soft);
+  font-size: var(--font-size-0);
+}
+
+.hours {
+  grid-row: 1;
+}
+
+.hours,
+.lane {
+  display: grid;
+  grid-column: 2 / -1;
+  grid-template-columns: subgrid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  background-image: repeating-linear-gradient(
+    to right,
+    var(--colour-line-soft) 0 1px,
+    transparent 1px calc(var(--slot) * 12)
+  );
+}
+
+.hours li {
+  padding: var(--space-2) var(--space-1);
+  color: var(--colour-ink-muted);
+  font-size: var(--font-size-0);
+  font-variant-numeric: tabular-nums;
+}
+
+.lane {
+  position: relative;
+  z-index: 1;
+  align-items: stretch;
+  padding: var(--space-1) 0;
+  border-top: 1px solid var(--colour-line-soft);
+}
+
+.slot {
+  grid-row: 1;
+  min-width: 0;
+  padding: 0 1px;
+  container-type: inline-size;
+}
+
+.booking {
+  display: flex;
+  height: 100%;
+  min-height: var(--target-min);
+  padding: var(--space-1) var(--space-2);
+  border-left: 4px solid currentColor;
+  border-radius: var(--radius-1);
+  font-size: var(--font-size-0);
+  line-height: var(--line-height-tight);
+  text-decoration: none;
+  /* Clips without scrolling, so the words can stick inside the day's scroller. */
+  overflow: clip;
+}
+
+/* The words stay in view, just inside the room names, while the booking scrolls past. */
+.bookingBody {
+  position: sticky;
+  left: calc(var(--label) + var(--space-1));
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  width: fit-content;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.bookingBody > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.booking:hover .bookingPatient {
+  text-decoration: underline;
+}
+
+.bookingTime,
+.bookingStart {
+  font-variant-numeric: tabular-nums;
+}
+
+.bookingStart {
+  display: none;
+}
+
+/*
+ * A booking too short for its words (a 15-minute consult) shows its start and
+ * its patient; the rest stays in its name for assistive technology and in its
+ * tooltip.
+ */
+@container (max-width: 7rem) {
+  .booking {
+    padding-inline: var(--space-1);
+  }
+
+  .bookingStart {
+    display: block;
+  }
+
+  .bookingTime,
+  .bookingDetail,
+  .bookingMoney,
+  .mark {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+}
+
+.bookingPatient {
+  font-weight: var(--font-weight-bold);
+}
+
+.bookingMoney {
+  font-weight: var(--font-weight-medium);
+}
+
+.mark {
+  align-self: flex-start;
+  max-width: 100%;
+  margin-top: var(--space-1);
+  padding: 0 var(--space-2);
+  border: 1px solid currentColor;
+  border-radius: var(--radius-pill);
+  background: var(--colour-surface);
+}
+
+/* A slot the agent held: a dashed frame and stripes, in the danger ink. */
+.booking[data-held] {
+  outline: 2px dashed var(--colour-danger-strong);
+  outline-offset: -2px;
+  background-image: repeating-linear-gradient(
+    135deg,
+    transparent 0 0.5rem,
+    rgb(126 31 22 / 0.07) 0.5rem 0.75rem
+  );
+}
+
+.booking[data-held] .mark {
+  color: var(--colour-danger-strong);
+}
+
+/* A booking the agent proposes to move: a dotted frame in the accent. */
+.booking[data-move] {
+  outline: 2px dotted var(--colour-accent-strong);
+  outline-offset: -2px;
+}
+
+.booking[data-move] .mark {
+  color: var(--colour-accent-strong);
+}
+
+.booking:focus-visible {
+  outline: 3px solid var(--colour-focus);
+  outline-offset: 2px;
+}
+
+/* Now, across the rooms (below the hours, so it never crosses a label). */
+.now {
+  grid-row: 2 / -1;
+  z-index: 0;
+  border-left: 2px solid var(--colour-danger);
+  pointer-events: none;
+}
+
+/* Each booking in the board's colours: its case's money state (U5's chip tones). */
+.booking[data-tone="estimate_draft"] {
+  background-color: var(--money-estimate-draft-bg);
+  color: var(--money-estimate-draft-ink);
+}
+
+.booking[data-tone="awaiting_owner"] {
+  background-color: var(--money-awaiting-owner-bg);
+  color: var(--money-awaiting-owner-ink);
+}
+
+.booking[data-tone="held"] {
+  background-color: var(--money-held-bg);
+  color: var(--money-held-ink);
+}
+
+.booking[data-tone="update_awaiting_owner"] {
+  background-color: var(--money-update-awaiting-owner-bg);
+  color: var(--money-update-awaiting-owner-ink);
+}
+
+.booking[data-tone="update_declined"] {
+  background-color: var(--money-update-declined-bg);
+  color: var(--money-update-declined-ink);
+}
+
+.booking[data-tone="captured"] {
+  background-color: var(--money-captured-bg);
+  color: var(--money-captured-ink);
+}
+
+.booking[data-tone="released"] {
+  background-color: var(--money-released-bg);
+  color: var(--money-released-ink);
+}
+
+.booking[data-tone="refunded"] {
+  background-color: var(--money-refunded-bg);
+  color: var(--money-refunded-ink);
+}
+
+.booking[data-tone="withdrawn"] {
+  background-color: var(--money-withdrawn-bg);
+  color: var(--money-withdrawn-ink);
+}

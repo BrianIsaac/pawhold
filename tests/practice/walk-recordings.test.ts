@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
 
 import { draftRequest } from "@/agent/draft";
@@ -9,6 +9,7 @@ import { currentPriceList } from "@/estimate/price-list";
 import { createJudgeSessionHandlers } from "@/judge/session";
 
 import { seedFictionalPractice } from "../../seed/practice";
+import { SHOWCASE_CASE } from "../../seed/practice/showcase";
 import { connectTestDatabase } from "../support/database";
 import { HAND_WRITTEN, WALK_UPDATE_ANSWER, walkUpdateRequest } from "../support/update-walk";
 
@@ -39,7 +40,12 @@ async function seeded(): Promise<{ practiceId: string; caseId: string }> {
   const [kase] = await db
     .select({ id: patientCase.id })
     .from(patientCase)
-    .where(eq(patientCase.practiceId, practiceId));
+    .where(
+      and(
+        eq(patientCase.practiceId, practiceId),
+        eq(patientCase.patientName, SHOWCASE_CASE.patientName),
+      ),
+    );
   return { practiceId, caseId: kase!.id };
 }
 

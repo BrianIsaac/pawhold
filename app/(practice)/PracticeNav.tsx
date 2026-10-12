@@ -6,7 +6,10 @@ import { usePathname } from "next/navigation";
 import styles from "./practice.module.css";
 
 /** The practice's places, in the order the header lists them; U8a adds "/day". */
-const PLACES = [{ href: "/today", label: "Today's cases" }] as const;
+const PLACES = [
+  { href: "/today", label: "Today's cases" },
+  { href: "/day", label: "The day" },
+] as const;
 
 /**
  * The practice's navigation, the current place marked.

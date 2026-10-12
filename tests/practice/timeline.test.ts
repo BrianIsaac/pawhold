@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 
-import { asc, eq } from "drizzle-orm";
+import { and, asc, eq } from "drizzle-orm";
 import { beforeAll, describe, expect, it } from "vitest";
 
 import { auditEvent, patientCase, webhookEvent } from "@/db/schema";
@@ -47,7 +47,12 @@ beforeAll(async () => {
   const [kase] = await db
     .select({ id: patientCase.id })
     .from(patientCase)
-    .where(eq(patientCase.practiceId, seededPractice));
+    .where(
+      and(
+        eq(patientCase.practiceId, seededPractice),
+        eq(patientCase.patientName, SHOWCASE_CASE.patientName),
+      ),
+    );
   seededCase = kase!.id;
 });
 

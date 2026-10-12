@@ -144,6 +144,7 @@
   display: inline-flex;
   align-items: center;
   min-height: var(--target-min);
+  min-width: var(--target-min);
   font-weight: var(--font-weight-bold);
 }
 

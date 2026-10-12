@@ -70,9 +70,21 @@ export const practice = pgTable(
      * including VAT: £500 unless the practice sets another (plan 3.3).
      */
     monetaryThresholdPence: integer("monetary_threshold_pence").notNull().default(50_000),
+    /**
+     * How long before a procedure's start an update still unanswered makes
+     * the schedule agent hold its slot (plan 3.4's third job, U8a).
+     */
+    scheduleLeadMinutes: integer("schedule_lead_minutes").notNull().default(30),
+    /** The practice's clock: times are kept in UTC and shown in this zone (U8a). */
+    timeZone: text("time_zone").notNull().default("Europe/London"),
   },
   (table) => [
     check("practice_monetary_threshold_positive", sql`${table.monetaryThresholdPence} > 0`),
+    check(
+      "practice_schedule_lead_minutes_range",
+      sql`${table.scheduleLeadMinutes} between 5 and 240`,
+    ),
+    check("practice_time_zone_length", sql`char_length(${table.timeZone}) between 1 and 64`),
   ],
 );
 
@@ -805,5 +817,197 @@ export const estimateSource = pgTable(
       sql`(${table.explanation} is null and ${table.explanationFellBack} is null) or ${table.kind} = 'finding'`,
     ),
     index("estimate_source_case_id_idx").on(table.caseId),
+  ],
+);
+
+/** A room the practice books: a theatre or a consult room (U8a). */
+export const roomKind = pgEnum("room_kind", ["theatre", "consult"]);
+
+/** What a booking is for: a procedure or a consultation (U8a). */
+export const bookingKind = pgEnum("booking_kind", ["procedure", "consult"]);
+
+/** One of the practice's rooms, in the order its day lists them (U8a). */
+export const room = pgTable(
+  "room",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    practiceId: uuid("practice_id")
+      .notNull()
+      .references(() => practice.id, { onDelete: "restrict" }),
+    name: text("name").notNull(),
+    kind: roomKind("kind").notNull(),
+    position: integer("position").notNull(),
+    createdAt: createdAt(),
+  },
+  (table) => [
+    check("room_name_length", sql`char_length(${table.name}) between 1 and 60`),
+    check("room_position_positive", sql`${table.position} >= 1`),
+    unique("room_practice_name_key").on(table.practiceId, table.name),
+    unique("room_practice_position_key").on(table.practiceId, table.position),
+    unique("room_id_practice_id_key").on(table.id, table.practiceId),
+  ],
+);
+
+/** One of the practice's vets, as the day books them (U8a). */
+export const vet = pgTable(
+  "vet",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    practiceId: uuid("practice_id")
+      .notNull()
+      .references(() => practice.id, { onDelete: "restrict" }),
+    name: text("name").notNull(),
+    createdAt: createdAt(),
+  },
+  (table) => [
+    check("vet_name_length", sql`char_length(${table.name}) between 1 and 100`),
+    unique("vet_practice_name_key").on(table.practiceId, table.name),
+    unique("vet_id_practice_id_key").on(table.id, table.practiceId),
+  ],
+);
+
+/**
+ * A case booked into a room with a vet, from a start to an end, on the
+ * five-minute marks (U8a). Times are kept in UTC. A room and a vet are never
+ * booked twice at once: the database refuses it at commit (migration 0012),
+ * so two bookings may change places inside one transaction.
+ */
+export const booking = pgTable(
+  "booking",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    practiceId: uuid("practice_id").notNull(),
+    caseId: uuid("case_id").notNull(),
+    roomId: uuid("room_id").notNull(),
+    vetId: uuid("vet_id").notNull(),
+    kind: bookingKind("kind").notNull(),
+    startsAt: timestamp("starts_at", { withTimezone: true }).notNull(),
+    endsAt: timestamp("ends_at", { withTimezone: true }).notNull(),
+    createdAt: createdAt(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    foreignKey({
+      name: "booking_case_in_practice_fk",
+      columns: [table.caseId, table.practiceId],
+      foreignColumns: [patientCase.id, patientCase.practiceId],
+    }).onDelete("restrict"),
+    foreignKey({
+      name: "booking_room_in_practice_fk",
+      columns: [table.roomId, table.practiceId],
+      foreignColumns: [room.id, room.practiceId],
+    }).onDelete("restrict"),
+    foreignKey({
+      name: "booking_vet_in_practice_fk",
+      columns: [table.vetId, table.practiceId],
+      foreignColumns: [vet.id, vet.practiceId],
+    }).onDelete("restrict"),
+    check(
+      "booking_length",
+      sql`${table.endsAt} - ${table.startsAt} between interval '15 minutes' and interval '12 hours'`,
+    ),
+    check(
+      "booking_on_five_minute_marks",
+      sql`extract(epoch from ${table.startsAt}) % 300 = 0 and extract(epoch from ${table.endsAt}) % 300 = 0`,
+    ),
+    unique("booking_id_practice_id_key").on(table.id, table.practiceId),
+    /** What the schedule agent's proposal names of the booking it holds: its case too. */
+    unique("booking_id_case_practice_key").on(table.id, table.caseId, table.practiceId),
+    index("booking_practice_starts_at_idx").on(table.practiceId, table.startsAt),
+    index("booking_case_id_idx").on(table.caseId),
+  ],
+);
+
+/**
+ * Where the schedule agent's proposed move stands (D9 (a): a move waits for
+ * the practice's click): `proposed` until the practice moves it or dismisses
+ * it, or the agent withdraws it (the update answered, the hold undone, or the
+ * slot started).
+ */
+export const scheduleMoveStatus = pgEnum("schedule_move_status", [
+  "proposed",
+  "applied",
+  "dismissed",
+  "withdrawn",
+]);
+
+/** Who released a held slot: the practice by its one click, or the agent once the update was answered. */
+export const scheduleReleasedBy = pgEnum("schedule_released_by", ["practice", "agent"]);
+
+/**
+ * One act of the schedule agent (plan 3.4's third job, D9 (a)): a procedure's
+ * slot held at once because its case's update waits on the owner inside the
+ * practice's lead time, and the move of the room's next procedure into it
+ * proposed beside it. Open while the hold stands; once per booking and update,
+ * so a hold the practice undid is not held again for the same update. Every
+ * change is an audit event in the same transaction.
+ */
+export const scheduleProposal = pgTable(
+  "schedule_proposal",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    practiceId: uuid("practice_id").notNull(),
+    caseId: uuid("case_id").notNull(),
+    bookingId: uuid("booking_id").notNull(),
+    /** The update waiting on the owner when the slot was held. */
+    versionId: uuid("version_id").notNull(),
+    /** Why, in section 6's words, as the agent wrote it when it held the slot. */
+    reason: text("reason").notNull(),
+    heldAt: timestamp("held_at", { withTimezone: true }).notNull(),
+    releasedAt: timestamp("released_at", { withTimezone: true }),
+    releasedBy: scheduleReleasedBy("released_by"),
+    /** The room's next procedure, proposed to move into the held slot. */
+    moveBookingId: uuid("move_booking_id"),
+    /** Where the move puts it: the held slot's start when the move was proposed. */
+    moveTo: timestamp("move_to", { withTimezone: true }),
+    moveStatus: scheduleMoveStatus("move_status"),
+    moveDecidedAt: timestamp("move_decided_at", { withTimezone: true }),
+    createdAt: createdAt(),
+  },
+  (table) => [
+    foreignKey({
+      name: "schedule_proposal_booking_fk",
+      columns: [table.bookingId, table.caseId, table.practiceId],
+      foreignColumns: [booking.id, booking.caseId, booking.practiceId],
+    }).onDelete("restrict"),
+    foreignKey({
+      name: "schedule_proposal_case_in_practice_fk",
+      columns: [table.caseId, table.practiceId],
+      foreignColumns: [patientCase.id, patientCase.practiceId],
+    }).onDelete("restrict"),
+    foreignKey({
+      name: "schedule_proposal_version_fk",
+      columns: [table.versionId, table.caseId, table.practiceId],
+      foreignColumns: [estimateVersion.id, estimateVersion.caseId, estimateVersion.practiceId],
+    }).onDelete("restrict"),
+    foreignKey({
+      name: "schedule_proposal_move_booking_fk",
+      columns: [table.moveBookingId, table.practiceId],
+      foreignColumns: [booking.id, booking.practiceId],
+    }).onDelete("restrict"),
+    check("schedule_proposal_reason_length", sql`char_length(${table.reason}) between 1 and 500`),
+    check(
+      "schedule_proposal_released_complete",
+      sql`(${table.releasedAt} is null) = (${table.releasedBy} is null)`,
+    ),
+    check(
+      "schedule_proposal_move_complete",
+      sql`(${table.moveBookingId} is null) = (${table.moveStatus} is null)
+        and (${table.moveBookingId} is null) = (${table.moveTo} is null)`,
+    ),
+    check(
+      "schedule_proposal_move_decided",
+      sql`(${table.moveDecidedAt} is not null) = (${table.moveStatus} is not null and ${table.moveStatus} <> 'proposed')`,
+    ),
+    check(
+      "schedule_proposal_move_another_booking",
+      sql`${table.moveBookingId} is null or ${table.moveBookingId} <> ${table.bookingId}`,
+    ),
+    unique("schedule_proposal_booking_version_key").on(table.bookingId, table.versionId),
+    uniqueIndex("schedule_proposal_one_open_per_booking_idx")
+      .on(table.bookingId)
+      .where(sql`${table.releasedAt} is null`),
+    index("schedule_proposal_practice_idx").on(table.practiceId, table.heldAt),
+    index("schedule_proposal_case_idx").on(table.caseId),
   ],
 );

@@ -4,14 +4,17 @@ import type { Database } from "@/db/client";
 import { type ResumedDischarges, resumeStalledDischarges } from "@/money/discharge";
 import { reconcilePendingWebhooks, type ReconcileReport } from "@/money/reconcile";
 import type { PayPalClient } from "@/paypal/client";
+import { sweepSchedule, type SweepReport } from "@/schedule/agent";
 
 import { reauthoriseHolds, type ReauthoriseReport } from "./reauthorise";
 
-/** The parts of the hourly run, each given the database, the PayPal client and the clock. */
+/** The parts of the hourly run, each given the database, the clock and, for PayPal's, the client. */
 export interface HourlyParts {
   readonly reauthorisation: (deps: PartDependencies) => Promise<ReauthoriseReport>;
   readonly discharges: (deps: PartDependencies) => Promise<ResumedDischarges>;
   readonly webhooks: (db: Database["db"], now: Date) => Promise<ReconcileReport>;
+  /** The schedule agent's sweep of every practice's day (U8a); it never calls PayPal. */
+  readonly schedule: (db: Database["db"], now: Date) => Promise<SweepReport>;
 }
 
 /** What a PayPal part of the run needs. */
@@ -27,7 +30,7 @@ export interface HourlyDependencies {
   /** The PayPal client, or null when the sandbox app's credentials are not set. */
   readonly paypal: PayPalClient | null;
   readonly now?: Date;
-  /** The parts to run; U3's by default. A test replaces one to see the others run. */
+  /** The parts to run; U3's and U8a's by default. A test replaces one to see the others run. */
   readonly parts?: Partial<HourlyParts>;
 }
 
@@ -40,22 +43,26 @@ export interface HourlyReport {
   readonly discharges: ResumedDischarges | null;
   /** The sweep of stored webhooks not yet reconciled, or null when it failed. */
   readonly webhooks: ReconcileReport | null;
+  /** The schedule agent's sweep (U8a), or null when it failed. */
+  readonly schedule: SweepReport | null;
   readonly sessionsPruned: number;
   /** Each part that failed whole, as `part: message`. */
   readonly errors: string[];
 }
 
-const U3_PARTS: HourlyParts = {
+const DEFAULT_PARTS: HourlyParts = {
   reauthorisation: (deps) => reauthoriseHolds(deps),
   discharges: (deps) => resumeStalledDischarges(deps),
   webhooks: (db, now) => reconcilePendingWebhooks(db, { now }),
+  schedule: (db, now) => sweepSchedule(db, { now }),
 };
 
 /**
  * The hourly job Render's cron runs (plan 7.3): the reauthorisation rule, the
  * resumption of discharges stopped after their sign-off, and the sweep of
- * webhooks left unreconciled (U3); the judge-session clean-up (U9) lands here
- * too. Each part is idempotent and runs whatever became of the others: a part
+ * webhooks left unreconciled (U3); the schedule agent's sweep of the day
+ * (U8a), which needs no PayPal credentials; the judge-session clean-up (U9)
+ * lands here too. Each part is idempotent and runs whatever became of the others: a part
  * that fails whole is reported in `errors`.
  *
  * @param deps - The database, the PayPal client, the clock and the parts.
@@ -64,7 +71,7 @@ const U3_PARTS: HourlyParts = {
 export async function runHourly(deps: HourlyDependencies): Promise<HourlyReport> {
   await deps.db.execute(sql`select 1`);
   const now = deps.now ?? new Date();
-  const parts = { ...U3_PARTS, ...deps.parts };
+  const parts = { ...DEFAULT_PARTS, ...deps.parts };
   const errors: string[] = [];
   const attempt = async <T>(name: string, run: () => Promise<T>): Promise<T | null> => {
     try {
@@ -82,11 +89,13 @@ export async function runHourly(deps: HourlyDependencies): Promise<HourlyReport>
     ? await attempt("discharges", () => parts.discharges({ db: deps.db, paypal, now }))
     : null;
   const webhooks = await attempt("webhooks", () => parts.webhooks(deps.db, now));
+  const schedule = await attempt("schedule", () => parts.schedule(deps.db, now));
   return {
     databaseReached: true,
     reauthorisation,
     discharges,
     webhooks,
+    schedule,
     sessionsPruned: 0,
     errors,
   };
