@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { runHourly } from "@/jobs/hourly";
+import type { CleanupReport } from "@/judge/cleanup";
 import { sweepSchedule, type SweepReport } from "@/schedule/agent";
 
 import { connectTestDatabase } from "../support/database";
@@ -27,6 +28,10 @@ const NOTHING_SWEPT: SweepReport = {
 // files'; the last test runs the real sweep on a practice of its own.
 const quietSchedule = async (): Promise<SweepReport> => NOTHING_SWEPT;
 
+// The judge-session clean-up prunes any practice's ended sessions; a run at
+// the real clock is given a part that prunes nothing of the other files'.
+const quietSessions = async (): Promise<CleanupReport> => ({ pruned: [], voided: [], waiting: [] });
+
 describe("the hourly job (plan 7.3: the reauthorisation rule; U3's webhook sweep; U8a's schedule agent)", () => {
   it("runs the reauthorisation rule, the webhook sweep and the schedule agent, and reports what each did", async () => {
     const report = await runHourly({
@@ -42,6 +47,7 @@ describe("the hourly job (plan 7.3: the reauthorisation rule; U3's webhook sweep
       discharges: { resumed: [], failed: [] },
       webhooks: { reconciled: 0, flagged: 0, pending: 0, failed: 0 },
       schedule: NOTHING_SWEPT,
+      sessions: { pruned: [], voided: [], waiting: [] },
       sessionsPruned: 0,
       errors: [],
     });
@@ -106,6 +112,7 @@ describe("the hourly job (plan 7.3: the reauthorisation rule; U3's webhook sweep
           asked.push(clock);
           return sweepSchedule(db, { now: clock, practiceId: day.practiceId });
         },
+        sessions: quietSessions,
       },
     });
 

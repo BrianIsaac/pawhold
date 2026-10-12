@@ -608,7 +608,7 @@ async function voidStep(
  * @param kase - The locked case.
  * @returns The state.
  */
-async function dischargedState(tx: Transaction, kase: LockedCase): Promise<MoneyState> {
+export async function dischargedState(tx: Transaction, kase: LockedCase): Promise<MoneyState> {
   const holds = (await caseHolds(tx, kase.id)).filter((one) => one.authorizationId !== null);
   const open = holds.some((one) => one.status === "authorised");
   const captured = holds.reduce((sum, one) => sum + one.capturedPence, 0);

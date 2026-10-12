@@ -13,6 +13,7 @@ import {
 import type { CurrencyCode } from "@/money/currency";
 import { type BillLineInput, planDischarge, type PlannedHold } from "@/money/discharge";
 import { type CaseMoney, caseMoney } from "@/money/view";
+import { SEEDED_ID_PREFIX } from "@/paypal/seeded";
 import { firstName } from "@/practice/chips";
 import { PracticeError } from "@/practice/errors";
 import { CATEGORY_ORDER, type ListGroup } from "@/practice/estimate";
@@ -34,7 +35,7 @@ import {
 } from "./wording";
 
 /** The prefix of a PayPal id written by a seed: PayPal never made it, so it is never sent to PayPal. */
-export const SEEDED_ID_PREFIX = "SEEDED";
+export { SEEDED_ID_PREFIX };
 
 /** One line of the approved estimate, as the bill offers it. */
 export interface BillItem {
