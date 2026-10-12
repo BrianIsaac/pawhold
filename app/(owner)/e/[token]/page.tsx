@@ -11,6 +11,7 @@ import {
   REPLACED_HEADING,
   updateDeclined,
 } from "@/owner/wording";
+import { readSandboxBuyer } from "@/owner/sandbox";
 import { database, paypalBrowserClientId, sessionSecret } from "@/server/runtime";
 
 import { AskThePractice, Notice } from "./ask-the-practice";
@@ -20,6 +21,7 @@ import { Estimate } from "./estimate";
 import { HeldStatus } from "./held";
 import styles from "./page.module.css";
 import { Receipt } from "./receipt";
+import { SandboxDetails } from "./sandbox";
 import { Update } from "./update";
 
 export const dynamic = "force-dynamic";
@@ -29,7 +31,10 @@ export const metadata: Metadata = { title: "Your pet's estimate" };
 /**
  * The page an owner's link opens: the estimate to authorise, an update to
  * answer, or the receipt, for the case and the version the link names; the
- * "ask the practice" page when the link has expired or was changed.
+ * "ask the practice" page when the link has expired or was changed. Every
+ * practice is a demo practice (judge mode, plan 7.4), so wherever the page
+ * asks for an authorisation it shows the sandbox buyer's login and PayPal's
+ * test card above PayPal's buttons.
  *
  * @param props - The route's parameters.
  * @param props.params - The link's token.
@@ -63,6 +68,7 @@ export default async function OwnerLinkPage({ params }: PageProps<"/e/[token]">)
   }
 
   const money = (pence: number) => formatPence(pence, page.currency);
+  const sandbox = awaiting && !held ? <SandboxDetails login={readSandboxBuyer()} /> : null;
   const authorise = (amount: string, cardLabel: string) => {
     if (page.hold?.status === "authorised" && page.hold.paymentKind) {
       return (
@@ -99,7 +105,14 @@ export default async function OwnerLinkPage({ params }: PageProps<"/e/[token]">)
     return (
       <Estimate
         page={page}
-        authorise={held || awaiting ? authorise(amount, authoriseLabel(amount)) : null}
+        authorise={
+          held || awaiting ? (
+            <>
+              {sandbox}
+              {authorise(amount, authoriseLabel(amount))}
+            </>
+          ) : null
+        }
       />
     );
   }
@@ -114,6 +127,7 @@ export default async function OwnerLinkPage({ params }: PageProps<"/e/[token]">)
           authorise(delta, approveLabel(delta))
         ) : awaiting ? (
           <>
+            {sandbox}
             {authorise(delta, approveLabel(delta))}
             <Decline token={token} />
           </>

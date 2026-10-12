@@ -17,8 +17,16 @@ import { createPayPalDouble } from "../support/paypal-double-server";
  * them, for the owner's sandbox walks; without them those walks are skipped,
  * and the server talks instead to U3's PayPal double, started here for the
  * run (the discharge walks confirm against it; playwright.config.ts hands
- * its address to the server alone). Arguments are passed to `playwright test`.
+ * its address to the server alone), and the server and the walks are given a
+ * stand-in sandbox buyer login, which the owner's page shows in judge mode.
+ * Arguments are passed to `playwright test`.
  */
+
+/** The stand-in buyer login of a run without PayPal's sandbox: never a real account's. */
+const STAND_IN_BUYER = {
+  PAYPAL_SANDBOX_BUYER_EMAIL: "sandbox-buyer@example.com",
+  PAYPAL_SANDBOX_BUYER_PASSWORD: "stand-in-not-a-password",
+} as const;
 
 /**
  * A port nothing is listening on, from the operating system.
@@ -100,7 +108,7 @@ function walk(
         AGENT_DRAFTS_PER_HOUR: "off",
         OPENAI_API_KEY: "",
         PAYPAL_ENV: "sandbox",
-        ...(doubleUrl ? { PAWHOLD_BROWSER_PAYPAL_DOUBLE_URL: doubleUrl } : {}),
+        ...(doubleUrl ? { PAWHOLD_BROWSER_PAYPAL_DOUBLE_URL: doubleUrl, ...STAND_IN_BUYER } : {}),
       },
     });
     child.once("error", reject);

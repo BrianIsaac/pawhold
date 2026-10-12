@@ -199,3 +199,43 @@
 .total .lineWording {
   font-weight: 600;
 }
+
+.sandbox {
+  padding: var(--owner-space-4);
+  border: 1px dashed var(--owner-warn);
+  border-radius: var(--owner-radius);
+  background: var(--owner-warn-wash);
+}
+
+.sandbox h2 {
+  margin: 0 0 var(--owner-space-2);
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.sandbox p {
+  margin: 0 0 var(--owner-space-3);
+  color: var(--owner-ink);
+}
+
+.sandbox dl {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: var(--owner-space-1) var(--owner-space-3);
+  margin: 0;
+}
+
+.sandbox dt {
+  color: var(--owner-ink-soft);
+}
+
+.sandbox dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.sandbox code {
+  font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  font-size: 0.9375rem;
+  user-select: all;
+}

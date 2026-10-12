@@ -86,6 +86,18 @@ test.describe("judge mode's doors", () => {
             name: "Otis's estimate from Hollins Lane Veterinary Surgery",
           }),
         ).toBeVisible();
+        const sandbox = page.getByRole("complementary", { name: "Testing in PayPal's sandbox" });
+        const shown = (await sandbox.textContent()) ?? "";
+        // Compared without printing: in a sandbox run these are the published buyer's values.
+        expect(shown.includes(process.env.PAYPAL_SANDBOX_BUYER_EMAIL!), "the buyer's email").toBe(
+          true,
+        );
+        expect(
+          shown.includes(process.env.PAYPAL_SANDBOX_BUYER_PASSWORD!),
+          "the buyer's password",
+        ).toBe(true);
+        await expect(sandbox).toContainText("4462 6030 4234 3024");
+        await expect(sandbox).toContainText("12/30");
       },
     );
   });
