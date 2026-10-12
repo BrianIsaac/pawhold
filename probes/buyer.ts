@@ -252,36 +252,109 @@ async function approveIn(
   const started = Date.now();
   try {
     await page.goto(url);
-    const email = page.locator("#email");
-    const review = page.getByTestId("submit-button-initial");
-    await email.or(review).first().waitFor({ state: "visible" });
-    const signedIn = await email.isVisible();
-    if (signedIn) {
-      await signIn(page, login);
-    }
-    await review.waitFor({ state: "visible" });
-    const fundingId = await page
-      .locator('input[name="FIRadioGroup"]:checked')
-      .first()
-      .getAttribute("id")
-      .catch(() => null);
-    const notice = await page
-      .getByText(/agree to pay up to/i)
-      .first()
-      .textContent()
-      .catch(() => null);
-    await review.click();
+    const reviewed = await reviewAndApprove(page, login, secrets);
     await page.waitForURL((u) => u.href.startsWith(RETURN_URL));
-    return {
-      startedAt: new Date(started).toISOString(),
-      seconds: Math.round((Date.now() - started) / 100) / 10,
-      signedIn,
-      funding: fundingOption(fundingId),
-      notice: notice ? scrub(notice.replace(/\s+/g, " ").trim(), secrets) : null,
-    };
+    return approval(started, reviewed);
   } catch (error) {
     throw new Error(`buyer approval failed at ${await describe(page, secrets)}`, { cause: error });
   }
+}
+
+/**
+ * Approves an order in the window PayPal's JS SDK opened for it (the
+ * owner's page's PayPal button, U6): signs in when asked, approves, and
+ * waits for PayPal to close the window, which hands the approval back to the
+ * page's `onApprove`. There is no return URL in the SDK's flow.
+ *
+ * @param window - The window the SDK opened.
+ * @param login - The buyer's login; never logged.
+ * @param secrets - Values scrubbed from error text.
+ * @param onReview - Called with the review page before the buyer approves (a test's shot).
+ * @returns The approval.
+ */
+export async function approveInWindow(
+  window: Page,
+  login: BuyerLogin,
+  secrets: readonly string[],
+  onReview?: (review: Page) => Promise<void>,
+): Promise<Approval> {
+  const started = Date.now();
+  window.setDefaultTimeout(STEP_TIMEOUT_MS);
+  try {
+    await window.waitForLoadState("domcontentloaded");
+    const reviewed = await reviewAndApprove(window, login, secrets, onReview);
+    if (!window.isClosed()) {
+      await window.waitForEvent("close", { timeout: STEP_TIMEOUT_MS });
+    }
+    return approval(started, reviewed);
+  } catch (error) {
+    const where = window.isClosed() ? "a closed window" : await describe(window, secrets);
+    throw new Error(`buyer approval failed at ${where}`, { cause: error });
+  }
+}
+
+/** What the review page showed before the buyer approved. */
+interface Reviewed {
+  readonly signedIn: boolean;
+  readonly funding: string | null;
+  readonly notice: string | null;
+}
+
+/**
+ * Signs in when PayPal asks, reads the review page and approves.
+ *
+ * @param page - The checkout page or window.
+ * @param login - The buyer's login.
+ * @param secrets - Values scrubbed from what is read.
+ * @param onReview - Called with the review page before the buyer approves.
+ * @returns What the review page showed.
+ */
+async function reviewAndApprove(
+  page: Page,
+  login: BuyerLogin,
+  secrets: readonly string[],
+  onReview?: (review: Page) => Promise<void>,
+): Promise<Reviewed> {
+  const email = page.locator("#email");
+  const review = page.getByTestId("submit-button-initial");
+  await email.or(review).first().waitFor({ state: "visible" });
+  const signedIn = await email.isVisible();
+  if (signedIn) {
+    await signIn(page, login);
+  }
+  await review.waitFor({ state: "visible" });
+  const fundingId = await page
+    .locator('input[name="FIRadioGroup"]:checked')
+    .first()
+    .getAttribute("id")
+    .catch(() => null);
+  const notice = await page
+    .getByText(/agree to pay up to/i)
+    .first()
+    .textContent()
+    .catch(() => null);
+  await onReview?.(page);
+  await review.click();
+  return {
+    signedIn,
+    funding: fundingOption(fundingId),
+    notice: notice ? scrub(notice.replace(/\s+/g, " ").trim(), secrets) : null,
+  };
+}
+
+/**
+ * An approval as the report keeps it.
+ *
+ * @param started - When the approval began, in epoch milliseconds.
+ * @param reviewed - What the review page showed.
+ * @returns The approval.
+ */
+function approval(started: number, reviewed: Reviewed): Approval {
+  return {
+    startedAt: new Date(started).toISOString(),
+    seconds: Math.round((Date.now() - started) / 100) / 10,
+    ...reviewed,
+  };
 }
 
 /**

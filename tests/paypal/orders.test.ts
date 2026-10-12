@@ -178,6 +178,28 @@ describe("an order to authorise", () => {
     });
   });
 
+  it("asks no shipping in the JS SDK's window, where there is no return URL (U6)", async () => {
+    await createAuthorizeOrder(client(), {
+      amount: GBP(92_700),
+      referenceId: "hold",
+      customId: "case/version",
+      description: "Bramble's estimate",
+      requestId: REQUEST_ID,
+      experience: { brandName: "Hollins Lane", locale: "en-GB" },
+    });
+
+    expect((sentOrder() as { payment_source: unknown }).payment_source).toEqual({
+      paypal: {
+        experience_context: {
+          brand_name: "Hollins Lane",
+          locale: "en-GB",
+          shipping_preference: "NO_SHIPPING",
+          user_action: "CONTINUE",
+        },
+      },
+    });
+  });
+
   it("keeps an item's name to PayPal's 127 characters", async () => {
     await createAuthorizeOrder(client(), {
       amount: GBP(100),

@@ -1,11 +1,16 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  approveLabel,
   askFirst,
+  authoriseLabel,
+  confirmedByPayPal,
   estimateHeading,
   estimateIntro,
+  heldDone,
   linePrice,
   linkExpired,
+  PAYPAL_ERROR,
   rangeLine,
   YOUR_VET,
 } from "@/owner/wording";
@@ -50,5 +55,30 @@ describe("the owner's pages, in section 6's words", () => {
   it("prices a line as one figure, or as its range", () => {
     expect(linePrice("£72.00", "£72.00")).toBe("£72.00");
     expect(linePrice("£0.00", "£196.00")).toBe("£0.00 to £196.00");
+  });
+});
+
+describe("authorising, in section 6's words", () => {
+  it("labels the card button with the hold, and the update's with the increase", () => {
+    expect(authoriseLabel("£927.00")).toBe("Authorise £927.00");
+    expect(approveLabel("£155.00")).toBe("Approve £155.00");
+  });
+
+  it("says what is held, and on what, once authorised", () => {
+    expect(heldDone("£927.00", "paypal")).toBe(
+      "Done. £927.00 is held on your PayPal. You'll get the final bill at discharge.",
+    );
+    expect(heldDone("£927.00", "card")).toBe(
+      "Done. £927.00 is held on your card. You'll get the final bill at discharge.",
+    );
+  });
+
+  it("shows PayPal's confirmation with its time, and PayPal's error as drafted", () => {
+    expect(confirmedByPayPal(new Date("2026-10-12T13:02:11.000Z"))).toBe(
+      "Confirmed by PayPal 14:02:11",
+    );
+    expect(PAYPAL_ERROR).toBe(
+      "PayPal couldn't complete that. Nothing has been charged. Try again, or use a card.",
+    );
   });
 });

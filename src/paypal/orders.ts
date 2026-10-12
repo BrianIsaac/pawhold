@@ -89,15 +89,18 @@ export interface OrderItem {
 
 /**
  * How the owner approves the order. With `experience`, the order carries
- * `payment_source.paypal.experience_context` and answers with a
- * `payer-action` link to PayPal's checkout; without it, the order has no
- * payment source and the JS SDK's buttons or card fields supply one.
+ * `payment_source.paypal.experience_context`: with the return and cancel
+ * URLs it answers with a `payer-action` link to PayPal's checkout; without
+ * them it is for the JS SDK's window, which asks no shipping either (U6).
+ * Without `experience`, the order has no payment source and the JS SDK's
+ * buttons or card fields supply one.
  */
 export interface PayPalExperience {
   readonly brandName: string;
   readonly locale: string;
-  readonly returnUrl: string;
-  readonly cancelUrl: string;
+  /** Where PayPal's checkout returns to; absent for the JS SDK's window, which has none. */
+  readonly returnUrl?: string | undefined;
+  readonly cancelUrl?: string | undefined;
 }
 
 /** What an order to authorise is made of. */
@@ -165,8 +168,12 @@ export async function createAuthorizeOrder(
                   locale: request.experience.locale,
                   shipping_preference: "NO_SHIPPING",
                   user_action: "CONTINUE",
-                  return_url: request.experience.returnUrl,
-                  cancel_url: request.experience.cancelUrl,
+                  ...(request.experience.returnUrl
+                    ? { return_url: request.experience.returnUrl }
+                    : {}),
+                  ...(request.experience.cancelUrl
+                    ? { cancel_url: request.experience.cancelUrl }
+                    : {}),
                 },
               },
             },

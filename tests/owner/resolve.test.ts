@@ -42,6 +42,7 @@ describe("resolving an owner's link", () => {
     expect(resolved).toEqual({
       kind: "open",
       practiceId: sent.practiceId,
+      practiceName: "Resolve practice",
       caseId: sent.caseId,
       versionId: sent.versionId,
       expiresAt: sent.link.expiresAt,

@@ -6,7 +6,9 @@ import type { Page } from "@playwright/test";
 /**
  * Saves a full-page shot of the owner's page when `PAWHOLD_SHOTS_DIR` names
  * a folder (the handover's shots); otherwise does nothing. Shots hold what
- * the page shows, never its address, so no owner's link token is kept.
+ * the page shows, never its address, so no owner's link token is kept; a
+ * shot of PayPal's own window holds no login (the buyer is signed in by
+ * then and PayPal shows only a name).
  *
  * @param page - The page.
  * @param name - The shot's name, without its extension.
@@ -17,7 +19,10 @@ export async function saveShot(page: Page, name: string): Promise<void> {
     return;
   }
   mkdirSync(folder, { recursive: true });
-  // `next dev` draws its indicator over the page; it is not the page.
-  await page.addStyleTag({ content: "nextjs-portal { display: none !important; }" });
+  const base = process.env.PAWHOLD_BROWSER_BASE_URL;
+  if (base && page.url().startsWith(base)) {
+    // `next dev` draws its indicator over the page; it is not the page.
+    await page.addStyleTag({ content: "nextjs-portal { display: none !important; }" });
+  }
   await page.screenshot({ path: join(folder, `${name}-390.png`), fullPage: true });
 }

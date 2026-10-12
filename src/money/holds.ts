@@ -56,9 +56,13 @@ const orderRequest = z.strictObject({
     .strictObject({
       brandName: z.string().min(1).max(127),
       locale: z.string().regex(/^[a-z]{2}-[A-Z]{2}$/),
-      returnUrl: z.url({ protocol: /^https$/ }),
-      cancelUrl: z.url({ protocol: /^https$/ }),
+      returnUrl: z.url({ protocol: /^https$/ }).optional(),
+      cancelUrl: z.url({ protocol: /^https$/ }).optional(),
     })
+    .refine(
+      (experience) => (experience.returnUrl === undefined) === (experience.cancelUrl === undefined),
+      "a checkout by redirect needs both the return and the cancel URL; the JS SDK's window neither",
+    )
     .optional(),
 });
 
@@ -233,7 +237,10 @@ export async function orderHold(
     }
     return current!;
   });
-  return { hold: holdView(stored, 0), approvalUrl: experience ? approvalUrl(order) : null };
+  return {
+    hold: holdView(stored, 0),
+    approvalUrl: experience?.returnUrl ? approvalUrl(order) : null,
+  };
 }
 
 /** What an order for a version is made of, read under the case's lock. */

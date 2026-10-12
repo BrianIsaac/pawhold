@@ -98,3 +98,100 @@ export function linePrice(low: string, high: string): string {
 
 /** The list of lines, as assistive technology names it: this unit's wording. */
 export const LINES_LABEL = "What the estimate covers";
+
+/**
+ * The card button's label on the estimate (section 6: "Authorise {high}").
+ *
+ * @param high - The hold, shown.
+ * @returns The label.
+ */
+export function authoriseLabel(high: string): string {
+  return `Authorise ${high}`;
+}
+
+/**
+ * The card button's label on an update (section 6: "Approve {delta}").
+ *
+ * @param delta - The increase, shown.
+ * @returns The label.
+ */
+export function approveLabel(delta: string): string {
+  return `Approve ${delta}`;
+}
+
+/**
+ * Once authorised (section 6: "Done. {high} is held on your {PayPal /
+ * card}. You'll get the final bill at discharge.").
+ *
+ * @param amount - What is held, shown.
+ * @param kind - How the owner paid.
+ * @returns The sentence.
+ */
+export function heldDone(amount: string, kind: "paypal" | "card"): string {
+  return `Done. ${amount} is held on your ${kind === "paypal" ? "PayPal" : "card"}. You'll get the final bill at discharge.`;
+}
+
+/** The hold's state once PayPal answered the authorisation (the brief's "Held"). */
+export const HELD = "Held";
+
+const CONFIRMED_TIME = new Intl.DateTimeFormat("en-GB", {
+  hour: "2-digit",
+  minute: "2-digit",
+  second: "2-digit",
+  hour12: false,
+  timeZone: "Europe/London",
+});
+
+/**
+ * The webhook's tick: PayPal's own event reconciled against the hold. The
+ * time is UK time (D1), the same on the server and in the browser.
+ *
+ * @param at - When it was confirmed.
+ * @returns The line.
+ */
+export function confirmedByPayPal(at: Date): string {
+  return `Confirmed by PayPal ${CONFIRMED_TIME.format(at)}`;
+}
+
+/** While the page waits for the webhook's tick: this unit's wording. */
+export const WAITING_FOR_PAYPAL = "Waiting for PayPal to confirm.";
+
+/** A PayPal error on the owner's page (section 6). */
+export const PAYPAL_ERROR =
+  "PayPal couldn't complete that. Nothing has been charged. Try again, or use a card.";
+
+/** Between PayPal's button and the card fields: this unit's wording. */
+export const OR_USE_A_CARD = "Or use a card";
+
+/**
+ * Under the buttons: PayPal's own window shows the buyer a ceiling above the
+ * order (U0's P1: "up to £125.00" on £100.00), which is not pawhold's. This
+ * unit's wording.
+ *
+ * @param amount - What is held, shown.
+ * @returns The sentence.
+ */
+export function paypalCeilingNote(amount: string): string {
+  return `PayPal's window may show a higher "up to" figure. pawhold holds ${amount} and charges only the final bill.`;
+}
+
+/** When the server has no PayPal app to authorise with: this unit's wording. */
+export function authorisingUnavailable(practice: string): string {
+  return `Authorising isn't available on this page right now. Nothing has been charged. Ask ${practice} how to go ahead.`;
+}
+
+/** The card fields' labels: this unit's wording. */
+export const CARD_FIELD_LABELS = {
+  name: "Name on the card",
+  number: "Card number",
+  expiry: "Expiry date (MM/YY)",
+  cvv: "Security code",
+} as const;
+
+/** The card fields' placeholders: this unit's wording. */
+export const CARD_FIELD_PLACEHOLDERS = {
+  name: "As it appears on the card",
+  number: "1234 5678 9012 3456",
+  expiry: "MM/YY",
+  cvv: "3 or 4 digits",
+} as const;

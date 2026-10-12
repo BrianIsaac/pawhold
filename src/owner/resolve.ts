@@ -10,6 +10,7 @@ export type ResolvedOwnerLink =
   | {
       readonly kind: "open";
       readonly practiceId: string;
+      readonly practiceName: string;
       readonly caseId: string;
       readonly versionId: string;
       readonly expiresAt: Date;
@@ -69,6 +70,7 @@ export async function resolveOwnerLink(
   return {
     kind: "open",
     practiceId: found.practiceId,
+    practiceName: found.practiceName,
     caseId: check.caseId,
     versionId: check.versionId,
     expiresAt: check.expiresAt,

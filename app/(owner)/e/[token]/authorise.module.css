@@ -1,0 +1,136 @@
+.authorise {
+  display: flex;
+  flex-direction: column;
+  gap: var(--owner-space-4);
+}
+
+.error {
+  margin: 0;
+  padding: var(--owner-space-3) var(--owner-space-4);
+  border-radius: var(--owner-radius);
+  background: var(--owner-error-wash);
+  color: var(--owner-error);
+  font-weight: 500;
+}
+
+.paypalButton {
+  min-height: 48px;
+}
+
+.paypalButton :global(paypal-button) {
+  display: block;
+  width: 100%;
+}
+
+.divider {
+  display: flex;
+  align-items: center;
+  gap: var(--owner-space-3);
+  margin: 0;
+  color: var(--owner-ink-soft);
+  font-size: 0.9375rem;
+}
+
+.divider::before,
+.divider::after {
+  content: "";
+  flex: 1;
+  border-top: 1px solid var(--owner-rule);
+}
+
+.cardFields {
+  display: flex;
+  flex-direction: column;
+  gap: var(--owner-space-3);
+}
+
+.cardField {
+  display: flex;
+  flex-direction: column;
+  gap: var(--owner-space-1);
+}
+
+.cardLabel {
+  font-size: 0.9375rem;
+  font-weight: 500;
+}
+
+/* PayPal's hosted field is an iframe sized by its container (PayPal's v6 sample: 3rem). */
+.cardSlot {
+  height: 3rem;
+}
+
+.cardButton {
+  min-height: 48px;
+  padding: var(--owner-space-3) var(--owner-space-4);
+  border: 0;
+  border-radius: var(--owner-radius);
+  background: var(--owner-accent);
+  color: var(--owner-accent-ink);
+  font: inherit;
+  font-size: 1.0625rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.cardButton:disabled {
+  opacity: 0.55;
+  cursor: progress;
+}
+
+.note {
+  margin: 0;
+  color: var(--owner-ink-soft);
+  font-size: 0.875rem;
+}
+
+.held {
+  display: flex;
+  flex-direction: column;
+  gap: var(--owner-space-2);
+  padding: var(--owner-space-4);
+  border: 1px solid var(--owner-held);
+  border-radius: var(--owner-radius);
+  background: var(--owner-held-wash);
+}
+
+.heldChip {
+  align-self: flex-start;
+  margin: 0;
+  padding: 2px var(--owner-space-3);
+  border-radius: 999px;
+  background: var(--owner-held);
+  color: var(--owner-accent-ink);
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.heldDone {
+  margin: 0;
+  font-weight: 500;
+}
+
+.confirmed {
+  display: flex;
+  align-items: center;
+  gap: var(--owner-space-2);
+  margin: 0;
+  color: var(--owner-held);
+  font-weight: 600;
+}
+
+.confirmed::before {
+  content: "";
+  flex: none;
+  width: 0.35em;
+  height: 0.7em;
+  margin: 0 0.2em 0.2em;
+  border-right: 3px solid currentColor;
+  border-bottom: 3px solid currentColor;
+  transform: rotate(45deg);
+}
+
+.waiting {
+  margin: 0;
+  color: var(--owner-ink-soft);
+}

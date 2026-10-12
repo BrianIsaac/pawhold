@@ -156,3 +156,11 @@
   color: var(--owner-ink-soft);
   font-size: 0.9375rem;
 }
+
+.unavailable {
+  margin: 0;
+  padding: var(--owner-space-3) var(--owner-space-4);
+  border-radius: var(--owner-radius);
+  background: var(--owner-warn-wash);
+  color: var(--owner-warn);
+}
