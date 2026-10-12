@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
 
+import "./owner-document.css";
 import styles from "./owner.module.css";
 
 export const metadata: Metadata = {
@@ -26,7 +27,7 @@ export const viewport: Viewport = {
  */
 export default function OwnerLayout({ children }: Readonly<{ children: ReactNode }>) {
   return (
-    <div className={styles.owner}>
+    <div className={styles.owner} data-owner-shell="">
       <main className={styles.column}>{children}</main>
     </div>
   );

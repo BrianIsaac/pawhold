@@ -1,11 +1,11 @@
 import type { Metadata } from "next";
 
 import { resolveOwnerLink } from "@/owner/resolve";
-import { ownerCaseHeader } from "@/owner/view";
-import { estimateHeading } from "@/owner/wording";
+import { ownerPage } from "@/owner/view";
 import { database, sessionSecret } from "@/server/runtime";
 
 import { AskThePractice } from "./ask-the-practice";
+import { Estimate } from "./estimate";
 
 export const dynamic = "force-dynamic";
 
@@ -30,9 +30,9 @@ export default async function OwnerLinkPage({ params }: PageProps<"/e/[token]">)
   if (resolved.kind === "ask_the_practice") {
     return <AskThePractice practiceName={resolved.practiceName} />;
   }
-  const header = await ownerCaseHeader(db, resolved.practiceId, resolved.caseId);
-  if (!header) {
+  const page = await ownerPage(db, resolved);
+  if (!page) {
     return <AskThePractice practiceName={null} />;
   }
-  return <h1>{estimateHeading(header.patientName, header.practiceName)}</h1>;
+  return <Estimate page={page} />;
 }
