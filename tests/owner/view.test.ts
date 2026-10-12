@@ -5,7 +5,7 @@ import { appendAuditEvent } from "@/audit/writer";
 import { capture } from "@/db/schema";
 import { loadEstimateVersion, makeEstimateVersion } from "@/estimate/version";
 import { discharge } from "@/money/discharge";
-import { authoriseHold, orderHold, sendEstimate } from "@/money/holds";
+import { authoriseHold, orderHold, sendEstimate, withdrawEstimate } from "@/money/holds";
 import { refundCaptured } from "@/money/refunds";
 import { ownerPage } from "@/owner/view";
 
@@ -158,6 +158,34 @@ describe("the owner's page for an update", () => {
     expect(page?.kind).toBe("estimate");
     expect(page?.kind === "estimate" ? page.hold?.status : null).toBe("authorised");
     expect(page?.isLatest).toBe(false);
+  });
+});
+
+describe("the owner's page for an estimate sent again", () => {
+  const { db } = connectTestDatabase();
+  const paypal = startPayPalDouble();
+
+  it("is a first estimate, not an update, after a withdrawn estimate's late authorisation was voided", async () => {
+    const fixture = await makeDentalCase(db, "Resent practice");
+    const deps = { db, paypal: paypal.client() };
+    const first = await makeEstimateVersion(db, { ...fixture, actor: "vet", lines: DENTAL_LINES });
+    await sendEstimate(db, { practiceId: fixture.practiceId, versionId: first.id, actor: "vet" });
+    const { hold: ordered } = await orderHold(deps, { ...fixture, versionId: first.id });
+    await withdrawEstimate(db, { ...fixture, actor: "vet" });
+    paypal.approve(ordered.paypalOrderId, "paypal");
+    const late = await authoriseHold(deps, { ...fixture, holdId: ordered.id });
+    const again = await makeEstimateVersion(db, {
+      ...fixture,
+      actor: "vet",
+      lines: DENTAL_UPDATE_LINES,
+    });
+    await sendEstimate(db, { practiceId: fixture.practiceId, versionId: again.id, actor: "vet" });
+
+    const page = await ownerPage(db, { ...fixture, versionId: again.id });
+
+    expect(late.status).toBe("voided");
+    expect(page?.kind).toBe("estimate");
+    expect(page?.kind === "estimate" ? page.holdPence : null).toBe(92_800);
   });
 });
 

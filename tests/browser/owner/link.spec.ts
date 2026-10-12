@@ -4,6 +4,7 @@ import { OWNER_LINK_LIFETIME_MS } from "@/owner/link";
 
 import { openBrowserDatabase, sentBrambleEstimate } from "./support/cases";
 import { expectNoSeriousViolations, expectTargetsAtLeast44 } from "./support/checks";
+import { saveShot } from "./support/shots";
 
 const database = openBrowserDatabase();
 
@@ -20,20 +21,17 @@ test.describe("the owner's link", () => {
     await page.goto(expired.path);
     await expect(page.getByRole("heading", { level: 1 })).toHaveText("This link has expired");
     await expect(
-      page.getByText(
-        "This link has expired. Ask Hollins Lane Veterinary Surgery to send it again.",
-      ),
+      page.getByText("Ask Hollins Lane Veterinary Surgery to send it again."),
     ).toBeVisible();
     await expectNoSeriousViolations(page);
     await expectTargetsAtLeast44(page);
+    await saveShot(page, "ask-the-practice");
 
     const sent = await sentBrambleEstimate(database.db);
     const at = 20;
     const tampered = `${sent.token.slice(0, at)}${sent.token[at] === "A" ? "B" : "A"}${sent.token.slice(at + 1)}`;
     await page.goto(`/e/${tampered}`);
-    await expect(
-      page.getByText("This link has expired. Ask the practice that sent it to send it again."),
-    ).toBeVisible();
+    await expect(page.getByText("Ask the practice that sent it to send it again.")).toBeVisible();
     await expect(page.getByText("Hollins Lane")).toHaveCount(0);
     await expect(page.getByText("Bramble")).toHaveCount(0);
   });

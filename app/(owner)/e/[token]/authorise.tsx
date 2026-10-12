@@ -102,25 +102,36 @@ function pause(ms: number): Promise<void> {
   return new Promise((done) => setTimeout(done, ms));
 }
 
+/** The card fields' last submit, and whether any submit went unanswered. */
+interface CardSubmit {
+  readonly state: "succeeded" | "canceled" | "failed";
+  /** A submit threw: PayPal may have taken the card with its answer lost. */
+  readonly unanswered: boolean;
+}
+
 /**
  * Submits the card fields for the order, again after a pause when the
  * submit failed or threw; a buyer's own cancel is never retried.
  *
  * @param card - The card fields' session.
  * @param orderId - The hold's order.
- * @returns The last submit's state.
+ * @returns The last submit's state, and whether any went unanswered.
  */
 async function submitCard(
   card: CardFieldsOneTimePaymentSession,
   orderId: string,
-): Promise<"succeeded" | "canceled" | "failed"> {
+): Promise<CardSubmit> {
+  let unanswered = false;
   for (let attempt = 1; ; attempt += 1) {
     const state = await card
       .submit(orderId, { billingAddress: { countryCode: "GB" } })
       .then((result) => result.state)
-      .catch(() => "failed" as const);
+      .catch(() => {
+        unanswered = true;
+        return "failed" as const;
+      });
     if (state !== "failed" || attempt === CARD_SUBMIT_ATTEMPTS) {
-      return state;
+      return { state, unanswered };
     }
     await pause(1_500 * attempt);
   }
@@ -154,9 +165,27 @@ export function Authorise(props: AuthoriseProps) {
   );
 
   /**
+   * Shows a refusal: section 6's PayPal error, the area ready to try again,
+   * and, when the estimate is no longer the one awaiting the owner (404 or
+   * 409), the page as it now stands (replaced, declined or held).
+   */
+  const refused = useCallback(
+    (failure: unknown): void => {
+      setError(PAYPAL_ERROR);
+      setPhase("ready");
+      if (
+        failure instanceof OwnerRequestError &&
+        (failure.status === 404 || failure.status === 409)
+      ) {
+        router.refresh();
+      }
+    },
+    [router],
+  );
+
+  /**
    * Asks the server to authorise the approved order, again when PayPal
-   * gave no answer; a refusal shows section 6's error, a state the page no
-   * longer matches reloads it.
+   * gave no answer.
    */
   const authorise = useCallback(
     async (orderId: string): Promise<void> => {
@@ -166,6 +195,8 @@ export function Authorise(props: AuthoriseProps) {
           if (held.status === "authorised") {
             setHold(held);
             setPhase("held");
+          } else {
+            setPhase("ready");
           }
           // The page as it now stands: an update's "Don't go ahead" goes once it is held.
           router.refresh();
@@ -177,17 +208,12 @@ export function Authorise(props: AuthoriseProps) {
             await pause(1_500 * attempt);
             continue;
           }
-          if (failure instanceof OwnerRequestError && failure.status === 409) {
-            router.refresh();
-            return;
-          }
-          setError(PAYPAL_ERROR);
-          setPhase("ready");
+          refused(failure);
           return;
         }
       }
     },
-    [router, token],
+    [refused, router, token],
   );
 
   useEffect(() => {
@@ -240,10 +266,7 @@ export function Authorise(props: AuthoriseProps) {
         setError(null);
         // The order's promise is made in the click, not awaited first, so the
         // popup keeps the click's transient activation (PayPal's v6 sample).
-        void session.start({ presentationMode: "auto" }, createOrder()).catch(() => {
-          setError(PAYPAL_ERROR);
-          setPhase("ready");
-        });
+        void session.start({ presentationMode: "auto" }, createOrder()).catch(refused);
       });
       paypalSlot.current?.append(button);
       mounted.push(button);
@@ -300,18 +323,19 @@ export function Authorise(props: AuthoriseProps) {
     setPhase("working");
     try {
       const { orderId } = await createOrder();
-      const result = await submitCard(card, orderId);
-      if (result === "succeeded") {
+      const submitted = await submitCard(card, orderId);
+      // A submit whose answer was lost may have taken the card: the server's
+      // authorise is idempotent, and PayPal says whether the order was approved.
+      if (submitted.state === "succeeded" || submitted.unanswered) {
         await authorise(orderId);
         return;
       }
-      if (result === "failed") {
+      if (submitted.state === "failed") {
         setError(PAYPAL_ERROR);
       }
       setPhase("ready");
-    } catch {
-      setError(PAYPAL_ERROR);
-      setPhase("ready");
+    } catch (failure) {
+      refused(failure);
     }
   };
 

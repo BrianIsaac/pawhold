@@ -1,4 +1,4 @@
-import { linkExpired } from "@/owner/wording";
+import { askToSendAgain, LINK_EXPIRED } from "@/owner/wording";
 
 import styles from "./page.module.css";
 
@@ -27,5 +27,5 @@ export function Notice({ heading, text }: { readonly heading: string; readonly t
  * @returns The page.
  */
 export function AskThePractice({ practiceName }: { readonly practiceName: string | null }) {
-  return <Notice heading="This link has expired" text={linkExpired(practiceName)} />;
+  return <Notice heading={LINK_EXPIRED} text={askToSendAgain(practiceName)} />;
 }

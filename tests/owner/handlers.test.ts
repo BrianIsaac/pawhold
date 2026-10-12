@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 
 import { hold, patientCase } from "@/db/schema";
 import { makeEstimateVersion } from "@/estimate/version";
-import { sendEstimate } from "@/money/holds";
+import { sendEstimate, withdrawEstimate } from "@/money/holds";
 import { OWNER_LINK_LIFETIME_MS, ownerLink } from "@/owner/link";
 import { createOwnerHandlers } from "@/owner/handlers";
 
@@ -98,7 +98,8 @@ describe("the owner's order", () => {
       request("order"),
       token,
     );
-    const changed = await handlers().order(request("order"), `${token.slice(0, -1)}A`);
+    const last = token.at(-1) === "A" ? "B" : "A";
+    const changed = await handlers().order(request("order"), `${token.slice(0, -1)}${last}`);
     const crossSite = await handlers().order(
       request("order", { origin: "https://elsewhere.example" }),
       token,
@@ -145,6 +146,51 @@ describe("the owner's authorisation", () => {
 
     expect(answer.status).toBe(409);
     expect(await answer.json()).toEqual({ reason: "order_mismatch" });
+    expect(paypal.posts(/\/authorize$/)).toHaveLength(0);
+  });
+
+  it("refuses another version's order under this link", async () => {
+    await handlers().order(request("order"), token);
+    const other = await makeDentalCase(db, "Other practice");
+    const draft = await makeEstimateVersion(db, { ...other, actor: "vet", lines: DENTAL_LINES });
+    await sendEstimate(db, { practiceId: other.practiceId, versionId: draft.id, actor: "vet" });
+    const otherToken = (
+      await ownerLink(db, { ...other, versionId: draft.id }, { secret: SECRET, now: new Date() })
+    ).token;
+    const otherOrder = (
+      (await (
+        await handlers().order(
+          new Request(`${ORIGIN}/e/${otherToken}/order`, {
+            method: "POST",
+            headers: { origin: ORIGIN },
+          }),
+          otherToken,
+        )
+      ).json()) as { orderId: string }
+    ).orderId;
+    paypal.approve(otherOrder, "paypal");
+
+    const answer = await handlers().authorise(
+      request("authorise", { body: { orderId: otherOrder } }),
+      token,
+    );
+
+    expect(answer.status).toBe(409);
+    expect(await answer.json()).toEqual({ reason: "order_mismatch" });
+    expect(paypal.posts(/\/authorize$/)).toHaveLength(0);
+  });
+
+  it("refuses to authorise a withdrawn estimate's order from a stale page, touching no money", async () => {
+    const { orderId } = (await (await handlers().order(request("order"), token)).json()) as {
+      orderId: string;
+    };
+    paypal.approve(orderId, "paypal");
+    await withdrawEstimate(db, { ...fixture, actor: "vet" });
+
+    const answer = await handlers().authorise(request("authorise", { body: { orderId } }), token);
+
+    expect(answer.status).toBe(409);
+    expect(await answer.json()).toEqual({ reason: "version_not_awaiting" });
     expect(paypal.posts(/\/authorize$/)).toHaveLength(0);
   });
 

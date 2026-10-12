@@ -60,6 +60,9 @@ interface OpenLink {
   readonly versionId: string;
 }
 
+/** A hold's statuses the owner's authorise may act on: ordered, or answered again once held. */
+const AUTHORISABLE: ReadonlySet<HoldView["status"]> = new Set(["ordered", "authorised"]);
+
 /** PayPal's limit on `brand_name`. */
 const MAX_BRAND_NAME = 127;
 
@@ -171,6 +174,11 @@ export function createOwnerHandlers(dependencies: OwnerHandlerDependencies) {
       const existing = await linkHold(dependencies.db, link);
       if (!existing || existing.paypalOrderId !== body.data.orderId) {
         return refuse(409, "order_mismatch");
+      }
+      // A page left open after its estimate was withdrawn, declined or released:
+      // PayPal is not asked, so nothing is held only to be voided again.
+      if (!AUTHORISABLE.has(existing.status)) {
+        return refuse(409, "version_not_awaiting");
       }
       return answering(async () =>
         holdAnswer(

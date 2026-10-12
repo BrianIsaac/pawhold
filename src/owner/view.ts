@@ -20,7 +20,7 @@ import {
 } from "@/estimate/version";
 import type { CurrencyCode } from "@/money/currency";
 import type { MoneyState } from "@/money/state";
-import { caseHolds, caseMoney, type HoldView, updateIncrease } from "@/money/view";
+import { caseHolds, caseMoney, heldTotal, type HoldView, updateIncrease } from "@/money/view";
 
 /** Who a case is for and who sent it, as the owner's pages name them. */
 export interface OwnerCaseHeader {
@@ -111,7 +111,7 @@ export type OwnerPage = OwnerEstimatePage | OwnerUpdatePage | OwnerReceiptPage;
 /** The money states after discharge, when every link of the case opens the receipt. */
 const DISCHARGED: ReadonlySet<MoneyState> = new Set(["captured", "released", "refunded"]);
 
-/** A hold's statuses once it held the owner's money. */
+/** A hold's statuses once it held the owner's money: the receipt's approvals. */
 const HELD_ONCE: ReadonlySet<HoldView["status"]> = new Set([
   "authorised",
   "captured",
@@ -185,10 +185,21 @@ export async function ownerPage(
   if (DISCHARGED.has(found.state)) {
     return { kind: "receipt", ...base, ...(await receipt(executor, request)) };
   }
-  const earlier = holds.filter(
-    (one) => one.versionNumber < version.number && HELD_ONCE.has(one.status),
-  );
-  if (earlier.length === 0) {
+  // An update is a version sent while the case held money: U3 records what was
+  // held before it on its hold, and its order will hold the version's top less
+  // what is held now. A hold voided because its estimate was withdrawn held
+  // nothing for the owner, so the estimate sent again is a first estimate.
+  const heldBefore = base.hold
+    ? base.hold.heldBeforePence
+    : await heldTotal(executor, version.caseId);
+  const previousHold = holds
+    .filter(
+      (one) =>
+        one.versionNumber < version.number &&
+        (one.status === "authorised" || one.status === "captured"),
+    )
+    .at(-1);
+  if (heldBefore === 0 || !previousHold) {
     return {
       kind: "estimate",
       ...base,
@@ -198,7 +209,7 @@ export async function ownerPage(
     };
   }
 
-  const previous = await loadEstimateVersion(executor, request.practiceId, earlier.at(-1)!.id);
+  const previous = await loadEstimateVersion(executor, request.practiceId, previousHold.id);
   const changed = new Set(
     estimateDelta(previous!, version)
       .items.filter((item) => item.change !== "removed")

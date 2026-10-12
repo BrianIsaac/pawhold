@@ -9,7 +9,8 @@ import {
   estimateIntro,
   heldDone,
   linePrice,
-  linkExpired,
+  askToSendAgain,
+  LINK_EXPIRED,
   PAYPAL_ERROR,
   rangeLine,
   YOUR_VET,
@@ -29,15 +30,13 @@ import { updateHeading } from "@/agent/wording";
 
 describe("the owner's pages, in section 6's words", () => {
   it("asks the practice to send an expired or changed link again", () => {
-    expect(linkExpired("Hollins Lane Veterinary Surgery")).toBe(
+    expect(`${LINK_EXPIRED}. ${askToSendAgain("Hollins Lane Veterinary Surgery")}`).toBe(
       "This link has expired. Ask Hollins Lane Veterinary Surgery to send it again.",
     );
   });
 
   it("asks the practice by no name when the link names none it can trust", () => {
-    expect(linkExpired(null)).toBe(
-      "This link has expired. Ask the practice that sent it to send it again.",
-    );
+    expect(askToSendAgain(null)).toBe("Ask the practice that sent it to send it again.");
   });
 
   it("heads the estimate with the patient and the practice", () => {

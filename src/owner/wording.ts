@@ -25,15 +25,22 @@ export function capitalised(text: string): string {
 }
 
 /**
- * An expired or changed link (section 6: "This link has expired. Ask
- * {practice} to send it again."). A changed link names no practice anyone
- * can trust, so it asks the practice by no name: this unit's wording.
+ * An expired or changed link's heading: the first sentence of section 6's
+ * "This link has expired. Ask {practice} to send it again.", the second
+ * under it ({@link askToSendAgain}), so the page does not say it twice.
+ */
+export const LINK_EXPIRED = "This link has expired";
+
+/**
+ * Under an expired or changed link's heading (section 6). A changed link
+ * names no practice anyone can trust, so it asks the practice by no name:
+ * this unit's wording.
  *
  * @param practiceName - The practice, when the link's signature holds.
  * @returns The sentence.
  */
-export function linkExpired(practiceName: string | null): string {
-  return `This link has expired. Ask ${practiceName ?? "the practice that sent it"} to send it again.`;
+export function askToSendAgain(practiceName: string | null): string {
+  return `Ask ${practiceName ?? "the practice that sent it"} to send it again.`;
 }
 
 /**

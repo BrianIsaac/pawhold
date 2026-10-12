@@ -63,7 +63,7 @@ export function HeldStatus({
         await pause(POLL_EVERY_MS);
         const response = await fetch(`/e/${token}/status`, { cache: "no-store" }).catch(() => null);
         const answer = response?.ok
-          ? ((await response.json()) as { hold: HoldState | null })
+          ? ((await response.json().catch(() => null)) as { hold: HoldState | null } | null)
           : null;
         if (!ended && answer?.hold?.confirmedAt) {
           setConfirmedAt(answer.hold.confirmedAt);
