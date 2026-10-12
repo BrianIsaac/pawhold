@@ -2,6 +2,8 @@ import { join } from "node:path";
 
 import type { Browser, BrowserContextOptions } from "@playwright/test";
 
+import { sandboxPanelLogin } from "../live/support/panel";
+
 import { expect, test, WIDTHS, type Width } from "./fixtures";
 
 /*
@@ -102,6 +104,27 @@ test.describe("judge mode's doors", () => {
         await expect(sandbox).toContainText("12/30");
       },
     );
+  });
+
+  test("the live smoke reads the owner's sandbox panel as the README's buyer when the server has the login", async ({
+    page,
+  }) => {
+    const email = process.env.PAYPAL_SANDBOX_BUYER_EMAIL;
+    const password = process.env.PAYPAL_SANDBOX_BUYER_PASSWORD;
+    test.skip(!email || !password, "the run gives the server no buyer login");
+    await page.goto("/");
+    await page.getByRole("link", { name: "Try it as the owner" }).click();
+    await expect(page.getByText("Testing in PayPal's sandbox")).toBeVisible();
+
+    expect(await sandboxPanelLogin(page, { email: email!, password: password! })).toBe(
+      "the buyer's login",
+    );
+    await expect(
+      sandboxPanelLogin(page, {
+        email: "sb-someone4else@personal.example.com",
+        password: password!,
+      }),
+    ).rejects.toThrow("the sandbox panel shows the README's buyer");
   });
 
   test("two sessions never see each other's cases", async ({ playwright, baseURL }) => {

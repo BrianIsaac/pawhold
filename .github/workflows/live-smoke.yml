@@ -1,0 +1,97 @@
+# The live smoke (U10), against the deployment judges use. The uptime check
+# (plan 7.4, D8) runs every thirty minutes with plain requests and no
+# browser; the README's walk (the owner door's hold through PayPal's sandbox,
+# the discharge, a live draft) runs after each deploy of main, once a day and
+# on dispatch. A failed run is GitHub's own workflow-failure email to the
+# operator. tests/hosting/workflows.test.ts holds this file to that shape.
+
+name: live smoke
+
+on:
+  workflow_dispatch:
+    inputs:
+      base_url:
+        description: The address to check; another host proves the check goes red
+        type: string
+        required: true
+        default: https://pawhold.onrender.com
+      walk:
+        description: Walk the README with PayPal's sandbox after the uptime check
+        type: boolean
+        required: true
+        default: true
+  push:
+    branches:
+      - main
+  schedule:
+    # The uptime check, every thirty minutes, off the hour.
+    - cron: "7,37 * * * *"
+    # The walk, once a day (13:23 Singapore).
+    - cron: "23 5 * * *"
+
+permissions:
+  contents: read
+
+env:
+  PAWHOLD_LIVE_URL: ${{ inputs.base_url || 'https://pawhold.onrender.com' }}
+
+jobs:
+  deployed:
+    if: github.event_name == 'push'
+    # A newer push's wait replaces an older one's, since Render deploys the
+    # newest commit. Only the wait: a check or a walk is never cancelled, as
+    # a walk cut off between PayPal's approval and the discharge would leave
+    # a hold standing.
+    concurrency:
+      group: live-smoke-deploy
+      cancel-in-progress: true
+    runs-on: ubuntu-24.04
+    timeout-minutes: 13
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Wait for the deployment to report the pushed commit (up to ten minutes)
+        run: pnpm live:await-deploy
+        env:
+          PAWHOLD_LIVE_COMMIT: ${{ github.sha }}
+
+  uptime:
+    needs: deployed
+    if: ${{ !failure() && !cancelled() && needs.deployed.result != 'cancelled' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: The health check and the landing page answer
+        run: pnpm test:live --project uptime
+
+  walk:
+    needs: uptime
+    if: ${{ !failure() && !cancelled() && needs.uptime.result == 'success' && (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.walk) || github.event.schedule == '23 5 * * *') }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec playwright install --with-deps chromium
+      - name: Walk the README on the deployment with PayPal's sandbox
+        run: pnpm test:live --project walk --no-deps
+        env:
+          PAWHOLD_SMOKE_BUYER_EMAIL: ${{ secrets.PAWHOLD_SMOKE_BUYER_EMAIL }}
+          PAWHOLD_SMOKE_BUYER_PASSWORD: ${{ secrets.PAWHOLD_SMOKE_BUYER_PASSWORD }}

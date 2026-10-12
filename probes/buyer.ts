@@ -256,7 +256,7 @@ async function approveIn(
     await page.waitForURL((u) => u.href.startsWith(RETURN_URL));
     return approval(started, reviewed);
   } catch (error) {
-    throw new Error(`buyer approval failed at ${await describe(page, secrets)}`, { cause: error });
+    throw approvalFailure(await describe(page, secrets), error, secrets);
   }
 }
 
@@ -289,8 +289,26 @@ export async function approveInWindow(
     return approval(started, reviewed);
   } catch (error) {
     const where = window.isClosed() ? "a closed window" : await describe(window, secrets);
-    throw new Error(`buyer approval failed at ${where}`, { cause: error });
+    throw approvalFailure(where, error, secrets);
   }
+}
+
+/**
+ * The error a failed approval throws: where it stopped, and the cause with
+ * the login scrubbed. Playwright's own error quotes what a step typed (its
+ * call log shows `fill("...")`), so the raw error is never kept as the
+ * cause: only its message, scrubbed, in a fresh error.
+ *
+ * @param where - Where the approval stopped, already scrubbed.
+ * @param error - What was thrown.
+ * @param secrets - The values to remove.
+ * @returns The error to throw.
+ */
+export function approvalFailure(where: string, error: unknown, secrets: readonly string[]): Error {
+  const message = error instanceof Error ? error.message : String(error);
+  return new Error(`buyer approval failed at ${where}`, {
+    cause: new Error(scrub(message, secrets)),
+  });
 }
 
 /** What the review page showed before the buyer approved. */

@@ -2,7 +2,8 @@
 # and the hourly cron job, all paid plans so nothing sleeps before
 # 16 December. Field names as the Blueprint YAML Reference reads on
 # 12 October 2026 (https://render.com/docs/blueprint-spec). The operator's
-# one-time steps are in docs/runbooks/render.md.
+# one-time steps are in docs/runbooks/render.md; tests/hosting/blueprint.test.ts
+# holds this file to the plan.
 
 services:
   - type: web
@@ -38,14 +39,23 @@ services:
         sync: false
       - key: PAYPAL_ACCEPT_MOCK_WEBHOOKS
         value: "false"
+      # The GB sandbox buyer's login, which the README publishes and the
+      # owner's page shows in judge mode (U9); without it the page sends a
+      # judge to the README for it.
+      - key: PAYPAL_SANDBOX_BUYER_EMAIL
+        sync: false
+      - key: PAYPAL_SANDBOX_BUYER_PASSWORD
+        sync: false
       - key: OPENAI_API_KEY
         sync: false
       - key: AGENT_DRAFTS_PER_HOUR
         value: "40"
 
-  # The reauthorisation rule and the sweep of unreconciled webhooks (U3) run
-  # here, and the judge-session clean-up (U9) will. Without PayPal's
-  # credentials the rule is skipped (logged), so the cron carries them too.
+  # The reauthorisation rule, the resumption of stalled discharges and the
+  # sweep of unreconciled webhooks (U3), the schedule agent's sweep (U8a) and
+  # the judge-session clean-up (U9) run here. Without PayPal's credentials the
+  # rule is skipped and the clean-up prunes only sessions holding nothing at
+  # PayPal (both logged), so the cron carries them too.
   - type: cron
     name: pawhold-hourly
     runtime: node
