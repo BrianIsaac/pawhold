@@ -1,0 +1,11 @@
+{
+  "name": "RESOURCE_CONFLICT",
+  "debug_id": "b1d1f06c7246c",
+  "message": "The server has detected a conflict while processing this request.",
+  "details": [
+    {
+      "issue": "PREVIOUS_REQUEST_IN_PROGRESS",
+      "description": "A previous request on this resource is currently in progress. Please wait for some time and try again. It is best to space out the initial and the subsequent request(s) to avoid receiving this error."
+    }
+  ]
+}
