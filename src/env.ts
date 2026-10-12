@@ -15,6 +15,13 @@ export const paypalEnvironment = z.object({
   PAYPAL_ENV: z.literal("sandbox"),
   PAYPAL_CLIENT_ID: z.string().min(1),
   PAYPAL_CLIENT_SECRET: z.string().min(1),
+  /**
+   * The browser suite's PayPal double (`tests/browser/run.ts`), which the
+   * server then asks instead of PayPal's sandbox. Only plain HTTP on the
+   * loopback address is taken, so no setting can send a money call anywhere
+   * but PayPal or a double on the same machine.
+   */
+  PAYPAL_DOUBLE_URL: z.url({ protocol: /^http$/, hostname: /^127\.0\.0\.1$/ }).optional(),
 });
 
 export const webhookEnvironment = z.object({

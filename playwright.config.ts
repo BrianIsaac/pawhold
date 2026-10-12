@@ -16,6 +16,20 @@ if (!Number.isInteger(port) || port <= 0) {
 }
 const baseURL = `http://127.0.0.1:${port}`;
 
+/*
+ * Without sandbox credentials, the server alone is pointed at the run's
+ * PayPal double (tests/browser/run.ts); the walks' own processes keep no
+ * PayPal values, so the owner's sandbox walks still skip.
+ */
+const doubleUrl = process.env.PAWHOLD_BROWSER_PAYPAL_DOUBLE_URL;
+const serverPayPal: Record<string, string> = doubleUrl
+  ? {
+      PAYPAL_CLIENT_ID: "pawhold-browser-double",
+      PAYPAL_CLIENT_SECRET: "pawhold-browser-double",
+      PAYPAL_DOUBLE_URL: doubleUrl,
+    }
+  : {};
+
 export default defineConfig({
   testDir: "tests/browser",
   testMatch: "**/*.spec.ts",
@@ -66,6 +80,7 @@ export default defineConfig({
     command: `pnpm exec next build && pnpm exec next start --hostname 127.0.0.1 --port ${port}`,
     url: `${baseURL}/api/health`,
     reuseExistingServer: false,
+    env: serverPayPal,
     timeout: 300_000,
     // The server logs each request's path, which holds an owner's link token.
     stdout: "ignore",

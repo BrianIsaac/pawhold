@@ -2,8 +2,6 @@ import { randomBytes } from "node:crypto";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import type { AddressInfo } from "node:net";
 
-import { afterAll, afterEach, beforeAll } from "vitest";
-
 import { fromPayPalValue, toPayPalValue } from "@/money/paypal-value";
 import { createPayPalClient, type PayPalClient } from "@/paypal/client";
 
@@ -30,6 +28,11 @@ import { recordedAnswer } from "./recorded";
  *   P5 (a) recorded it;
  * - a POST with a `PayPal-Request-Id` already answered with a success is
  *   answered the same again and acts once.
+ *
+ * It runs inside a test file (`startPayPalDouble`) or, for the browser suite,
+ * beside the built server (`tests/browser/run.ts`), where a walk in another
+ * process plays the owner's approval through its control route,
+ * `POST /__double/orders/{id}/approve` with `{"kind": "paypal" | "card"}`.
  */
 
 const TOKEN = paypalFixture("api/oauth-token.json");
@@ -88,7 +91,7 @@ export interface InjectedAnswer {
   readonly acts?: boolean;
 }
 
-/** The double, for the calling test file. */
+/** The double's state and controls. */
 export interface PayPalDouble {
   readonly client: () => PayPalClient;
   readonly requests: DoubleRequest[];
@@ -104,6 +107,19 @@ export interface PayPalDouble {
   /** The POSTs received, by path pattern. */
   posts(path: RegExp): DoubleRequest[];
 }
+
+/** The double as a server of its own: started, reset and stopped by its owner. */
+export interface PayPalDoubleServer extends PayPalDouble {
+  /** Starts listening on a free loopback port; answers the base URL. */
+  listen(): Promise<string>;
+  /** Forgets every order, authorisation, capture, request and injected answer. */
+  reset(): void;
+  /** Stops listening. */
+  close(): Promise<void>;
+}
+
+/** The control route by which a walk in another process approves an order. */
+const APPROVE_ROUTE = /^\/__double\/orders\/([^/]+)\/approve$/;
 
 /**
  * An id of PayPal's shape: seventeen upper-case letters and digits.
@@ -125,20 +141,35 @@ function template<T>(value: T): T {
   return structuredClone(value);
 }
 
+/** The fixed instant a test file's double starts each test at. */
+const TEST_CLOCK = "2026-10-13T09:00:00Z";
+
 /**
- * Starts the double for the calling test file; its state and requests reset
- * after each test.
+ * Makes the double, not yet listening.
  *
+ * @param options - How its clock runs.
+ * @param options.liveClock - Whether PayPal's clock is the machine's (for the
+ *   browser suite, whose screens show the times PayPal answers), rather than
+ *   a fixed instant a test moves by hand.
  * @returns The double.
  */
-export function startPayPalDouble(): PayPalDouble {
+export function createPayPalDouble(options: { liveClock?: boolean } = {}): PayPalDoubleServer {
   const requests: DoubleRequest[] = [];
   const orders = new Map<string, DoubleOrder>();
   const authorizations = new Map<string, DoubleAuthorization>();
   const captures = new Map<string, DoubleCapture>();
   const answered = new Map<string, { status: number; body: unknown }>();
   const injected: InjectedAnswer[] = [];
-  const clock = { now: new Date("2026-10-13T09:00:00Z") };
+  const clock: { now: Date } = options.liveClock
+    ? {
+        get now() {
+          return new Date();
+        },
+        set now(_ignored: Date) {
+          // A live clock follows the machine's.
+        },
+      }
+    : { now: new Date(TEST_CLOCK) };
   let address: AddressInfo | undefined;
 
   const amount = (pence: number, currency: string) => ({
@@ -260,6 +291,15 @@ export function startPayPalDouble(): PayPalDouble {
   const act = (request: DoubleRequest): { status: number; body: unknown } => {
     const { method, path } = request;
     const body = (request.body ?? {}) as Record<string, unknown>;
+    const control = APPROVE_ROUTE.exec(path);
+    if (method === "POST" && control) {
+      const made = orders.get(control[1]!);
+      if (!made) {
+        return { status: 404, body: { name: "RESOURCE_NOT_FOUND", debug_id: "double404" } };
+      }
+      made.approvedWith = body.kind === "card" ? "card" : "paypal";
+      return { status: 204, body: null };
+    }
     if (method === "POST" && path === "/v1/oauth2/token") {
       return { status: 200, body: TOKEN };
     }
@@ -494,26 +534,29 @@ export function startPayPalDouble(): PayPalDouble {
     });
   });
 
-  beforeAll(async () => {
-    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
-    address = server.address() as AddressInfo;
-  });
-  afterEach(() => {
+  const reset = () => {
     requests.length = 0;
     orders.clear();
     authorizations.clear();
     captures.clear();
     answered.clear();
     injected.length = 0;
-    clock.now = new Date("2026-10-13T09:00:00Z");
-  });
-  afterAll(async () => {
-    await new Promise<void>((resolve, reject) =>
-      server.close((error) => (error ? reject(error) : resolve())),
-    );
-  });
+    clock.now = new Date(TEST_CLOCK);
+  };
 
   return {
+    listen: async () => {
+      await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+      address = server.address() as AddressInfo;
+      return `http://127.0.0.1:${address.port}`;
+    },
+    reset,
+    close: () =>
+      new Promise<void>((resolve, reject) => {
+        server.close((error) => (error ? reject(error) : resolve()));
+        // A client's kept-alive connection would hold the close open.
+        server.closeAllConnections();
+      }),
     client: () => {
       if (!address) {
         throw new Error("the PayPal double is not listening yet");

@@ -1,5 +1,7 @@
 import { join } from "node:path";
 
+import { openBrowserDatabase } from "./owner/support/cases";
+import { deliverDischargeWebhooks, DOUBLE_URL, twoHoldCase } from "./support/discharge";
 import { WALK_FINDING, WALK_PHOTO_PATH } from "../support/update-walk-words";
 import {
   expect,
@@ -68,6 +70,47 @@ for (const width of Object.keys(WIDTHS) as Width[]) {
         path: join(directory!, `discharge-refused-${px}.png`),
         fullPage: true,
       });
+    });
+    test("a two-hold case's bill, confirmed, landing and confirmed by PayPal", async ({ page }) => {
+      test.skip(!DOUBLE_URL, "the run talks to PayPal's sandbox: the double's walk is skipped");
+      const px = WIDTHS[width].width;
+      const practiceId = await signInAsPractice(page);
+      const database = openBrowserDatabase();
+      try {
+        const kase = await twoHoldCase(database.db, practiceId);
+        await page.goto(`/cases/${kase.caseId}/discharge`);
+        await page
+          .getByRole("region", { name: "Approved with the update" })
+          .getByRole("textbox", { name: "Done: Tooth extraction, surgical" })
+          .fill("3");
+        await expect(page.locator("#bill-verdict").getByText(/will be captured/)).toBeVisible();
+        await page.screenshot({
+          path: join(directory!, `discharge-bill-${px}.png`),
+          fullPage: true,
+        });
+        await page.getByRole("button", { name: "Confirm and charge £1,057.00" }).click();
+        await expect(page.getByRole("dialog", { name: "Confirm the bill?" })).toBeVisible();
+        await page.screenshot({ path: join(directory!, `discharge-confirm-${px}.png`) });
+        await page
+          .getByRole("dialog", { name: "Confirm the bill?" })
+          .getByRole("button", { name: "Confirm and charge £1,057.00" })
+          .click();
+        await expect(page.getByRole("region", { name: "Discharged" })).toBeVisible({
+          timeout: 20_000,
+        });
+        await page.screenshot({
+          path: join(directory!, `discharge-landed-${px}.png`),
+          fullPage: true,
+        });
+        await deliverDischargeWebhooks(database.db, kase.caseId);
+        await expect(page.getByText(/^Confirmed by PayPal/)).toHaveCount(3, { timeout: 10_000 });
+        await page.screenshot({
+          path: join(directory!, `discharge-confirmed-${px}.png`),
+          fullPage: true,
+        });
+      } finally {
+        await database.close();
+      }
     });
     test("a case drafted from its notes, then sent", async ({ page }) => {
       const px = WIDTHS[width].width;

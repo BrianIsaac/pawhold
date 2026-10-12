@@ -191,3 +191,48 @@ export function confirmLabel(
     ? `Confirm and charge ${money(capturedPence, currency)}`
     : `Confirm and release ${money(releasedPence, currency)}`;
 }
+
+/** Why a confirm is refused when the bill changed since the page showed it. */
+export const BILL_CHANGED =
+  "The bill changed since it was shown. Check it again before confirming.";
+
+/** Why a confirm is refused when the bill was signed off already. */
+export const SIGNED_ALREADY =
+  "The bill was signed off already. The page shows the discharge as it is now.";
+
+/**
+ * A hold's name at the head of its progress: "The first hold", "The update's hold".
+ *
+ * @param index - The hold's place, from 0, in the order the holds were made.
+ * @param count - How many holds the bill was signed off against.
+ * @returns The name.
+ */
+export function holdTitle(index: number, count: number): string {
+  const name = holdName(index, count);
+  return name.charAt(0).toUpperCase() + name.slice(1);
+}
+
+/** Why nothing can be charged on a server without PayPal's credentials. */
+export const PAYPAL_NOT_SET_UP =
+  "PayPal isn't set up on this server, so nothing can be charged. Nothing has been charged.";
+
+/**
+ * A discharge step's refusal in the vet's words.
+ *
+ * @param reason - U3's reason.
+ * @param issues - PayPal's issue names, when PayPal refused.
+ * @returns The sentence.
+ */
+export function dischargeRefusal(reason: string, issues: readonly string[]): string {
+  switch (reason) {
+    case "paypal_unavailable":
+      return "PayPal didn't answer. Nothing is captured twice: resume in a moment to finish.";
+    case "paypal_refused":
+      return `PayPal refused a step${issues.length > 0 ? ` (${issues.join(", ")})` : ""}. What landed stands; the rest is shown as it is now.`;
+    case "bill_refused":
+    case "bill_above_holds":
+      return "The bill was refused. The page shows it as it is now.";
+    default:
+      return "The case moved on since the page was opened. It shows as it is now.";
+  }
+}

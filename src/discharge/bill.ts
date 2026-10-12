@@ -29,6 +29,7 @@ import {
   NOTHING_HELD,
   QUANTITY_INVALID,
   SEEDED_HOLDS,
+  SIGNED_ALREADY,
   WHOLE_NUMBER,
 } from "./wording";
 
@@ -362,10 +363,7 @@ export async function reviewBill(
   const { practiceId, caseId, quantities, extras } = parsed.data;
   const view = await loadDischargeView(executor, practiceId, caseId);
   if (view.signed) {
-    throw new PracticeError(
-      "stale",
-      "The bill was signed off already. The page shows it as it is now.",
-    );
+    throw new PracticeError("stale", SIGNED_ALREADY);
   }
   const items = view.groups.flatMap((group) => group.lines);
   const offered = new Set(items.map((item) => item.estimateLineId));

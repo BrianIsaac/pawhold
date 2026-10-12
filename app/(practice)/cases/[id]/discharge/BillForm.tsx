@@ -1,15 +1,16 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useActionState, useEffect, useRef, useState } from "react";
 
 import type { BillGroup, BillReview } from "@/discharge/bill";
 import { money } from "@/discharge/wording";
 import type { CurrencyCode } from "@/money/currency";
 
 import { Button } from "../../../../components/Button";
+import { Dialog } from "../../../../components/Dialog";
 import { type SelectGroup, SelectField, TextField } from "../../../../components/Field";
 import caseStyles from "../case.module.css";
-import type { BillInput, ReviewAnswer } from "./actions";
+import type { BillInput, DischargeAnswer, ReviewAnswer } from "./actions";
 import styles from "./discharge.module.css";
 
 /** How long typing must pause before the bill is reviewed again. */
@@ -27,7 +28,8 @@ const REVIEW_PAUSE_MS = 250;
  * @param props.groups - The approved lines, by the version that approved them.
  * @param props.unlisted - The price list's items not on the bill, as option groups.
  * @param props.initial - The review of the bill as it starts.
- * @param props.review - The review action, bound to the case.
+ * @param props.review - The review action.
+ * @param props.confirm - The confirm action.
  * @returns The bill.
  */
 export function BillForm({
@@ -37,6 +39,7 @@ export function BillForm({
   unlisted,
   initial,
   review,
+  confirm,
 }: {
   caseId: string;
   currency: CurrencyCode;
@@ -44,6 +47,11 @@ export function BillForm({
   unlisted: readonly SelectGroup[];
   initial: BillReview;
   review: (caseId: string, input: BillInput) => Promise<ReviewAnswer>;
+  confirm: (
+    caseId: string,
+    input: BillInput,
+    shown: { billedPence: number },
+  ) => Promise<DischargeAnswer>;
 }) {
   const [input, setInput] = useState<BillInput>(() => ({
     quantities: Object.fromEntries(
@@ -185,7 +193,7 @@ export function BillForm({
             <dd>{money(answer.heldPence, currency)}</dd>
           </div>
         </dl>
-        <div aria-live="polite" className={styles.verdict}>
+        <div id="bill-verdict" aria-live="polite" className={styles.verdict}>
           {message ? (
             <p role="alert" className={caseStyles.notice}>
               {message}
@@ -201,7 +209,77 @@ export function BillForm({
             </>
           )}
         </div>
+        <ConfirmControl
+          answer={answer}
+          currency={currency}
+          ready={!pending && message === null}
+          confirm={() => confirm(caseId, input, { billedPence: answer.billedPence })}
+        />
       </section>
+    </div>
+  );
+}
+
+/**
+ * "Confirm and charge {amount}" (section 6) in a dialog that repeats the
+ * allocation; disabled, and described by the reason, while the bill cannot
+ * be confirmed or is still being checked.
+ *
+ * @param props - The latest review, the currency, whether it is current, and the bound confirm.
+ * @param props.answer - The latest review.
+ * @param props.currency - The case's currency.
+ * @param props.ready - Whether the review is of the bill as it stands.
+ * @param props.confirm - The confirm, bound to the bill as it stands.
+ * @returns The control.
+ */
+function ConfirmControl({
+  answer,
+  currency,
+  ready,
+  confirm,
+}: {
+  answer: BillReview;
+  currency: CurrencyCode;
+  ready: boolean;
+  confirm: () => Promise<DischargeAnswer>;
+}) {
+  const [state, submit, pending] = useActionState(confirm, { message: null });
+  const verdict = answer.verdict;
+  if (verdict.kind === "refused" || verdict.blocked !== null || !ready) {
+    return (
+      <div className={styles.confirm}>
+        <Button disabled aria-describedby="bill-verdict">
+          {verdict.kind === "ready"
+            ? verdict.confirm
+            : `Confirm and charge ${money(answer.billedPence, currency)}`}
+        </Button>
+      </div>
+    );
+  }
+  return (
+    <div className={styles.confirm}>
+      <Dialog
+        id="confirm-bill"
+        trigger={verdict.confirm}
+        title="Confirm the bill?"
+        action={
+          <Button type="submit" form="confirm-bill-form" pending={pending}>
+            {verdict.confirm}
+          </Button>
+        }
+      >
+        <form id="confirm-bill-form" action={submit} className={caseStyles.editorForm}>
+          {state.message ? (
+            <p role="alert" className={caseStyles.notice}>
+              {state.message}
+            </p>
+          ) : null}
+          <p className={caseStyles.muted}>{verdict.sentence}</p>
+          <p className={caseStyles.muted}>
+            Confirming signs the bill off as it stands. It can&apos;t be changed after.
+          </p>
+        </form>
+      </Dialog>
     </div>
   );
 }

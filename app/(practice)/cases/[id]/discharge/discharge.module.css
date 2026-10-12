@@ -146,3 +146,64 @@
   display: grid;
   gap: var(--space-3);
 }
+
+.confirm {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.summary {
+  margin: 0;
+  font-weight: var(--font-weight-medium);
+}
+
+.holds {
+  display: grid;
+  gap: var(--space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.hold {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-4);
+  border: 1px solid var(--colour-line-soft);
+  border-radius: var(--radius-2);
+}
+
+.steps {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.step {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: var(--space-1) var(--space-4);
+  font-variant-numeric: tabular-nums;
+}
+
+.confirmed {
+  color: var(--colour-success-ink);
+  font-weight: var(--font-weight-medium);
+}
+
+.waiting {
+  color: var(--colour-ink-muted);
+}
+
+.resume {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.work {
+  display: grid;
+  gap: var(--space-2);
+}

@@ -32,6 +32,9 @@ export const dynamic = "force-dynamic";
 /** The states a case can be discharged from (U7 fills the discharge page). */
 const DISCHARGEABLE = new Set(["held", "update_declined"]);
 
+/** The states of a case whose bill is signed off: its discharge page shows the bill and what it charged. */
+const DISCHARGED = new Set(["captured", "released", "refunded"]);
+
 /**
  * A case (section 6): the notes beside the drafted estimate, review and send;
  * the update; the timeline. The "Discharge" link goes to U7's page.
@@ -82,6 +85,10 @@ export default async function CasePage(props: PageProps<"/cases/[id]">) {
           {DISCHARGEABLE.has(view.money.state) ? (
             <ButtonLink href={`/cases/${view.case.id}/discharge` as Route} variant="secondary">
               Discharge
+            </ButtonLink>
+          ) : DISCHARGED.has(view.money.state) ? (
+            <ButtonLink href={`/cases/${view.case.id}/discharge` as Route} variant="secondary">
+              Itemised bill
             </ButtonLink>
           ) : null}
         </div>
