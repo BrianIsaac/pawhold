@@ -348,3 +348,30 @@
   padding: 0;
   list-style: none;
 }
+
+/* The owner's link, opened by the practice in the demo (U11). */
+.ownerLink {
+  display: grid;
+  gap: var(--space-2);
+  justify-items: start;
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-2);
+  background: var(--colour-accent-soft);
+}
+
+.ownerLinkButton {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--target-min);
+  padding: var(--space-2) var(--space-4);
+  border: 2px solid var(--colour-accent);
+  border-radius: var(--radius-2);
+  background: var(--colour-surface);
+  color: var(--colour-accent-strong);
+  font-weight: var(--font-weight-medium);
+  text-decoration: none;
+}
+
+.ownerLinkButton:hover {
+  background: var(--colour-accent-soft);
+}

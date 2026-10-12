@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 
+import { linesAdded } from "@/estimate/added";
 import { formatMoney } from "@/money/format";
 import type { CaseView } from "@/practice/estimate";
 import { reviewedOf, type VersionPanel } from "@/practice/panels";
@@ -20,6 +21,7 @@ import styles from "./case.module.css";
 import { DraftOutcome } from "./DraftOutcome";
 import { itemOptions } from "./EstimateSection";
 import { NotesWithSpans } from "./NotesWithSpans";
+import { OwnerLinkHint } from "./OwnerLinkHint";
 import { UpdateForm } from "./UpdateForm";
 import { VersionLines } from "./VersionLines";
 
@@ -95,14 +97,18 @@ function FindingPanel({
  *
  * @param props - The case.
  * @param props.view - The case.
+ * @param props.ownerPath - The owner's link while their answer is awaited, or null.
  * @returns The section's body, or nothing before the estimate is held.
  */
-export function UpdateSection({ view }: { view: CaseView }) {
+export function UpdateSection({ view, ownerPath }: { view: CaseView; ownerPath: string | null }) {
   const { update } = view;
   const caseId = view.case.id;
   const first = view.case.ownerFirstName;
   const draftAction = draftUpdateAction.bind(null, caseId);
   const money = (pence: number) => formatMoney({ pence, currency: view.currency });
+  const draftAdded = update.draft
+    ? linesAdded(update.draft.basedOn.lines, update.draft.panel.version.lines)
+    : [];
 
   return (
     <div className={styles.stack}>
@@ -116,11 +122,7 @@ export function UpdateSection({ view }: { view: CaseView }) {
             <h3 className={styles.panelTitle}>
               Update {first} approved, version {panel.version.number}
             </h3>
-            <VersionLines
-              panel={panel}
-              currency={view.currency}
-              from={panel.version.lines.length - countAdded(view, panel)}
-            />
+            <VersionLines panel={panel} currency={view.currency} only={addedOver(view, panel)} />
           </section>
         </div>
       ))}
@@ -143,9 +145,7 @@ export function UpdateSection({ view }: { view: CaseView }) {
             <VersionLines
               panel={update.declined.panel}
               currency={view.currency}
-              from={
-                update.declined.panel.version.lines.length - countAdded(view, update.declined.panel)
-              }
+              only={addedOver(view, update.declined.panel)}
             />
           </section>
         </div>
@@ -161,13 +161,12 @@ export function UpdateSection({ view }: { view: CaseView }) {
             <VersionLines
               panel={update.awaiting.panel}
               currency={view.currency}
-              from={
-                update.awaiting.panel.version.lines.length - countAdded(view, update.awaiting.panel)
-              }
+              only={addedOver(view, update.awaiting.panel)}
             />
             <p className={styles.muted}>
               Waiting for {first} to approve {money(update.awaiting.increasePence)}.
             </p>
+            {ownerPath ? <OwnerLinkHint path={ownerPath} ownerFirstName={first} /> : null}
             <div className={styles.actions}>
               <ActionDialog
                 id="withdraw-update"
@@ -208,13 +207,13 @@ export function UpdateSection({ view }: { view: CaseView }) {
               Update, version {update.draft.panel.version.number}
             </h3>
             <DraftOutcome source={update.draft.panel.source} />
-            {update.draft.panel.version.lines.length === update.draft.basedOn.lines.length ? (
+            {draftAdded.length === 0 ? (
               <p className={styles.muted}>Nothing added yet.</p>
             ) : (
               <VersionLines
                 panel={update.draft.panel}
                 currency={view.currency}
-                from={update.draft.basedOn.lines.length}
+                only={new Set(draftAdded.map((line) => line.id))}
                 actions={(lineId) => ({
                   save: editLineAction.bind(null, {
                     caseId,
@@ -246,14 +245,12 @@ export function UpdateSection({ view }: { view: CaseView }) {
                 disabled={update.draft.increasePence <= 0}
               >
                 <ul className={styles.review} aria-label={`What the update adds for ${first}`}>
-                  {update.draft.panel.version.lines
-                    .slice(update.draft.basedOn.lines.length)
-                    .map((line) => (
-                      <li key={line.id} className={styles.reviewLine}>
-                        <span>{line.ownerWording ?? line.name}</span>
-                        <span>{money(line.highPence)}</span>
-                      </li>
-                    ))}
+                  {draftAdded.map((line) => (
+                    <li key={line.id} className={styles.reviewLine}>
+                      <span>{line.ownerWording ?? line.name}</span>
+                      <span>{money(line.highPence)}</span>
+                    </li>
+                  ))}
                 </ul>
                 <p className={styles.total}>
                   {first} is asked to approve {money(update.draft.increasePence)} more.
@@ -279,13 +276,14 @@ export function UpdateSection({ view }: { view: CaseView }) {
 }
 
 /**
- * How many lines an update added over the version the owner approved before it.
+ * The lines an update added or changed over the version the owner approved
+ * before it (U11: by line, not by count, so a line an update raised shows).
  *
  * @param view - The case.
  * @param panel - The update.
- * @returns The count.
+ * @returns The ids of its added or changed lines.
  */
-function countAdded(view: CaseView, panel: VersionPanel): number {
+function addedOver(view: CaseView, panel: VersionPanel): ReadonlySet<string> {
   const base = view.approved.filter((one) => one.version.number < panel.version.number).at(-1);
-  return panel.version.lines.length - (base?.version.lines.length ?? 0);
+  return new Set(linesAdded(base?.version.lines ?? [], panel.version.lines).map((line) => line.id));
 }
