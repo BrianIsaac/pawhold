@@ -3,6 +3,7 @@ import { and, asc, eq, inArray } from "drizzle-orm";
 import type { Executor } from "@/db/client";
 import type { holdStatus, paymentKind } from "@/db/schema";
 import { capture, hold, patientCase, refund } from "@/db/schema";
+import { loadEstimateVersion } from "@/estimate/version";
 import { type CurrencyCode, currencyCode, type Money } from "@/money/currency";
 
 import { MoneyError } from "./errors";
@@ -196,5 +197,41 @@ export async function caseMoney(
     capturedPence: holds.reduce((sum, one) => sum + one.capturedPence, 0),
     releasedPence: holds.reduce((sum, one) => sum + one.releasedPence, 0),
     refundedPence: returned.reduce((sum, one) => sum + one.amountPence, 0),
+  };
+}
+
+/** How much a version adds over what the case holds: the "{delta}" the owner is asked to approve. */
+export interface UpdateIncrease {
+  readonly heldPence: number;
+  readonly versionHighPence: number;
+  readonly increasePence: number;
+}
+
+/**
+ * The increase a version asks for over what the case's holds hold (U2's
+ * rides-to-U3: "the increase over the held total, which U3 computes from its
+ * holds"). The Order's trigger is U2's `checkEstimateTrigger`, measured from
+ * the original estimate; this is what a new hold would be.
+ *
+ * @param executor - The pool or an open transaction.
+ * @param practiceId - The practice.
+ * @param versionId - The version.
+ * @returns What is held, the version's top, and the difference (negative for a decrease).
+ * @throws MoneyError when the practice has no such version.
+ */
+export async function updateIncrease(
+  executor: Executor,
+  practiceId: string,
+  versionId: string,
+): Promise<UpdateIncrease> {
+  const version = await loadEstimateVersion(executor, practiceId, versionId);
+  if (!version) {
+    throw new MoneyError("version_not_found", `the practice has no estimate version ${versionId}`);
+  }
+  const heldPence = await heldTotal(executor, version.caseId);
+  return {
+    heldPence,
+    versionHighPence: version.totals.highPence,
+    increasePence: version.totals.highPence - heldPence,
   };
 }

@@ -486,6 +486,25 @@ export async function withdrawEstimate(
 }
 
 /**
+ * The owner declines the update awaiting them (plan 3.2: held --owner
+ * declines the update--> held, update declined): the case stays held at what
+ * its holds cover, scope frozen there, and the update's order, if one was
+ * made, is recorded as declined and never authorised after.
+ *
+ * @param executor - The pool or an open transaction.
+ * @param request - The practice, the case and who declines (the owner).
+ * @returns The case's new state.
+ * @throws MoneyError when no update awaits the owner.
+ */
+export async function declineUpdate(
+  executor: Executor,
+  request: z.input<typeof caseRequest>,
+): Promise<MoneyState> {
+  const { practiceId, caseId, actor: by } = parse(caseRequest, request);
+  return closeAwaiting(executor, { practiceId, caseId, actor: by }, "decline_update");
+}
+
+/**
  * Closes the estimate awaiting the owner, by withdrawal or the owner's
  * decline, with one audit event.
  *
@@ -498,7 +517,7 @@ export async function withdrawEstimate(
  * @returns The case's new state.
  * @throws MoneyError when no estimate awaits an answer.
  */
-export async function closeAwaiting(
+async function closeAwaiting(
   executor: Executor,
   request: { practiceId: string; caseId: string; actor: z.output<typeof actor> },
   event: "withdraw" | "decline_update",
