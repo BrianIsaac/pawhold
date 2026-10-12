@@ -117,6 +117,19 @@ describe("the next thing to do", () => {
     ["released", true, "Nothing to do"],
     ["refunded", true, "Nothing to do"],
   ] as const)("%s (a draft: %s) is %s", (state, hasDraft, next) => {
-    expect(nextStep(state, { ownerFirstName: owner, hasDraftLines: hasDraft })).toBe(next);
+    expect(
+      nextStep(state, { ownerFirstName: owner, hasDraftLines: hasDraft, honourPeriodOver: false }),
+    ).toBe(next);
+  });
+});
+
+describe("the next step for a card hold past its honour period (U11)", () => {
+  it("asks the owner for a new hold, as U9 found", () => {
+    expect(
+      nextStep("held", { ownerFirstName: "Carys", hasDraftLines: false, honourPeriodOver: true }),
+    ).toBe("Ask Carys for a new hold");
+    expect(
+      nextStep("held", { ownerFirstName: "Carys", hasDraftLines: false, honourPeriodOver: false }),
+    ).toBe("Add an update, or discharge");
   });
 });

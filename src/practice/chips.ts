@@ -67,6 +67,8 @@ export interface NextStepContext {
   readonly ownerFirstName: string;
   /** Whether the case has a draft with lines in it. */
   readonly hasDraftLines: boolean;
+  /** Whether a card hold it stands on is past its honour period (U9's finding, U11). */
+  readonly honourPeriodOver: boolean;
 }
 
 /**
@@ -85,7 +87,11 @@ export function nextStep(state: MoneyState, context: NextStepContext): string {
     case "awaiting_owner":
       return `Wait for ${context.ownerFirstName} to authorise the hold`;
     case "held":
-      return "Add an update, or discharge";
+      // A card hold past its honour period may no longer be captured: the
+      // owner is asked to authorise it again (U11, flagged).
+      return context.honourPeriodOver
+        ? `Ask ${context.ownerFirstName} for a new hold`
+        : "Add an update, or discharge";
     case "update_awaiting_owner":
       return `Wait for ${context.ownerFirstName} to answer the update`;
     case "update_declined":

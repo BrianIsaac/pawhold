@@ -145,7 +145,13 @@ export async function todaysCases(executor: Executor, practiceId: string): Promi
         ...row,
         money,
         chips: moneyChips(money),
-        next: nextStep(money.state, { ownerFirstName: firstName(row.ownerName), hasDraftLines }),
+        next: nextStep(money.state, {
+          ownerFirstName: firstName(row.ownerName),
+          hasDraftLines,
+          honourPeriodOver: money.holds.some(
+            (one) => one.status === "authorised" && one.honourPeriodFlaggedAt !== null,
+          ),
+        }),
       };
     }),
   );
