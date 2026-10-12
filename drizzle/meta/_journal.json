@@ -64,6 +64,20 @@
       "when": 1791808927720,
       "tag": "0008_capture_taken",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1791812182443,
+      "tag": "0009_practice_screens",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1791812188797,
+      "tag": "0010_source_frozen",
+      "breakpoints": true
     }
   ]
 }

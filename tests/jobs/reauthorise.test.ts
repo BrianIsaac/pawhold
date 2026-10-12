@@ -1,4 +1,4 @@
-import { asc, eq } from "drizzle-orm";
+import { and, asc, eq } from "drizzle-orm";
 import { beforeEach, describe, expect, it } from "vitest";
 
 import { auditEvent, hold, patientCase } from "@/db/schema";
@@ -101,7 +101,7 @@ describe("the reauthorisation job (plan 3.2, U0's P5 (a): once per wallet hold, 
     const [event] = await db
       .select()
       .from(auditEvent)
-      .where(eq(auditEvent.action, "hold.reauthorised"))
+      .where(and(eq(auditEvent.caseId, fixture.caseId), eq(auditEvent.action, "hold.reauthorised")))
       .orderBy(asc(auditEvent.id));
     expect(event).toMatchObject({
       caseId: fixture.caseId,

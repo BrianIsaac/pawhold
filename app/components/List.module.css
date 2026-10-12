@@ -29,7 +29,7 @@
 .cell {
   display: grid;
   grid-template-columns: 6.5rem minmax(0, 1fr);
-  align-items: center;
+  align-items: baseline;
   gap: var(--space-3);
   min-width: 0;
 }

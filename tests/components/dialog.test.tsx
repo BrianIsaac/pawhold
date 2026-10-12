@@ -29,4 +29,14 @@ describe("Dialog", () => {
 
     expect(html).toContain(">Cancel</button>");
   });
+
+  it("puts its action beside Cancel", () => {
+    const html = renderToStaticMarkup(
+      <Dialog id="y" trigger="Open" title="Title" action={<button type="submit">Send</button>}>
+        {null}
+      </Dialog>,
+    );
+
+    expect(html).toMatch(/<button type="submit">Send<\/button><button[^>]*>Cancel<\/button>/);
+  });
 });

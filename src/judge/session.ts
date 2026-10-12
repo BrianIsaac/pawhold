@@ -112,7 +112,30 @@ export async function findJudgeSession(
   secret: string,
   now: Date,
 ): Promise<JudgeSession | null> {
-  const value = readCookie(request.headers.get("cookie"), SESSION_COOKIE);
+  return findJudgeSessionByCookie(
+    db,
+    readCookie(request.headers.get("cookie"), SESSION_COOKIE),
+    secret,
+    now,
+  );
+}
+
+/**
+ * Finds the live judge session a session cookie's value names: for a server
+ * component, which reads the cookie rather than a request.
+ *
+ * @param db - The database.
+ * @param value - The cookie's value, or null when there is none.
+ * @param secret - The session secret.
+ * @param now - The current time.
+ * @returns The session, or null when the value is not one this server signed, or its session has expired.
+ */
+export async function findJudgeSessionByCookie(
+  db: Database["db"],
+  value: string | null,
+  secret: string,
+  now: Date,
+): Promise<JudgeSession | null> {
   const id = value === null ? null : readSessionCookie(value, secret);
   if (id === null) {
     return null;

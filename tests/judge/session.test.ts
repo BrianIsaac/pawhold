@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import { auditEvent, practice } from "@/db/schema";
 import {
   createJudgeSessionHandlers,
+  findJudgeSessionByCookie,
   readSessionCookie,
   SESSION_COOKIE,
   signSessionId,
@@ -146,6 +147,27 @@ describe("judge-mode sessions (plan 7.4)", () => {
     );
     expect(sameSite.status).toBe(201);
     expect(seed).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("a session read from its cookie's value (the practice's screens)", () => {
+  it("finds the live session and its practice, and nothing for a forged, missing or expired one", async () => {
+    const now = Date.parse("2026-10-12T12:00:00Z");
+    const handlers = createJudgeSessionHandlers({ db, secret: SECRET, now: () => now });
+    const started = await handlers.POST(request("POST", { body: { door: "practice" } }));
+    const value = started.headers
+      .get("set-cookie")!
+      .split(";")[0]!
+      .slice(SESSION_COOKIE.length + 1);
+    const { practiceId } = (await started.json()) as { practiceId: string };
+
+    const found = await findJudgeSessionByCookie(db, value, SECRET, new Date(now));
+    expect(found).toMatchObject({ practiceId, door: "practice" });
+    expect(await findJudgeSessionByCookie(db, null, SECRET, new Date(now))).toBeNull();
+    expect(await findJudgeSessionByCookie(db, `${value}x`, SECRET, new Date(now))).toBeNull();
+    expect(
+      await findJudgeSessionByCookie(db, value, SECRET, new Date(now + 8 * 24 * 60 * 60 * 1000)),
+    ).toBeNull();
   });
 });
 

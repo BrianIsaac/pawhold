@@ -16,15 +16,18 @@ export interface DialogProps {
   readonly disabled?: boolean;
   /** The dialog's heading, which names it. */
   readonly title: ReactNode;
+  /** The dialog's own action, beside "Cancel": a submit button names its form with `form`. */
+  readonly action?: ReactNode;
   readonly children: ReactNode;
 }
 
 /**
  * A modal dialog opened by its own button: the browser's `<dialog>`, which
  * keeps focus inside it, closes on Escape and returns focus to the trigger.
- * A form inside it closes it by submitting; "Cancel" closes it without.
+ * Its action (a form's submit) sits beside "Cancel", which closes it
+ * without acting.
  *
- * @param props - The id, the trigger, the title and the body.
+ * @param props - The id, the trigger, the title, the action and the body.
  * @returns The trigger and the dialog.
  */
 export function Dialog({
@@ -33,6 +36,7 @@ export function Dialog({
   triggerVariant = "primary",
   disabled,
   title,
+  action,
   children,
 }: DialogProps) {
   const dialog = useRef<HTMLDialogElement>(null);
@@ -54,6 +58,7 @@ export function Dialog({
           </h2>
           {children}
           <div className={styles.actions}>
+            {action}
             <Button variant="secondary" onClick={() => dialog.current?.close()}>
               Cancel
             </Button>
