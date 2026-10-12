@@ -5,6 +5,7 @@ import { z } from "zod";
 
 import { PracticeError } from "@/practice/errors";
 import { loadCaseView } from "@/practice/estimate";
+import { caseTimeline } from "@/practice/timeline";
 import { sentConfirmation, updateSentConfirmation } from "@/practice/wording";
 import { currentPracticeSession } from "@/server/practice-session";
 import { database } from "@/server/runtime";
@@ -15,6 +16,7 @@ import practice from "../../practice.module.css";
 import { SignedOut } from "../../SignedOut";
 import styles from "./case.module.css";
 import { EstimateSection } from "./EstimateSection";
+import { TimelineSection } from "./TimelineSection";
 import { UpdateSection } from "./UpdateSection";
 
 export const metadata: Metadata = { title: "Case" };
@@ -50,6 +52,7 @@ export default async function CasePage(props: PageProps<"/cases/[id]">) {
   if (!view) {
     notFound();
   }
+  const timeline = await caseTimeline(database().db, session.practiceId, id);
   const first = view.case.ownerFirstName;
   const confirmation =
     search.sent === "estimate" && view.money.state === "awaiting_owner"
@@ -115,6 +118,12 @@ export default async function CasePage(props: PageProps<"/cases/[id]">) {
           <UpdateSection view={view} />
         </section>
       ) : null}
+      <section id="timeline" className={styles.section} aria-labelledby="timeline-title">
+        <h2 id="timeline-title" className={styles.sectionTitle}>
+          Timeline
+        </h2>
+        <TimelineSection rows={timeline} />
+      </section>
     </>
   );
 }

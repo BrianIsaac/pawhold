@@ -342,3 +342,14 @@
   background: var(--colour-canvas);
   border: 1px solid var(--colour-line);
 }
+
+.timelineDay {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.timeline {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
