@@ -263,3 +263,34 @@
   font-weight: 600;
   cursor: pointer;
 }
+
+/* An update's finding: the vet's own words in full, and the photo if shared (section 6). */
+.finding {
+  display: grid;
+  gap: var(--owner-space-3);
+}
+
+.finding h2 {
+  margin: 0;
+  color: var(--owner-ink-soft);
+  font-size: 1rem;
+}
+
+.finding blockquote {
+  margin: 0;
+  padding: var(--owner-space-3) var(--owner-space-4);
+  border-left: 3px solid var(--owner-rule);
+  border-radius: var(--owner-radius);
+  background: var(--owner-card);
+}
+
+.photo {
+  margin: 0;
+}
+
+.photo img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  border-radius: var(--owner-radius);
+}

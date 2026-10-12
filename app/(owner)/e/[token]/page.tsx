@@ -146,6 +146,7 @@ export default async function OwnerLinkPage({ params }: PageProps<"/e/[token]">)
     <Update
       page={page}
       answered={!awaiting}
+      photoSrc={`/e/${token}/photo`}
       answer={
         held ? (
           authorise(delta, approveLabel(delta))
