@@ -11,6 +11,7 @@ import {
 } from "@/env";
 import { createHealthHandler } from "@/health/handler";
 import { createJudgeSessionHandlers } from "@/judge/session";
+import { reconcileWebhookEvent } from "@/money/reconcile";
 import { createPayPalClient, type PayPalClient } from "@/paypal/client";
 import { createWebhookHandler } from "@/paypal/webhook-handler";
 import { createCertificateCache } from "@/paypal/webhooks";
@@ -65,8 +66,9 @@ export function paypalClient(): PayPalClient | null {
 }
 
 /**
- * The webhook listener, wired to the database, the certificate cache and,
- * when credentials are set, the postback fallback.
+ * The webhook listener, wired to the database, the certificate cache, when
+ * credentials are set the postback fallback, and the money lifecycle's
+ * reconciliation of each event stored.
  *
  * @returns The request handler.
  * @throws EnvironmentError when `DATABASE_URL` or `PAYPAL_WEBHOOK_ID` is missing.
@@ -81,6 +83,9 @@ export function webhookHandler(): (request: Request) => Promise<Response> {
       certificates: createCertificateCache(),
       acceptMockEvents: webhook.PAYPAL_ACCEPT_MOCK_WEBHOOKS,
       ...(postback ? { postback } : {}),
+      onStored: async (eventId) => {
+        await reconcileWebhookEvent(database().db, eventId);
+      },
     });
   }
   return runtime.webhookHandler;
