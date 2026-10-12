@@ -107,20 +107,22 @@ export function UpdateSection({ view }: { view: CaseView }) {
   return (
     <div className={styles.stack}>
       {update.approved.map((panel) => (
-        <section
-          key={panel.version.id}
-          className={styles.panel}
-          aria-label={`Update ${first} approved, version ${panel.version.number}`}
-        >
-          <h3 className={styles.panelTitle}>
-            Update {first} approved, version {panel.version.number}
-          </h3>
-          <VersionLines
-            panel={panel}
-            currency={view.currency}
-            from={panel.version.lines.length - countAdded(view, panel)}
-          />
-        </section>
+        <div key={panel.version.id} className={styles.columns}>
+          {panel.source ? <FindingPanel view={view} panel={panel} /> : null}
+          <section
+            className={panel.source ? styles.panel : `${styles.panel} ${styles.secondColumn}`}
+            aria-label={`Update ${first} approved, version ${panel.version.number}`}
+          >
+            <h3 className={styles.panelTitle}>
+              Update {first} approved, version {panel.version.number}
+            </h3>
+            <VersionLines
+              panel={panel}
+              currency={view.currency}
+              from={panel.version.lines.length - countAdded(view, panel)}
+            />
+          </section>
+        </div>
       ))}
 
       {update.declined ? (

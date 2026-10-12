@@ -53,8 +53,7 @@ export function VersionLines({
               </span>
               <div>
                 <p className={styles.lineName}>
-                  {line.name}
-                  <span className={styles.code}>{line.code}</span>
+                  {line.name} <span className={styles.code}>{line.code}</span>
                 </p>
                 <p className={styles.lineQuantity}>{lineQuantity(line, currency)}</p>
               </div>

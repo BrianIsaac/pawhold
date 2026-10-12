@@ -9,6 +9,7 @@ import { toPayPalValue } from "@/money/paypal-value";
 import { PracticeError } from "@/practice/errors";
 import { loadCaseView } from "@/practice/estimate";
 import { caseTimeline } from "@/practice/timeline";
+import { updateShows } from "@/practice/update";
 import {
   estimateWithdrawn,
   sentConfirmation,
@@ -133,7 +134,7 @@ export default async function CasePage(props: PageProps<"/cases/[id]">) {
         </h2>
         <EstimateSection view={view} />
       </section>
-      {view.approved.length > 0 ? (
+      {view.approved.length > 0 && updateShows(view.update) ? (
         <section id="update" className={styles.section} aria-labelledby="update-title">
           <h2 id="update-title" className={styles.sectionTitle}>
             Update

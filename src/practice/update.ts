@@ -227,6 +227,24 @@ export interface UpdateDraftView {
   readonly triggerSentence: string;
 }
 
+/**
+ * Whether the update half of the case page has anything to show: an update
+ * approved, declined, with the owner or drafted, or the form to add one. A
+ * discharged case with no update has none, and shows no "Update" heading.
+ *
+ * @param update - The update half.
+ * @returns Whether it shows.
+ */
+export function updateShows(update: UpdateView): boolean {
+  return (
+    update.approved.length > 0 ||
+    update.declined !== null ||
+    update.awaiting !== null ||
+    update.draft !== null ||
+    update.canDraft
+  );
+}
+
 /** The update half of the case page. */
 export interface UpdateView {
   /** Whether an update may be drafted now: the case held, its bill not signed off. */
