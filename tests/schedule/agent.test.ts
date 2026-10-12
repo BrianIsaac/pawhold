@@ -356,6 +356,18 @@ describe("the schedule agent (plan 3.4's third job, D9 (a))", () => {
     });
   });
 
+  it("sweeps one practice's day only, as the day view's check asks", async () => {
+    const other = await startSeededDay(db);
+
+    await sweep(beforeDue(30));
+
+    const others = await db
+      .select({ id: scheduleProposal.id })
+      .from(scheduleProposal)
+      .where(eq(scheduleProposal.practiceId, other.practiceId));
+    expect(others).toEqual([]);
+  });
+
   it("acts only on the practice's own proposals", async () => {
     const proposalId = await heldAtLead();
     const other = await startSeededDay(db);
