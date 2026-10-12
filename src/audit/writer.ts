@@ -63,6 +63,16 @@ export class AuditEventInputError extends Error {
   }
 }
 
+/** How an event is written, beside what it says. */
+export interface AppendOptions {
+  /**
+   * When a seeded story's event happened (D16: a seeded case's history is
+   * said to be seeded on its timeline). Only an event whose `detail.seeded`
+   * is true may carry one; every other event is the database's clock.
+   */
+  readonly occurredAt?: Date;
+}
+
 /**
  * Appends one event to the audit trail. The trail is append-only: there is no
  * update or delete here, and the database refuses both (migration 0001).
@@ -72,22 +82,35 @@ export class AuditEventInputError extends Error {
  *
  * @param executor - The pool or the open transaction to write in.
  * @param input - The event.
+ * @param options - A seeded event's time.
  * @returns The stored event, with its id and the time it was written.
- * @throws AuditEventInputError when the event does not validate.
+ * @throws AuditEventInputError when the event does not validate, or carries a time without being seeded.
  */
 export async function appendAuditEvent(
   executor: Executor,
   input: AuditEventInput,
+  options: AppendOptions = {},
 ): Promise<AuditEventRecord> {
   const parsed = auditEventInput.safeParse(input);
   if (!parsed.success) {
     throw new AuditEventInputError(parsed.error.issues);
   }
   const event = parsed.data;
+  if (options.occurredAt !== undefined && event.detail?.seeded !== true) {
+    throw new AuditEventInputError([
+      {
+        code: "custom",
+        path: ["occurredAt"],
+        message: "only a seeded event (detail.seeded) is written with a time of its own",
+        input: options.occurredAt,
+      },
+    ]);
+  }
 
   const [written] = await executor
     .insert(auditEvent)
     .values({
+      ...(options.occurredAt === undefined ? {} : { occurredAt: options.occurredAt }),
       practiceId: event.practiceId ?? null,
       caseId: event.caseId ?? null,
       actor: event.actor,

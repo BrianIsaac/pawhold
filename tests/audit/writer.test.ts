@@ -88,6 +88,35 @@ describe("the audit writer", () => {
   });
 });
 
+describe("a seeded story's time", () => {
+  it("is written as given for an event marked seeded (D16: said so on the timeline)", async () => {
+    const occurredAt = new Date("2026-10-07T08:43:00.000Z");
+    const written = await appendAuditEvent(
+      db,
+      {
+        practiceId,
+        caseId,
+        actor: "system",
+        action: "hold.reauthorised",
+        detail: { seeded: true },
+      },
+      { occurredAt },
+    );
+
+    expect(written.occurredAt).toEqual(occurredAt);
+  });
+
+  it("is refused for an event not marked seeded, so the trail's own times are never back-dated", async () => {
+    await expect(
+      appendAuditEvent(
+        db,
+        { practiceId, caseId, actor: "vet", action: "estimate.sent" },
+        { occurredAt: new Date("2026-10-07T08:43:00.000Z") },
+      ),
+    ).rejects.toBeInstanceOf(AuditEventInputError);
+  });
+});
+
 describe("the audit table at the database", () => {
   it("refuses an UPDATE", async () => {
     const written = await appendAuditEvent(db, {

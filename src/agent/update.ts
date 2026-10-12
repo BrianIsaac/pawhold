@@ -55,7 +55,7 @@ export interface DraftUpdateRequest {
 
 /** An update as the vet's screen and the owner's page show it. */
 export interface DraftedUpdate {
-  /** The sent version the update changes. */
+  /** The version the update changes: the last the owner approved (or, before any, the last sent). */
   readonly basedOn: EstimateVersionView;
   /** The new draft version: the sent lines and the delta lines, priced from the list. */
   readonly version: EstimateVersionView;
@@ -214,7 +214,7 @@ export async function draftUpdate(
   try {
     return await db.transaction(async (tx) => {
       const now = await caseEstimateState(tx, practiceId, caseId, true);
-      if (now.lastSent?.id !== basedOn.id) {
+      if (now.lastSent?.id !== state.lastSent?.id) {
         throw new EstimateError(
           "sent",
           "another version was sent while the update was drafted; draft the update again",
@@ -284,7 +284,9 @@ export async function draftUpdate(
 }
 
 /**
- * The last version sent to the owner, which an update changes.
+ * The version an update changes: the last one the owner approved, so an
+ * update after a declined one starts again from what is held (plan 3.2:
+ * "scope frozen at what is held"); before any approval, the last one sent.
  *
  * @param state - The case's estimate.
  * @returns The version.
@@ -294,5 +296,5 @@ function refuseIfNotSent(state: CaseEstimateState): EstimateVersionView {
   if (!state.lastSent) {
     throw new EstimateError("version_not_found", "the case has no sent estimate to update");
   }
-  return state.lastSent;
+  return state.lastApproved ?? state.lastSent;
 }

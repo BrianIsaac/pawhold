@@ -1,8 +1,8 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, isNotNull } from "drizzle-orm";
 import { z } from "zod";
 
 import type { Executor, Transaction } from "@/db/client";
-import { patientCase } from "@/db/schema";
+import { hold, patientCase } from "@/db/schema";
 import {
   caseEstimateVersions,
   EstimateError,
@@ -40,6 +40,12 @@ export interface CaseEstimateState {
   readonly open: EstimateVersionView | null;
   /** The last version sent to the owner, if any. */
   readonly lastSent: EstimateVersionView | null;
+  /**
+   * The last version the owner approved: one a hold was authorised for. An
+   * update builds on it, never on an update the owner declined or that was
+   * withdrawn (scope frozen at what is held, plan 3.2).
+   */
+  readonly lastApproved: EstimateVersionView | null;
 }
 
 /**
@@ -88,11 +94,20 @@ export async function caseEstimateState(
     throw new EstimateError("case_not_found", `the practice has no case ${caseId}`);
   }
   const versions = await caseEstimateVersions(db, practiceId, caseId);
+  const authorised = new Set(
+    (
+      await db
+        .select({ id: hold.id })
+        .from(hold)
+        .where(and(eq(hold.caseId, caseId), isNotNull(hold.authorisedAt)))
+    ).map((row) => row.id),
+  );
   return {
     patientName: kase.patientName,
     currencyCode: currencyCode.parse(kase.currencyCode),
     open: versions.find((version) => version.sentAt === null) ?? null,
     lastSent: versions.filter((version) => version.sentAt !== null).at(-1) ?? null,
+    lastApproved: versions.filter((version) => authorised.has(version.id)).at(-1) ?? null,
   };
 }
 

@@ -1,6 +1,9 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 
+import "./tokens.css";
+import "./base.css";
+
 export const metadata: Metadata = {
   title: "pawhold",
   description:

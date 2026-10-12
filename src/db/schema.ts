@@ -4,6 +4,7 @@ import {
   boolean,
   char,
   check,
+  customType,
   foreignKey,
   index,
   integer,
@@ -104,6 +105,12 @@ export const patientCase = pgTable(
     patientName: text("patient_name").notNull(),
     ownerName: text("owner_name").notNull(),
     procedure: text("procedure").notNull(),
+    /**
+     * The vet the case is under (U5): the name the vet's approval of an
+     * estimate is recorded with (plan 3.4) and the owner's page names. Null
+     * on cases opened before the practice's screens.
+     */
+    vetName: text("vet_name"),
     moneyState: moneyState("money_state").notNull().default("estimate_draft"),
     currencyCode: char("currency_code", { length: 3 }).notNull().default("GBP"),
     createdAt: createdAt(),
@@ -111,6 +118,10 @@ export const patientCase = pgTable(
   },
   (table) => [
     check("patient_case_currency_code", sql`${table.currencyCode} in ('GBP', 'USD')`),
+    check(
+      "patient_case_vet_name_length",
+      sql`${table.vetName} is null or char_length(${table.vetName}) between 1 and 100`,
+    ),
     unique("patient_case_id_practice_id_key").on(table.id, table.practiceId),
     index("patient_case_practice_id_idx").on(table.practiceId),
   ],
@@ -314,6 +325,8 @@ export const estimateVersion = pgTable(
     ),
     unique("estimate_version_case_number_key").on(table.caseId, table.number),
     unique("estimate_version_id_price_list_id_key").on(table.id, table.priceListId),
+    /** What the words a version was drafted from name of it (U5): its case and practice. */
+    unique("estimate_version_id_case_practice_key").on(table.id, table.caseId, table.practiceId),
     /** What a hold names of its version (U3): the case, the number and the top of the range. */
     unique("estimate_version_hold_key").on(
       table.id,
@@ -700,5 +713,97 @@ export const allocation = pgTable(
     primaryKey({ name: "allocation_pkey", columns: [table.billLineId, table.holdId] }),
     check("allocation_amount_positive", sql`${table.amountPence} > 0`),
     index("allocation_hold_id_idx").on(table.holdId),
+  ],
+);
+
+/** What a version was drafted from: the vet's notes, or an update's finding (U5). */
+export const estimateSourceKind = pgEnum("estimate_source_kind", ["notes", "finding"]);
+
+/** The image types an update's photo may be (U4's `draftUpdate`). */
+export const PHOTO_MEDIA_TYPES = ["image/png", "image/jpeg", "image/webp", "image/gif"] as const;
+
+const bytea = customType<{ data: Buffer; driverData: Buffer }>({
+  dataType: () => "bytea",
+});
+
+/**
+ * The vet's own words a version was drafted from, and what the draft made of
+ * them (U5; U4's finding 7: "nothing holds the vet's notes, the vet's
+ * finding, the update's photo or the owner's explanation beside a
+ * version"). The notes for a first estimate; for an update, the vet's
+ * finding, its optional photo and whether the owner may see it, and the
+ * owner's explanation when it passed its checks. Written while the version
+ * is a draft, replaced by each redraft, and never changed once the version
+ * is sent (migration 0010).
+ */
+export const estimateSource = pgTable(
+  "estimate_source",
+  {
+    versionId: uuid("version_id").primaryKey(),
+    practiceId: uuid("practice_id").notNull(),
+    caseId: uuid("case_id").notNull(),
+    kind: estimateSourceKind("kind").notNull(),
+    /** The notes or the finding, as the vet wrote them. */
+    text: text("text").notNull(),
+    /** Spans no price list item matched (U4's `UnmatchedSpan[]`). */
+    unmatched: jsonb("unmatched").notNull().default([]),
+    /** Lines the draft left out (U4's `UnsupportedLine[]`). */
+    unsupported: jsonb("unsupported").notNull().default([]),
+    /** Why the model gave nothing usable (U4's `AskFailure`), or null. */
+    failure: jsonb("failure"),
+    /** The owner's explanation of an update, shown only when it passed its checks. */
+    explanation: text("explanation"),
+    /** Why the model's explanation was withheld, or null. */
+    explanationFellBack: text("explanation_fell_back"),
+    photo: bytea("photo"),
+    photoMediaType: text("photo_media_type"),
+    photoSha256: text("photo_sha256"),
+    /** "Show the photo to the owner" (section 6). */
+    photoShared: boolean("photo_shared").notNull().default(false),
+    createdAt: createdAt(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    foreignKey({
+      name: "estimate_source_version_fk",
+      columns: [table.versionId, table.caseId, table.practiceId],
+      foreignColumns: [estimateVersion.id, estimateVersion.caseId, estimateVersion.practiceId],
+    }).onDelete("restrict"),
+    foreignKey({
+      name: "estimate_source_case_in_practice_fk",
+      columns: [table.caseId, table.practiceId],
+      foreignColumns: [patientCase.id, patientCase.practiceId],
+    }).onDelete("restrict"),
+    check("estimate_source_text_length", sql`char_length(${table.text}) between 1 and 10000`),
+    check(
+      "estimate_source_photo_complete",
+      sql`(${table.photo} is null) = (${table.photoMediaType} is null)
+        and (${table.photo} is null) = (${table.photoSha256} is null)`,
+    ),
+    check(
+      "estimate_source_photo_on_finding",
+      sql`${table.photo} is null or ${table.kind} = 'finding'`,
+    ),
+    check(
+      "estimate_source_photo_shared_with_photo",
+      sql`not ${table.photoShared} or ${table.photo} is not null`,
+    ),
+    check(
+      "estimate_source_photo_media_type",
+      sql`${table.photoMediaType} is null or ${table.photoMediaType} in ('image/png', 'image/jpeg', 'image/webp', 'image/gif')`,
+    ),
+    check(
+      "estimate_source_photo_size",
+      sql`${table.photo} is null or octet_length(${table.photo}) between 1 and 5242880`,
+    ),
+    check(
+      "estimate_source_photo_sha256",
+      sql`${table.photoSha256} is null or ${table.photoSha256} ~ '^[0-9a-f]{64}$'`,
+    ),
+    check(
+      "estimate_source_explanation_on_finding",
+      sql`(${table.explanation} is null and ${table.explanationFellBack} is null) or ${table.kind} = 'finding'`,
+    ),
+    index("estimate_source_case_id_idx").on(table.caseId),
   ],
 );

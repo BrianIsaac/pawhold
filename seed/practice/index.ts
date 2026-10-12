@@ -8,6 +8,8 @@ import { importPriceList } from "@/estimate/price-list";
 import { DEFAULT_MONETARY_THRESHOLD_PENCE } from "@/estimate/trigger";
 import type { PracticeSeed } from "@/judge/session";
 
+import { seedShowcaseCase } from "./showcase";
+
 /**
  * The fictional practice every judge's session is given (D2). Its name is
  * D2's working name; the price list beside this file was written for this
@@ -37,7 +39,8 @@ export function readSeedPriceList(): string {
 /**
  * Seeds a new judge practice inside the transaction that makes it: names it,
  * sets the Order's default threshold, imports the price list through the
- * same import a practice uses, and writes `practice.seeded`.
+ * same import a practice uses, opens the showcase case (U5), and writes
+ * `practice.seeded`.
  *
  * @param tx - The transaction making the practice.
  * @param practiceId - The new practice.
@@ -57,10 +60,16 @@ export const seedFictionalPractice: PracticeSeed = async (tx, practiceId) => {
     sourceName: FICTIONAL_PRACTICE.priceListSource,
     csv: readSeedPriceList(),
   });
+  const showcaseCaseId = await seedShowcaseCase(tx, practiceId);
   await appendAuditEvent(tx, {
     practiceId,
     actor: "system",
     action: "practice.seeded",
-    detail: { name: FICTIONAL_PRACTICE.name, priceListId: list.id, itemCount: list.itemCount },
+    detail: {
+      name: FICTIONAL_PRACTICE.name,
+      priceListId: list.id,
+      itemCount: list.itemCount,
+      showcaseCaseId,
+    },
   });
 };
