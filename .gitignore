@@ -28,3 +28,7 @@ playwright-report/
 data/raw/
 .pytest_cache/
 .ruff_cache/
+
+# Next.js
+.next/
+next-env.d.ts

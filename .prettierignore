@@ -1,0 +1,9 @@
+.next/
+node_modules/
+coverage/
+pnpm-lock.yaml
+drizzle/meta/
+docs/
+.claude/
+CLAUDE.md
+AGENTS.md
