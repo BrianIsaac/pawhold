@@ -8,6 +8,8 @@ import {
   sessionEnvironment,
   webhookEnvironment,
 } from "@/env";
+import { createHealthHandler } from "@/health/handler";
+import { createJudgeSessionHandlers } from "@/judge/session";
 import { createPayPalClient, type PayPalClient } from "@/paypal/client";
 import { createWebhookHandler } from "@/paypal/webhook-handler";
 import { createCertificateCache } from "@/paypal/webhooks";
@@ -20,6 +22,8 @@ interface Runtime {
   database?: Database;
   paypal?: PayPalClient | null;
   webhookHandler?: (request: Request) => Promise<Response>;
+  judgeSessions?: ReturnType<typeof createJudgeSessionHandlers>;
+  health?: () => Promise<Response>;
 }
 
 const holder = globalThis as typeof globalThis & { __pawholdRuntime?: Runtime };
@@ -86,4 +90,32 @@ export function webhookHandler(): (request: Request) => Promise<Response> {
  */
 export function sessionSecret(): string {
   return readEnvironment(sessionEnvironment).SESSION_SECRET;
+}
+
+/**
+ * The judge-mode session endpoints.
+ *
+ * @returns The handlers.
+ * @throws EnvironmentError when `DATABASE_URL` or `SESSION_SECRET` is missing.
+ */
+export function judgeSessionHandlers(): ReturnType<typeof createJudgeSessionHandlers> {
+  runtime.judgeSessions ??= createJudgeSessionHandlers({
+    db: database().db,
+    secret: sessionSecret(),
+    secureCookie: process.env.NODE_ENV === "production",
+  });
+  return runtime.judgeSessions;
+}
+
+/**
+ * The health check, reporting the commit Render deployed.
+ *
+ * @returns The handler.
+ */
+export function healthHandler(): () => Promise<Response> {
+  runtime.health ??= createHealthHandler({
+    database,
+    commit: process.env.RENDER_GIT_COMMIT ?? null,
+  });
+  return runtime.health;
 }
