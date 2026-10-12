@@ -1,12 +1,7 @@
 import type { TestCard } from "./buyer";
-import {
-  authorizeOrder,
-  captureAuthorization,
-  createAuthorizeOrder,
-  getAuthorization,
-  onlyAuthorization,
-  pence,
-} from "./paypal";
+import { authorizeOrder, onlyAuthorization } from "@/paypal/orders";
+import { captureAuthorization, getAuthorization, pence } from "@/paypal/payments";
+import { createProbeOrder } from "./orders";
 import { P5_LATER_DATE } from "./p5-reauthorise";
 import { attempt, gbp, issues, type Observation, type Probe, type ProbeContext } from "./probe";
 
@@ -54,7 +49,7 @@ async function makeCardHold(
   hold: string,
   observations: Record<string, Observation>,
 ) {
-  const created = await createAuthorizeOrder(context.client, {
+  const created = await createProbeOrder(context.client, {
     amount: gbp(10_000),
     referenceId: `probe-${hold}`,
     customId: `pawhold-probe-${hold}`,

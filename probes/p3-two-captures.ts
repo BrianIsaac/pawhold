@@ -1,6 +1,6 @@
 import type { PayPalError } from "@/paypal/client";
 
-import { captureAuthorization, getAuthorization, pence } from "./paypal";
+import { captureAuthorization, getAuthorization, pence } from "@/paypal/payments";
 import { attempt, gbp, issues, makeWalletHold, type Observation, type Probe } from "./probe";
 
 const BRANCH =

@@ -1,6 +1,6 @@
 import { createCertificateCache, verifyByPostback, verifyWebhook } from "@/paypal/webhooks";
 
-import { captureAuthorization, refundCapture, voidAuthorization } from "./paypal";
+import { captureAuthorization, refundCapture, voidAuthorization } from "@/paypal/payments";
 import { gbp, makeWalletHold, type Observation, type Probe, type ProbeContext } from "./probe";
 
 /*

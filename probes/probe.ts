@@ -5,16 +5,9 @@ import { type PayPalClient, PayPalError } from "@/paypal/client";
 import { paypalRequestId } from "@/paypal/request-id";
 
 import type { Buyer } from "./buyer";
-import {
-  approvalUrl,
-  type Authorization,
-  authorizeOrder,
-  createAuthorizeOrder,
-  getAuthorization,
-  getOrder,
-  onlyAuthorization,
-  voidAuthorization,
-} from "./paypal";
+import { approvalUrl, authorizeOrder, getOrder, onlyAuthorization } from "@/paypal/orders";
+import { type Authorization, getAuthorization, voidAuthorization } from "@/paypal/payments";
+import { createProbeOrder } from "./orders";
 
 /** The probes of the plan's section 4, P5 split by its three dates, and the smoke run. */
 export const PROBE_IDS = [
@@ -225,7 +218,7 @@ export async function makeWalletHold(
   amount: Money,
   approve: (url: string) => Promise<unknown> = (url) => context.buyer.approve(url),
 ): Promise<WalletHold> {
-  const created = await createAuthorizeOrder(context.client, {
+  const created = await createProbeOrder(context.client, {
     amount,
     referenceId: `probe-${hold}`,
     customId: `pawhold-probe-${hold}`,

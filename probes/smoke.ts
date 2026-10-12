@@ -1,4 +1,4 @@
-import { getAuthorization, voidAuthorization } from "./paypal";
+import { getAuthorization, voidAuthorization } from "@/paypal/payments";
 import { gbp, makeWalletHold, type Probe } from "./probe";
 
 /**

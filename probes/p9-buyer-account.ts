@@ -1,12 +1,7 @@
 import type { ActivityReading, BuyerSession } from "./buyer";
-import {
-  approvalUrl,
-  authorizeOrder,
-  captureAuthorization,
-  createAuthorizeOrder,
-  onlyAuthorization,
-  pence,
-} from "./paypal";
+import { approvalUrl, authorizeOrder, onlyAuthorization } from "@/paypal/orders";
+import { captureAuthorization, pence } from "@/paypal/payments";
+import { createProbeOrder } from "./orders";
 import { gbp, type Observation, type Probe, type ProbeContext } from "./probe";
 
 /** The plan's bar: the account shows each within a minute. */
@@ -93,7 +88,7 @@ export const p9: Probe = {
   async run(context) {
     const asked = 1_000 + (Math.trunc(context.startedAt.getTime() / 1000) % 9_000);
     return context.buyer.session(async (session) => {
-      const created = await createAuthorizeOrder(context.client, {
+      const created = await createProbeOrder(context.client, {
         amount: gbp(asked),
         referenceId: "probe-p9",
         customId: "pawhold-probe-p9",

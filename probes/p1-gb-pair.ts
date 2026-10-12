@@ -1,4 +1,5 @@
-import { getOrder, pence, voidAuthorization } from "./paypal";
+import { getOrder } from "@/paypal/orders";
+import { pence, voidAuthorization } from "@/paypal/payments";
 import { gbp, makeWalletHold, type Probe } from "./probe";
 
 /**
