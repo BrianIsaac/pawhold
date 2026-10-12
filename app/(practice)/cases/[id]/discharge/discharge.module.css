@@ -207,3 +207,9 @@
   display: grid;
   gap: var(--space-2);
 }
+
+.refund {
+  display: grid;
+  gap: var(--space-3);
+  justify-items: start;
+}

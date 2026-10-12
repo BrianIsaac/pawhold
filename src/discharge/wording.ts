@@ -236,3 +236,34 @@ export function dischargeRefusal(reason: string, issues: readonly string[]): str
       return "The case moved on since the page was opened. It shows as it is now.";
   }
 }
+
+/**
+ * The case page's confirmation once a refund is made.
+ *
+ * @param ownerFirstName - The owner's first name.
+ * @returns The confirmation.
+ */
+export function refundedConfirmation(ownerFirstName: string): string {
+  return `Refunded to ${ownerFirstName}. The timeline and ${ownerFirstName}'s receipt show it.`;
+}
+
+/**
+ * A charge as the refund form offers it.
+ *
+ * @param holdName - The hold it was taken from, lower case.
+ * @param leftPence - What is left of it to refund.
+ * @param capturedPence - What it took.
+ * @param currency - The case's currency.
+ * @returns The option's words.
+ */
+export function chargeOption(
+  holdName: string,
+  leftPence: number,
+  capturedPence: number,
+  currency: CurrencyCode,
+): string {
+  const from = holdName.charAt(0).toUpperCase() + holdName.slice(1);
+  return leftPence === capturedPence
+    ? `${from}, ${money(capturedPence, currency)}`
+    : `${from}, ${money(leftPence, currency)} of ${money(capturedPence, currency)} left`;
+}

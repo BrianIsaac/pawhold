@@ -1,7 +1,13 @@
 import { join } from "node:path";
 
 import { openBrowserDatabase } from "./owner/support/cases";
-import { deliverDischargeWebhooks, DOUBLE_URL, twoHoldCase } from "./support/discharge";
+import {
+  deliverDischargeWebhooks,
+  dischargedCase,
+  DOUBLE_URL,
+  receiptPath,
+  twoHoldCase,
+} from "./support/discharge";
 import { WALK_FINDING, WALK_PHOTO_PATH } from "../support/update-walk-words";
 import {
   expect,
@@ -106,6 +112,35 @@ for (const width of Object.keys(WIDTHS) as Width[]) {
         await expect(page.getByText(/^Confirmed by PayPal/)).toHaveCount(3, { timeout: 10_000 });
         await page.screenshot({
           path: join(directory!, `discharge-confirmed-${px}.png`),
+          fullPage: true,
+        });
+      } finally {
+        await database.close();
+      }
+    });
+    test("a discharged case refunded in part, and the owner's receipt", async ({ page }) => {
+      test.skip(!DOUBLE_URL, "the run talks to PayPal's sandbox: the double's walk is skipped");
+      const px = WIDTHS[width].width;
+      const practiceId = await signInAsPractice(page);
+      const database = openBrowserDatabase();
+      try {
+        const kase = await dischargedCase(database.db, practiceId);
+        await page.goto(`/cases/${kase.caseId}`);
+        await page
+          .getByRole("region", { name: "Refund" })
+          .getByRole("button", { name: "Refund" })
+          .click();
+        const dialog = page.getByRole("dialog", { name: "Refund Sam?" });
+        await dialog.getByLabel("Amount").fill("25.00");
+        await dialog.getByLabel("Why").fill("Goodwill: the discharge ran late");
+        await page.screenshot({ path: join(directory!, `refund-dialog-${px}.png`) });
+        await dialog.getByRole("button", { name: "Refund" }).click();
+        await expect(page.getByRole("status")).toBeVisible();
+        await page.screenshot({ path: join(directory!, `refund-case-${px}.png`), fullPage: true });
+        await page.goto(await receiptPath(database.db, kase));
+        await expect(page.getByText(/less £25\.00 refunded to you/)).toBeVisible();
+        await page.screenshot({
+          path: join(directory!, `refund-receipt-${px}.png`),
           fullPage: true,
         });
       } finally {

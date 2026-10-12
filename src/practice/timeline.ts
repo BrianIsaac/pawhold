@@ -111,7 +111,8 @@ const WORDS: Record<string, (event: Described) => string> = {
   "bill.signed_off": ({ amount }) => `signed off the bill: ${amount}`,
   "bill.work_not_charged": ({ detail }) =>
     `noted work not on an approved estimate, not charged: ${workNoted(detail.items)}`,
-  "capture.refund_requested": ({ amount }) => `asked PayPal to refund ${amount}`,
+  "capture.refund_requested": ({ amount, detail }) =>
+    `asked PayPal to refund ${amount}${text(detail.reason) ? `: "${text(detail.reason)}"` : ""}`,
   "capture.refund_refused": () => "asked PayPal for a refund; PayPal refused",
   "capture.refunded": ({ event, amount, context }) => {
     const confirmed = event.paypalRefundId

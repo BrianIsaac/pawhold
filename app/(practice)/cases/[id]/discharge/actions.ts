@@ -7,11 +7,15 @@ import { z } from "zod";
 
 import { type BillReview, reviewBill } from "@/discharge/bill";
 import { confirmBill, runDischarge } from "@/discharge/confirm";
+import { refundOnCase } from "@/discharge/refund";
 import { dischargeRefusal, PAYPAL_NOT_SET_UP } from "@/discharge/wording";
 import { MoneyError } from "@/money/errors";
+import { PracticeError } from "@/practice/errors";
 import { refusalMessage } from "@/practice/messages";
 import { currentPracticeSession } from "@/server/practice-session";
 import { database, paypalClient } from "@/server/runtime";
+
+import { type FormState, formValues } from "../../../form-state";
 
 /** What a discharge action says when the visitor's session has gone. */
 const SESSION_ENDED = "Your session has ended. Reload the page to start a new one.";
@@ -178,4 +182,55 @@ export async function resumeDischargeAction(caseId: string): Promise<DischargeAn
   revalidatePath(`/cases/${caseId}`);
   revalidatePath("/today");
   redirect(`/cases/${caseId}/discharge`);
+}
+
+/**
+ * "Refund" after discharge (plan 3.2): part or all of a charge, with the
+ * vet's reason, through U3's `refundCaptured`; then the case with its
+ * confirmation, the refund on its timeline and on the owner's receipt.
+ *
+ * @param caseId - The case, bound by the page.
+ * @param _previous - The form's last state.
+ * @param form - The charge, the amount in pounds and why.
+ * @returns The form's state when refused; otherwise it redirects to the case.
+ */
+export async function refundAction(
+  caseId: string,
+  _previous: FormState,
+  form: FormData,
+): Promise<FormState> {
+  const values = formValues(form, ["captureId", "amount", "reason"]);
+  const session = await currentPracticeSession();
+  if (!session) {
+    return { message: SESSION_ENDED, fields: {}, values };
+  }
+  if (!z.uuid().safeParse(caseId).success || !z.uuid().safeParse(values.captureId).success) {
+    return { message: "That charge is not this practice's.", fields: {}, values };
+  }
+  const paypal = paypalClient();
+  if (!paypal) {
+    return { message: PAYPAL_NOT_SET_UP, fields: {}, values };
+  }
+  try {
+    await refundOnCase(
+      { db: database().db, paypal },
+      {
+        practiceId: session.practiceId,
+        caseId,
+        captureId: values.captureId!,
+        amount: values.amount!,
+        reason: values.reason!,
+      },
+    );
+  } catch (error) {
+    const message = dischargeMessage(error);
+    if (message === null) {
+      throw error;
+    }
+    revalidatePath(`/cases/${caseId}`);
+    return { message, fields: error instanceof PracticeError ? error.fields : {}, values };
+  }
+  revalidatePath(`/cases/${caseId}`);
+  revalidatePath("/today");
+  redirect(`/cases/${caseId}?refunded=1`);
 }

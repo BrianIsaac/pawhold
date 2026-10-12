@@ -2,13 +2,17 @@ import { and, asc, eq, inArray } from "drizzle-orm";
 
 import type { Database } from "@/db/client";
 import { capture, hold, patientCase } from "@/db/schema";
+import { loadDischargeView } from "@/discharge/bill";
+import { confirmBill, runDischarge } from "@/discharge/confirm";
+import { refundOnCase } from "@/discharge/refund";
 import { type EstimateLineInput, makeEstimateVersion } from "@/estimate/version";
 import { authoriseHold, orderHold, sendEstimate } from "@/money/holds";
 import { reconcileWebhookEvent } from "@/money/reconcile";
+import { ownerLink } from "@/owner/link";
 import { createPayPalClient, type PayPalClient } from "@/paypal/client";
 
 import { storeDelivery } from "../../support/webhook-delivery";
-import { BRAMBLE_LINES, BRAMBLE_UPDATE_LINES } from "../owner/support/cases";
+import { BRAMBLE_LINES, BRAMBLE_UPDATE_LINES, browserSecret } from "../owner/support/cases";
 
 /*
  * The discharge walks' cases: held for real against U3's PayPal double, which
@@ -148,4 +152,94 @@ export async function deliverDischargeWebhooks(
     }
   }
   return delivered;
+}
+
+/** Pepper's case discharged against the double, and its first hold's capture. */
+export interface DischargedCase extends TwoHoldCase {
+  readonly firstCaptureId: string;
+}
+
+/**
+ * Pepper's two-hold case discharged against the double through this unit's
+ * own path (confirmBill, then runDischarge), the bill as the confirm walk
+ * makes it: three extractions, so £1,057.00 is captured and £98.00 released.
+ *
+ * @param db - The run's database.
+ * @param practiceId - The practice the walk signed in to.
+ * @returns The case and its first capture.
+ */
+export async function dischargedCase(
+  db: Database["db"],
+  practiceId: string,
+): Promise<DischargedCase> {
+  const kase = await twoHoldCase(db, practiceId);
+  const view = await loadDischargeView(db, practiceId, kase.caseId);
+  const quantities = Object.fromEntries(
+    view.groups.flatMap((group) =>
+      group.lines.map((line) => [line.estimateLineId, String(line.quantityLow)]),
+    ),
+  );
+  const extractions = view.groups[1]!.lines.find((line) => line.code === "DEN-EXT-SG")!;
+  quantities[extractions.estimateLineId] = "3";
+  await confirmBill(db, { ...kase, quantities, extras: [], shown: { billedPence: 105_700 } });
+  await runDischarge({ db, paypal: doubleClient() }, kase);
+  const [firstHold] = await db
+    .select()
+    .from(hold)
+    .where(eq(hold.caseId, kase.caseId))
+    .orderBy(asc(hold.versionNumber))
+    .limit(1);
+  const [taken] = await db.select().from(capture).where(eq(capture.holdId, firstHold!.id));
+  return { ...kase, firstCaptureId: taken!.id };
+}
+
+/**
+ * The owner's link to the case's first estimate, which opens the receipt once
+ * the case is discharged (U6).
+ *
+ * @param db - The run's database.
+ * @param kase - The case.
+ * @returns The link's path, `/e/{token}`.
+ */
+export async function receiptPath(db: Database["db"], kase: TwoHoldCase): Promise<string> {
+  const [firstHold] = await db
+    .select()
+    .from(hold)
+    .where(eq(hold.caseId, kase.caseId))
+    .orderBy(asc(hold.versionNumber))
+    .limit(1);
+  const link = await ownerLink(
+    db,
+    { practiceId: kase.practiceId, caseId: kase.caseId, versionId: firstHold!.id },
+    { secret: browserSecret(), now: new Date() },
+  );
+  return link.path;
+}
+
+/**
+ * Refunds part of the case's first charge at the double, through the case
+ * page's own path (`refundOnCase`).
+ *
+ * @param db - The run's database.
+ * @param kase - The discharged case.
+ * @param amount - The amount, in pounds as typed.
+ * @param reason - Why.
+ * @returns Resolves once refunded.
+ */
+export async function refundAtTheDouble(
+  db: Database["db"],
+  kase: DischargedCase,
+  amount: string,
+  reason: string,
+): Promise<void> {
+  await refundOnCase(
+    { db, paypal: doubleClient() },
+    {
+      practiceId: kase.practiceId,
+      caseId: kase.caseId,
+      captureId: kase.firstCaptureId,
+      amount,
+      reason,
+    },
+  );
 }

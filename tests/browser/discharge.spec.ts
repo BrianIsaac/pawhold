@@ -1,6 +1,12 @@
 import { expect, signInAsPractice, test, WIDTHS, type Width } from "./fixtures";
 import { openBrowserDatabase } from "./owner/support/cases";
-import { deliverDischargeWebhooks, DOUBLE_URL, twoHoldCase } from "./support/discharge";
+import {
+  deliverDischargeWebhooks,
+  dischargedCase,
+  DOUBLE_URL,
+  receiptPath,
+  twoHoldCase,
+} from "./support/discharge";
 
 /*
  * The discharge page (U7), walked at 1440 and 390 px. The seeded showcase
@@ -121,6 +127,54 @@ for (const width of Object.keys(WIDTHS) as Width[]) {
 
         await page.getByRole("link", { name: "Pepper's case" }).click();
         await expect(page.getByText("Released £98.00", { exact: true })).toBeVisible();
+      } finally {
+        await database.close();
+      }
+    });
+
+    test("a refund after discharge, from the case page, appears on the timeline and the owner's receipt", async ({
+      page,
+    }) => {
+      test.skip(!DOUBLE_URL, "the run talks to PayPal's sandbox: the double's walk is skipped");
+      const practiceId = await signInAsPractice(page);
+      const database = openBrowserDatabase();
+      try {
+        const kase = await dischargedCase(database.db, practiceId);
+        await page.goto(`/cases/${kase.caseId}`);
+
+        const refund = page.getByRole("region", { name: "Refund" });
+        await refund.getByRole("button", { name: "Refund" }).click();
+        const dialog = page.getByRole("dialog", { name: "Refund Sam?" });
+        await expect(dialog.getByLabel("From")).toHaveValue(kase.firstCaptureId);
+        await expect(dialog.getByLabel("Amount")).toHaveValue("927.00");
+        await dialog.getByLabel("Amount").fill("2000");
+        await dialog.getByRole("button", { name: "Refund" }).click();
+        await expect(dialog.getByText("Say why: it is kept on the case's timeline.")).toBeVisible();
+        await expect(
+          dialog.getByText("At most £927.00 is left to refund from this charge."),
+        ).toBeVisible();
+        await dialog.getByLabel("Amount").fill("25.00");
+        await dialog.getByLabel("Why").fill("Goodwill: the discharge ran late");
+        await dialog.getByRole("button", { name: "Refund" }).click();
+
+        await expect(page.getByRole("status")).toHaveText(
+          "Refunded to Sam. The timeline and Sam's receipt show it.",
+        );
+        const timeline = page.getByRole("region", { name: "Timeline" });
+        await expect(
+          timeline.getByText('asked PayPal to refund £25.00: "Goodwill: the discharge ran late"'),
+        ).toBeVisible();
+        await expect(timeline.getByText(/refunded £25\.00/)).toBeVisible();
+
+        await page.goto(await receiptPath(database.db, kase));
+        await expect(
+          page.getByText("That is £1,057.00 charged at discharge, less £25.00 refunded to you."),
+        ).toBeVisible();
+        await expect(
+          page.getByText(
+            "You paid £1,032.00 for Pepper's treatment. £98.00 of what was held has been released.",
+          ),
+        ).toBeVisible();
       } finally {
         await database.close();
       }
