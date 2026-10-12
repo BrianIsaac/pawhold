@@ -14,10 +14,12 @@ Status: the skeleton (unit U1 of `docs/plans/pawhold-plan-2026-10-12.md`) is bei
 
 ## Develop
 
-Needs Node 22.12 or later and pnpm (the version in `package.json`, through `corepack enable`).
+Needs Node 22.12 or later, pnpm (the version in `package.json`, through `corepack enable`) and Docker.
 
 ```sh
 pnpm install
+docker compose up -d --wait db   # Postgres for development and the tests (compose.yml)
+DATABASE_URL=postgres://pawhold:pawhold@127.0.0.1:54329/pawhold pnpm db:migrate
 pnpm dev
 ```
 
@@ -26,6 +28,8 @@ The gate, run before every commit and in CI:
 ```sh
 pnpm lint && pnpm typecheck && pnpm test && pnpm build
 ```
+
+The tests start the Docker database if it is not running, and each run migrates a fresh database of its own and drops it at the end.
 
 ## Where things go
 
