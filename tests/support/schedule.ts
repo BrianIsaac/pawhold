@@ -3,6 +3,7 @@ import { and, asc, eq } from "drizzle-orm";
 import type { Database, Executor } from "../../src/db/client";
 import { booking, patientCase, practice, room, vet } from "../../src/db/schema";
 import { createJudgeSessionHandlers } from "../../src/judge/session";
+import { dayKeyIn, wallClockIn } from "../../src/schedule/time";
 import { seedFictionalPractice } from "../../seed/practice";
 
 /** A practice made for a schedule test: two theatres, a consult room and two vets. */
@@ -111,17 +112,36 @@ export interface SeededDayPractice {
 type BookingRow = typeof booking.$inferSelect;
 
 /**
+ * Midday in London on today's date there: the session's start the seeded day
+ * is laid around in these tests. The seed puts the day's case 25 minutes after
+ * the session starts and the next procedure after it; started late in the
+ * evening, that procedure falls on the next day and the agent rightly proposes
+ * no move (U8a's same-day rule), so a test on the real clock would pass or fail
+ * by the hour it ran at.
+ *
+ * @returns The instant.
+ */
+function middayInLondon(): Date {
+  return wallClockIn("Europe/London", dayKeyIn("Europe/London", new Date()), 12 * 60);
+}
+
+/**
  * Starts a judge's session through U1's handler with the application's seed,
  * and reads back the seeded day's bookings in theatre 1.
  *
  * @param db - The test database.
+ * @param startedAt - The session's start; midday in London today unless given.
  * @returns The practice and the day's bookings.
  */
-export async function startSeededDay(db: Database["db"]): Promise<SeededDayPractice> {
+export async function startSeededDay(
+  db: Database["db"],
+  startedAt: Date = middayInLondon(),
+): Promise<SeededDayPractice> {
   const handlers = createJudgeSessionHandlers({
     db,
     secret: "test-session-secret-0123456789abcdef-not-real",
     seed: seedFictionalPractice,
+    now: () => startedAt.getTime(),
   });
   const started = await handlers.POST(
     new Request("https://pawhold.test/api/judge/session", {
