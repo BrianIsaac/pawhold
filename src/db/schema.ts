@@ -13,6 +13,7 @@ import {
   text,
   timestamp,
   unique,
+  uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
 
@@ -189,5 +190,156 @@ export const auditEvent = pgTable(
     ),
     index("audit_event_case_id_idx").on(table.caseId, table.id),
     index("audit_event_practice_id_idx").on(table.practiceId, table.id),
+  ],
+);
+
+/** A price list item's category, as plan 3.3 lists them. */
+export const priceCategory = pgEnum("price_category", [
+  "consultation",
+  "anaesthesia",
+  "procedure",
+  "imaging",
+  "laboratory",
+  "medication",
+  "hospitalisation",
+  "consumable",
+]);
+
+/**
+ * A practice's price list as imported (plan 3.3). Lists are never changed
+ * once imported (migration 0003): a new import makes a new list, and a
+ * version keeps the list it was priced from.
+ */
+export const priceList = pgTable(
+  "price_list",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    practiceId: uuid("practice_id")
+      .notNull()
+      .references(() => practice.id, { onDelete: "restrict" }),
+    currencyCode: char("currency_code", { length: 3 }).notNull().default("GBP"),
+    sourceName: text("source_name").notNull(),
+    importedAt: timestamp("imported_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    check("price_list_currency_code", sql`${table.currencyCode} in ('GBP', 'USD')`),
+    unique("price_list_id_practice_id_key").on(table.id, table.practiceId),
+    index("price_list_practice_id_idx").on(table.practiceId, table.importedAt),
+  ],
+);
+
+/** One item of a price list: a unit price in pence including VAT (plan 3.3). */
+export const priceListItem = pgTable(
+  "price_list_item",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    priceListId: uuid("price_list_id")
+      .notNull()
+      .references(() => priceList.id, { onDelete: "restrict" }),
+    code: text("code").notNull(),
+    name: text("name").notNull(),
+    category: priceCategory("category").notNull(),
+    unit: text("unit").notNull(),
+    unitPricePence: integer("unit_price_pence").notNull(),
+  },
+  (table) => [
+    check("price_list_item_unit_price_non_negative", sql`${table.unitPricePence} >= 0`),
+    unique("price_list_item_code_key").on(table.priceListId, table.code),
+    unique("price_list_item_priced_key").on(table.id, table.priceListId, table.unitPricePence),
+  ],
+);
+
+/**
+ * A numbered version of a case's estimate (plan 3.3). A draft until sent;
+ * sent, it never changes (migration 0003), and a change is a new version.
+ * The totals are set when it is sent, and the database checks them against
+ * its lines.
+ */
+export const estimateVersion = pgTable(
+  "estimate_version",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    practiceId: uuid("practice_id").notNull(),
+    caseId: uuid("case_id").notNull(),
+    priceListId: uuid("price_list_id").notNull(),
+    number: integer("number").notNull(),
+    createdAt: createdAt(),
+    sentAt: timestamp("sent_at", { withTimezone: true }),
+    totalLowPence: integer("total_low_pence"),
+    totalHighPence: integer("total_high_pence"),
+  },
+  (table) => [
+    foreignKey({
+      name: "estimate_version_case_in_practice_fk",
+      columns: [table.caseId, table.practiceId],
+      foreignColumns: [patientCase.id, patientCase.practiceId],
+    }).onDelete("restrict"),
+    foreignKey({
+      name: "estimate_version_price_list_in_practice_fk",
+      columns: [table.priceListId, table.practiceId],
+      foreignColumns: [priceList.id, priceList.practiceId],
+    }).onDelete("restrict"),
+    check("estimate_version_number_positive", sql`${table.number} >= 1`),
+    check(
+      "estimate_version_totals_when_sent",
+      sql`(${table.sentAt} is null and ${table.totalLowPence} is null and ${table.totalHighPence} is null)
+        or (${table.sentAt} is not null and ${table.totalLowPence} is not null and ${table.totalHighPence} is not null)`,
+    ),
+    check(
+      "estimate_version_totals_range",
+      sql`${table.totalLowPence} is null or (${table.totalLowPence} >= 0 and ${table.totalHighPence} >= ${table.totalLowPence})`,
+    ),
+    unique("estimate_version_case_number_key").on(table.caseId, table.number),
+    unique("estimate_version_id_price_list_id_key").on(table.id, table.priceListId),
+    uniqueIndex("estimate_version_one_draft_per_case_idx")
+      .on(table.caseId)
+      .where(sql`${table.sentAt} is null`),
+  ],
+);
+
+/**
+ * One line of an estimate version (plan 3.3). Its unit price is the list's
+ * (a foreign key to the item at that price), and its money is worked out by
+ * the database from the price and the quantity range.
+ */
+export const estimateLine = pgTable(
+  "estimate_line",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    versionId: uuid("version_id").notNull(),
+    priceListId: uuid("price_list_id").notNull(),
+    position: integer("position").notNull(),
+    priceListItemId: uuid("price_list_item_id").notNull(),
+    unitPricePence: integer("unit_price_pence").notNull(),
+    quantityLow: integer("quantity_low").notNull(),
+    quantityHigh: integer("quantity_high").notNull(),
+    lowPence: integer("low_pence")
+      .notNull()
+      .generatedAlwaysAs(sql`unit_price_pence * quantity_low`),
+    highPence: integer("high_pence")
+      .notNull()
+      .generatedAlwaysAs(sql`unit_price_pence * quantity_high`),
+    dependsOn: text("depends_on"),
+    notesSpan: text("notes_span"),
+    ownerWording: text("owner_wording"),
+  },
+  (table) => [
+    foreignKey({
+      name: "estimate_line_version_fk",
+      columns: [table.versionId, table.priceListId],
+      foreignColumns: [estimateVersion.id, estimateVersion.priceListId],
+    }).onDelete("cascade"),
+    foreignKey({
+      name: "estimate_line_priced_from_list_fk",
+      columns: [table.priceListItemId, table.priceListId, table.unitPricePence],
+      foreignColumns: [priceListItem.id, priceListItem.priceListId, priceListItem.unitPricePence],
+    }).onDelete("restrict"),
+    check("estimate_line_position_positive", sql`${table.position} >= 1`),
+    check(
+      "estimate_line_quantity_range",
+      sql`${table.quantityLow} >= 0 and ${table.quantityHigh} >= ${table.quantityLow} and ${table.quantityHigh} >= 1`,
+    ),
+    unique("estimate_line_position_key").on(table.versionId, table.position),
+    index("estimate_line_item_idx").on(table.priceListItemId),
   ],
 );
