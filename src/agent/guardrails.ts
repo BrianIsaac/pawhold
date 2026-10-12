@@ -154,6 +154,36 @@ export function checkOwnerWording(wording: string): OwnerWordingFault | null {
   return null;
 }
 
+/** Why the owner's explanation of an update was not shown. */
+export type ExplanationFault = OwnerWordingFault | "new_number" | "empty";
+
+const NUMBER = /\d+(?:[.,]\d+)?/g;
+
+/**
+ * Checks the owner's explanation of an update (plan 3.4, job 2: it
+ * "rephrases the vet's note and nothing else"). What code can check, it does:
+ * no money, percentage or dose, and no figure the vet did not write. Whether
+ * it adds a diagnosis or advice in words is for the vet's review and the
+ * eval; the owner always sees the vet's own words beside it.
+ *
+ * @param explanation - The model's explanation.
+ * @param vetNote - The vet's own words.
+ * @returns Why it may not be shown, or null when it may.
+ */
+export function checkExplanation(explanation: string, vetNote: string): ExplanationFault | null {
+  if (explanation.trim() === "") {
+    return "empty";
+  }
+  const fault = checkOwnerWording(explanation);
+  if (fault) {
+    return fault;
+  }
+  const written = new Set(vetNote.match(NUMBER) ?? []);
+  return (explanation.match(NUMBER) ?? []).every((number) => written.has(number))
+    ? null
+    : "new_number";
+}
+
 /**
  * Runs the guardrails over an answer's lines and its unmatched spans: a line
  * malformed, with its span not in the notes, or beyond a version's size is
