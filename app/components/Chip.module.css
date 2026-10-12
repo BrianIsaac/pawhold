@@ -1,0 +1,68 @@
+.chip {
+  display: inline-flex;
+  align-items: center;
+  padding: var(--space-1) var(--space-3);
+  border: 1px solid transparent;
+  border-radius: var(--radius-pill);
+  font-size: var(--font-size-0);
+  font-weight: var(--font-weight-medium);
+  line-height: var(--line-height-tight);
+  white-space: nowrap;
+}
+
+.chip[data-tone="estimate_draft"] {
+  background: var(--money-estimate-draft-bg);
+  color: var(--money-estimate-draft-ink);
+}
+
+.chip[data-tone="awaiting_owner"] {
+  background: var(--money-awaiting-owner-bg);
+  color: var(--money-awaiting-owner-ink);
+}
+
+.chip[data-tone="held"] {
+  background: var(--money-held-bg);
+  color: var(--money-held-ink);
+}
+
+.chip[data-tone="update_awaiting_owner"] {
+  background: var(--money-update-awaiting-owner-bg);
+  color: var(--money-update-awaiting-owner-ink);
+}
+
+.chip[data-tone="update_declined"] {
+  background: var(--money-update-declined-bg);
+  color: var(--money-update-declined-ink);
+}
+
+.chip[data-tone="captured"] {
+  background: var(--money-captured-bg);
+  color: var(--money-captured-ink);
+}
+
+.chip[data-tone="released"] {
+  background: var(--money-released-bg);
+  color: var(--money-released-ink);
+}
+
+.chip[data-tone="refunded"] {
+  background: var(--money-refunded-bg);
+  color: var(--money-refunded-ink);
+}
+
+.chip[data-tone="withdrawn"] {
+  background: var(--money-withdrawn-bg);
+  color: var(--money-withdrawn-ink);
+}
+
+.chip[data-tone="extended"] {
+  background: var(--money-extended-bg);
+  border-color: currentColor;
+  color: var(--money-extended-ink);
+}
+
+.chip[data-tone="honour_period_over"] {
+  background: var(--money-honour-over-bg);
+  border-color: currentColor;
+  color: var(--money-honour-over-ink);
+}

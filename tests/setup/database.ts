@@ -6,7 +6,7 @@ import type { TestProject } from "vitest/node";
 
 import { migrateDatabase } from "../../src/db/migrate";
 
-const DEFAULT_ADMIN_URL = "postgres://pawhold:pawhold@127.0.0.1:54329/pawhold";
+export const DEFAULT_ADMIN_URL = "postgres://pawhold:pawhold@127.0.0.1:54329/pawhold";
 
 declare module "vitest" {
   export interface ProvidedContext {
@@ -21,7 +21,7 @@ declare module "vitest" {
  * @param adminUrl - The URL of a database the test role can create databases from.
  * @returns A connection to the admin database.
  */
-async function connectAdmin(adminUrl: string): Promise<postgres.Sql> {
+export async function connectAdmin(adminUrl: string): Promise<postgres.Sql> {
   const tryConnect = async (): Promise<postgres.Sql> => {
     const sql = postgres(adminUrl, { max: 1, onnotice: () => {} });
     await sql`select 1`;

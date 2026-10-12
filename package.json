@@ -17,6 +17,7 @@
     "typecheck": "next typegen && tsc --noEmit",
     "test": "vitest run --project unit",
     "test:integration": "vitest run --project integration",
+    "test:browser": "tsx tests/browser/run.ts",
     "test:watch": "vitest --project unit",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx scripts/migrate.ts",
@@ -37,6 +38,8 @@
     "zod": "4.6.6"
   },
   "devDependencies": {
+    "@axe-core/playwright": "4.13.0",
+    "@playwright/test": "1.64.0",
     "@types/node": "22",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",

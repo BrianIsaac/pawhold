@@ -1,0 +1,56 @@
+/*
+ * Element defaults every page shares, on the tokens. Components style
+ * themselves through CSS modules; this file only sets what the browser's
+ * defaults get wrong for pawhold: the font, the canvas, and a focus ring
+ * that is always visible from the keyboard.
+ */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: var(--font-size-1);
+  line-height: var(--line-height-body);
+  color: var(--colour-ink);
+  background: var(--colour-canvas);
+}
+
+h1,
+h2,
+h3 {
+  line-height: var(--line-height-tight);
+  font-weight: var(--font-weight-bold);
+}
+
+a {
+  color: var(--colour-accent-strong);
+  text-underline-offset: 0.15em;
+}
+
+:focus-visible {
+  outline: 3px solid var(--colour-focus);
+  outline-offset: 2px;
+}
+
+::selection {
+  background: var(--colour-mark);
+  color: var(--colour-mark-ink);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
