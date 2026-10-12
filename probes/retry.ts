@@ -1,9 +1,10 @@
 /*
  * The probes' fetch retries a request that got no answer (a reset, a
- * timeout, a failed lookup) when sending it again cannot act twice: a GET,
- * the token call, or a POST carrying its `PayPal-Request-Id`, which PayPal
- * answers once per id. An HTTP answer, whatever its status, is never retried,
- * and neither is a request whose own timeout (the client's) has run out.
+ * timeout, a failed lookup) or a 5xx or 429 answer, when sending it again
+ * cannot act twice: a GET, the token call, or a POST carrying its
+ * `PayPal-Request-Id`, which PayPal answers once per id. Any other answer is
+ * never retried, and neither is a request whose own timeout (the client's)
+ * has run out.
  */
 
 const TOKEN_PATH = "/v1/oauth2/token";
@@ -35,14 +36,19 @@ export function retryingFetch(base: typeof fetch, options: RetryOptions): typeof
       url.pathname === TOKEN_PATH ||
       new Headers(init?.headers).has("paypal-request-id");
     for (let attempt = 1; ; attempt += 1) {
+      const last = !idempotent || attempt >= options.attempts;
       try {
-        return await base(input, init);
+        const answer = await base(input, init);
+        if (last || !(answer.status >= 500 || answer.status === 429)) {
+          return answer;
+        }
+        await answer.body?.cancel();
       } catch (error) {
-        if (!idempotent || attempt >= options.attempts || init?.signal?.aborted === true) {
+        if (last || init?.signal?.aborted === true) {
           throw error;
         }
-        await sleep(options.delayMs * 2 ** (attempt - 1));
       }
+      await sleep(options.delayMs * 2 ** (attempt - 1));
     }
   };
 }

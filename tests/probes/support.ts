@@ -6,9 +6,10 @@ import { readRecording, replay } from "../../probes/replay";
 import type { ProbeRun } from "../../probes/run-once";
 
 /**
- * Replays a probe's committed recording and checks that the replay asks
- * PayPal exactly what the live run asked, reaches the same verdict and
- * observations, and finds the same clean-up.
+ * Replays a probe's committed recording and checks that the replay sends
+ * PayPal the same requests as the live run (method, path, body, the headers
+ * that change PayPal's behaviour, a `PayPal-Request-Id` where there was one),
+ * reaches the same verdict and observations, and finds the same clean-up.
  *
  * @param id - The probe.
  * @returns The recorded run and the replayed one.

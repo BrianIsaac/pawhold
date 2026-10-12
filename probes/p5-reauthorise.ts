@@ -4,6 +4,7 @@ import { captureAuthorization, getAuthorization, pence, reauthorizeAuthorization
 import {
   attempt,
   gbp,
+  isBusinessRefusal,
   issues,
   makeWalletHold,
   type Observation,
@@ -64,6 +65,9 @@ export const p5a: Probe = {
         context.requestId("kept", "reauthorize.early"),
       ),
     );
+    if (!tried.ok && !isBusinessRefusal(tried.error)) {
+      throw tried.error;
+    }
     if (tried.ok) {
       context.holds.record("kept.reauthorised", kept.orderId, tried.value.id);
       observations["reauthorisation accepted as"] = tried.value.id;
@@ -99,7 +103,8 @@ export const p5a: Probe = {
 /**
  * Captures a fresh £1.00 hold in full with the negative-testing header asking
  * for an expired authorisation, recording what PayPal answers. A final, full
- * capture, so the hold is closed whether or not the mock is honoured.
+ * capture, so a mock not honoured still closes the hold; an honoured mock
+ * captures nothing, and the run's clean-up voids the hold.
  *
  * @param context - The run's context.
  * @param observations - Where the answer is recorded.
@@ -188,6 +193,11 @@ async function reauthoriseStanding(
       ?.href.split("/")
       .pop() ?? `order-of-${id}`;
   context.holds.record("standing", orderId, id);
+  if (before.status !== "CREATED") {
+    throw new Error(
+      `the standing hold ${id} reads ${before.status}, not CREATED: nothing to reauthorise`,
+    );
+  }
   observations["standing authorisation"] = id;
   observations["standing status before"] = before.status;
   observations["standing created"] = before.create_time ?? null;
@@ -200,8 +210,10 @@ async function reauthoriseStanding(
     observations["new authorisation"] = tried.value.id;
     observations["new authorisation status"] = tried.value.status;
     observations["new authorisation expires"] = tried.value.expiration_time ?? null;
-  } else {
+  } else if (isBusinessRefusal(tried.error)) {
     recordRefusal(observations, tried.error);
+  } else {
+    throw tried.error;
   }
   return tried;
 }

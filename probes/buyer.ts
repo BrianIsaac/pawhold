@@ -2,6 +2,7 @@ import { type Browser, chromium, type Page } from "playwright";
 
 import { serveCardPage } from "./card-page";
 import { RETURN_URL } from "./paypal";
+import { scrub } from "./redact";
 
 /*
  * The sandbox buyer: a headless Chromium signs in to www.sandbox.paypal.com
@@ -118,13 +119,16 @@ export function createBrowserBuyer(
   };
   const payByCard = async (orderId: string, card: TestCard): Promise<CardPayment> => {
     const server = await serveCardPage(clientId);
-    const browser: Browser = await chromium.launch({ headless: true });
     try {
-      const page = await browser.newPage({ locale: "en-GB", timezoneId: "Europe/London" });
-      page.setDefaultTimeout(STEP_TIMEOUT_MS);
-      return await payIn(page, server.url, orderId, card, secrets);
+      const browser: Browser = await chromium.launch({ headless: true });
+      try {
+        const page = await browser.newPage({ locale: "en-GB", timezoneId: "Europe/London" });
+        page.setDefaultTimeout(STEP_TIMEOUT_MS);
+        return await payIn(page, server.url, orderId, card, secrets);
+      } finally {
+        await browser.close();
+      }
     } finally {
-      await browser.close();
       await server.close();
     }
   };
@@ -184,7 +188,8 @@ async function payIn(
   if (!state.ready) {
     return done({
       eligible: state.eligible,
-      eligibilityError: state.eligibilityError,
+      eligibilityError:
+        state.eligibilityError === null ? null : scrub(state.eligibilityError, secrets),
       state: null,
       data: null,
       error: scrub(state.error ?? "the card fields did not render in time", secrets),
@@ -201,7 +206,7 @@ async function payIn(
     await input.click();
     await input.pressSequentially(value, { delay: 20 });
   }
-  const result = await page.evaluate(
+  const submitted = page.evaluate(
     (id) =>
       (
         window as unknown as {
@@ -210,11 +215,21 @@ async function payIn(
       ).__probeSubmit(id),
     orderId,
   );
+  const result = await Promise.race([
+    submitted,
+    new Promise<never>((_, reject) =>
+      setTimeout(
+        () => reject(new Error(`the card fields' submit did not answer in ${STEP_TIMEOUT_MS} ms`)),
+        STEP_TIMEOUT_MS,
+      ).unref(),
+    ),
+  ]);
   return done({
     eligible: state.eligible,
-    eligibilityError: state.eligibilityError,
+    eligibilityError:
+      state.eligibilityError === null ? null : scrub(state.eligibilityError, secrets),
     state: result.state,
-    data: result.data,
+    data: scrubJson(result.data, secrets),
     error: null,
   });
 }
@@ -262,7 +277,7 @@ async function approveIn(
       seconds: Math.round((Date.now() - started) / 100) / 10,
       signedIn,
       funding: fundingOption(fundingId),
-      notice: notice?.replace(/\s+/g, " ").trim() ?? null,
+      notice: notice ? scrub(notice.replace(/\s+/g, " ").trim(), secrets) : null,
     };
   } catch (error) {
     throw new Error(`buyer approval failed at ${await describe(page, secrets)}`, { cause: error });
@@ -356,12 +371,18 @@ async function describe(page: Page, secrets: readonly string[]): Promise<string>
 }
 
 /**
- * Replaces every secret in a text.
+ * Scrubs every string in a JSON value read off a page.
  *
- * @param text - The text.
+ * @param value - The value.
  * @param secrets - The values to remove.
- * @returns The text without them.
+ * @returns The scrubbed copy.
  */
-function scrub(text: string, secrets: readonly string[]): string {
-  return secrets.reduce((out, s) => (s.length > 0 ? out.replaceAll(s, "<redacted>") : out), text);
+function scrubJson(value: unknown, secrets: readonly string[]): unknown {
+  return value === undefined
+    ? null
+    : (JSON.parse(
+        JSON.stringify(value, (_key, inner: unknown) =>
+          typeof inner === "string" ? scrub(inner, secrets) : inner,
+        ),
+      ) as unknown);
 }

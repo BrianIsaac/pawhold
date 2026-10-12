@@ -72,6 +72,8 @@ export interface ProbeContext {
   requestId(hold: string, step: string): string;
   /** Adds a line to the run's timeline. */
   note(text: string): void;
+  /** When the run started (the run's own record of it). */
+  readonly startedAt: Date;
   /** The clock. */
   now(): Date;
   /** Waits; immediate in a replay. */
@@ -167,6 +169,7 @@ export class HoldLedger {
  * @param options - The command line's options.
  * @param now - The clock.
  * @param sleep - How to wait.
+ * @param startedAt - When the run started; now by default.
  * @returns The context and the run's timeline.
  */
 export function createContext(
@@ -175,6 +178,7 @@ export function createContext(
   options: ProbeOptions,
   now: () => Date = () => new Date(),
   sleep: (ms: number) => Promise<void> = (ms) => new Promise((done) => setTimeout(done, ms)),
+  startedAt: Date = now(),
 ): { context: ProbeContext; notes: { at: string; text: string }[] } {
   const caseId = randomUUID();
   const holdIds = new Map<string, string>();
@@ -191,6 +195,7 @@ export function createContext(
       return paypalRequestId({ caseId, holdId: holdIds.get(hold)!, step });
     },
     note: (text) => notes.push({ at: now().toISOString(), text }),
+    startedAt,
     now,
     sleep,
   };
@@ -293,15 +298,15 @@ async function resolveAuthorization(
  */
 export async function releaseLeftovers(context: ProbeContext): Promise<void> {
   for (const entry of context.holds.entries.filter((e) => e.kept === null)) {
-    await resolveAuthorization(context.client, entry);
-    if (entry.authorizationId === null) {
-      continue;
-    }
-    const read = await getAuthorization(context.client, entry.authorizationId);
-    if (CLOSED.has(read.status)) {
-      continue;
-    }
     try {
+      await resolveAuthorization(context.client, entry);
+      if (entry.authorizationId === null) {
+        continue;
+      }
+      const read = await getAuthorization(context.client, entry.authorizationId);
+      if (CLOSED.has(read.status)) {
+        continue;
+      }
       await voidAuthorization(
         context.client,
         entry.authorizationId,
@@ -309,11 +314,8 @@ export async function releaseLeftovers(context: ProbeContext): Promise<void> {
       );
       context.note(`clean-up voided ${entry.authorizationId} (was ${read.status})`);
     } catch (error) {
-      if (!(error instanceof PayPalError)) {
-        throw error;
-      }
       context.note(
-        `clean-up could not void ${entry.authorizationId}: ${error.name} ${error.details.map((d) => d.issue).join(", ")}`,
+        `clean-up could not close ${entry.authorizationId ?? `order ${entry.orderId}`}: ${failure(error)}`,
       );
     }
   }
@@ -322,7 +324,8 @@ export async function releaseLeftovers(context: ProbeContext): Promise<void> {
 /**
  * Lists the run's authorisations as PayPal now states them and asserts each
  * is captured or voided, or is a hold kept on purpose and still `CREATED`.
- * An order never authorised holds nothing and passes.
+ * An order never authorised holds nothing and passes; one that cannot be
+ * read fails the check, and the rest are still read.
  *
  * @param client - The sandbox client.
  * @param holds - The run's ledger.
@@ -331,28 +334,63 @@ export async function releaseLeftovers(context: ProbeContext): Promise<void> {
 export async function checkClean(client: PayPalClient, holds: HoldLedger): Promise<CleanCheck> {
   const rows: CleanRow[] = [];
   for (const entry of holds.entries) {
-    const orderStatus = await resolveAuthorization(client, entry);
-    if (entry.authorizationId === null) {
+    try {
+      const orderStatus = await resolveAuthorization(client, entry);
+      if (entry.authorizationId === null) {
+        rows.push({
+          orderId: entry.orderId,
+          authorizationId: null,
+          status: `order ${orderStatus ?? "unread"}, not authorised`,
+          kept: entry.kept,
+          ok: true,
+        });
+        continue;
+      }
+      const { status } = await getAuthorization(client, entry.authorizationId);
+      const ok = entry.kept === null ? CLOSED.has(status) : status === "CREATED";
       rows.push({
         orderId: entry.orderId,
-        authorizationId: null,
-        status: `order ${orderStatus ?? "unread"}, not authorised`,
+        authorizationId: entry.authorizationId,
+        status,
         kept: entry.kept,
-        ok: true,
+        ok,
       });
-      continue;
+    } catch (error) {
+      rows.push({
+        orderId: entry.orderId,
+        authorizationId: entry.authorizationId,
+        status: `unread: ${failure(error)}`,
+        kept: entry.kept,
+        ok: false,
+      });
     }
-    const { status } = await getAuthorization(client, entry.authorizationId);
-    const ok = entry.kept === null ? CLOSED.has(status) : status === "CREATED";
-    rows.push({
-      orderId: entry.orderId,
-      authorizationId: entry.authorizationId,
-      status,
-      kept: entry.kept,
-      ok,
-    });
   }
   return { rows, clean: rows.every((r) => r.ok) };
+}
+
+/**
+ * A failure in a few words: PayPal's error name and issues, or the error's
+ * first line.
+ *
+ * @param error - What was thrown.
+ * @returns The description.
+ */
+function failure(error: unknown): string {
+  if (error instanceof PayPalError) {
+    return `${error.name} ${error.details.map((d) => d.issue).join(", ")}`.trim();
+  }
+  return error instanceof Error ? (error.message.split("\n")[0] ?? error.name) : String(error);
+}
+
+/**
+ * Whether a refusal is PayPal declining the request on its merits (a 422),
+ * not PayPal failing to answer it (a 5xx, a 429) or refusing the caller.
+ *
+ * @param error - The refusal.
+ * @returns True for a business refusal.
+ */
+export function isBusinessRefusal(error: PayPalError): boolean {
+  return error.status === 422;
 }
 
 /**

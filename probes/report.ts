@@ -45,6 +45,7 @@ export function renderSection(probe: Probe, runs: readonly ProbeRun[]): string {
   const date = runs[0] ? longDate(runs[0].startedAt) : "not run";
   const tally = runs.map((r, i) => `run ${i + 1} ${r.outcome?.verdict ?? "broke"}`).join(", ");
   const branch = runs.find((r) => r.outcome?.branch)?.outcome?.branch ?? null;
+  const reached = runs.filter((r) => r.outcome !== null).length;
   const lines = [
     begin(probe.id),
     `### ${probe.id}. ${probe.title}`,
@@ -53,7 +54,7 @@ export function renderSection(probe: Probe, runs: readonly ProbeRun[]): string {
     "",
     `Question: ${probe.question}`,
     "",
-    `**Verdict: ${agreed ?? "runs disagree"}**, ${date} (${tally}${runs.length > 1 ? (agreed ? ": the runs agree" : ": the runs DISAGREE") : ""}).`,
+    `**Verdict: ${agreed ?? (reached === 0 ? "no verdict" : "runs disagree")}**, ${date} (${tally}${runs.length > 1 && reached > 0 ? (agreed ? ": the runs agree" : ": the runs DISAGREE") : ""}).`,
     ...(branch ? ["", `The plan's branch taken: ${branch}`] : []),
     ...runs.flatMap((run, i) => renderRun(run, i + 1, runs.length)),
     end(probe.id),

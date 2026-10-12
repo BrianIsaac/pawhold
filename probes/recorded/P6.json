@@ -141,7 +141,7 @@
         "status": "COMPLETED",
         "payment_source": {
           "card": {
-            "name": "Pawhold Probe",
+            "name": "<redacted>",
             "last_digits": "3024",
             "expiry": "2030-12",
             "brand": "VISA",
@@ -465,7 +465,7 @@
         "status": "COMPLETED",
         "payment_source": {
           "card": {
-            "name": "Pawhold Probe",
+            "name": "<redacted>",
             "last_digits": "3024",
             "expiry": "2030-12",
             "brand": "VISA",
@@ -859,7 +859,7 @@
         "status": "COMPLETED",
         "payment_source": {
           "card": {
-            "name": "Pawhold Probe",
+            "name": "<redacted>",
             "last_digits": "3024",
             "expiry": "2030-12",
             "brand": "VISA",

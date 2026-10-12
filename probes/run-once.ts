@@ -78,14 +78,16 @@ export async function runOnce(probe: Probe, deps: RunDependencies): Promise<Prob
       { attempts: 4, delayMs: deps.retryDelayMs ?? 2_000 },
     ),
   });
+  const started = now();
   const { context, notes } = createContext(
     client,
     recordingBuyer(deps.buyer, events),
     deps.options,
     now,
     deps.sleep,
+    started,
   );
-  const startedAt = now().toISOString();
+  const startedAt = started.toISOString();
   let outcome: ProbeOutcome | null = null;
   let error: string | null = null;
   try {
@@ -93,13 +95,8 @@ export async function runOnce(probe: Probe, deps: RunDependencies): Promise<Prob
   } catch (thrown) {
     error = describeError(thrown);
   }
-  let cleanup: CleanCheck | null = null;
-  try {
-    await releaseLeftovers(context);
-    cleanup = await checkClean(client, context.holds);
-  } catch (thrown) {
-    error = [error, `clean-up: ${describeError(thrown)}`].filter(Boolean).join("; ");
-  }
+  await releaseLeftovers(context);
+  const cleanup: CleanCheck = await checkClean(client, context.holds);
   return {
     probe: probe.id,
     startedAt,

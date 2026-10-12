@@ -100,7 +100,7 @@ describe("the probe report's sections", () => {
 
     const section = renderSection(probe, [broke]);
 
-    expect(section).toContain("**Verdict: runs disagree**");
+    expect(section).toContain("**Verdict: no verdict**, 12 October 2026 (run 1 broke).");
     expect(section).toContain("The run broke before a verdict: Error: buyer approval failed");
     expect(section).toContain("Clean-up check: NOT CLEAN\n- `A9` CREATED NOT CLOSED");
   });

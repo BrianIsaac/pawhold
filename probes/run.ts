@@ -4,7 +4,8 @@ import { readEnvironment } from "../src/env";
 
 import { createBrowserBuyer } from "./buyer";
 import { probeEnvironment, secretsOf } from "./environment";
-import { PROBES } from "./index";
+import { buildProbes } from "./index";
+import { postgresWebhookStore } from "./webhook-store";
 import { PROBE_IDS, type ProbeId } from "./probe";
 import { assertNoSecrets } from "./redact";
 import { writeRecording } from "./replay";
@@ -21,6 +22,7 @@ import { type ProbeRun, runOnce } from "./run-once";
  *                                  docs/research/sandbox-probes-<today>.md)
  *   pnpm probes --record           writes run 1 of each probe to
  *                                  probes/recorded/<id>.json, for the replay tests
+ *                                  (only a run with a verdict, not owed, and clean)
  *   pnpm probes P5B --holds=<id>,<id>   the holds P5 (a) left standing
  *
  * Calls PayPal's sandbox and drives a headless Chromium as the GB buyer.
@@ -45,8 +47,14 @@ const unknown = ids.filter((id) => !(PROBE_IDS as readonly string[]).includes(id
 if (unknown.length > 0) {
   throw new Error(`unknown probe(s): ${unknown.join(", ")}; known: ${PROBE_IDS.join(", ")}`);
 }
-const selected = (ids.length > 0 ? (ids as ProbeId[]) : [...PROBES.keys()]).map((id) => {
-  const probe = PROBES.get(id);
+const env = readEnvironment(probeEnvironment);
+const probes = buildProbes({
+  webhookId: env.PAYPAL_WEBHOOK_ID,
+  storeUrl: env.P8_DATABASE_URL,
+  openStore: postgresWebhookStore,
+});
+const selected = (ids.length > 0 ? (ids as ProbeId[]) : [...probes.keys()]).map((id) => {
+  const probe = probes.get(id);
   if (!probe) {
     throw new Error(`probe ${id} is not written yet`);
   }
@@ -55,8 +63,10 @@ const selected = (ids.length > 0 ? (ids as ProbeId[]) : [...PROBES.keys()]).map(
 const today = new Date().toISOString().slice(0, 10);
 const reportPath = resolve(flag("report") ?? `docs/research/sandbox-probes-${today}.md`);
 const holds = (flag("holds") ?? "").split(",").filter((h) => h.length > 0);
+if (holds.length > 0 && selected.length !== 1) {
+  throw new Error("--holds names one probe's standing holds: run P5B and P5C separately");
+}
 
-const env = readEnvironment(probeEnvironment);
 const secrets = secretsOf(env);
 const buyer = createBrowserBuyer(
   { email: env.PAYPAL_SANDBOX_BUYER_EMAIL, password: env.PAYPAL_SANDBOX_BUYER_PASSWORD },
@@ -83,7 +93,15 @@ for (const probe of selected) {
     );
     failed ||= run.outcome === null || run.error !== null || !run.cleanup?.clean;
     writeSection(reportPath, probe.id, renderSection(probe, done), secrets);
-    if (n === 1 && args.includes("--record")) {
+    const recordable =
+      run.outcome !== null &&
+      run.outcome.verdict !== "owed" &&
+      run.error === null &&
+      run.cleanup?.clean === true;
+    if (n === 1 && args.includes("--record") && !recordable) {
+      say(`${probe.id}: run 1 broke, was owed or is not clean; its recording is left as it was`);
+    }
+    if (n === 1 && args.includes("--record") && recordable) {
       writeRecording(
         run,
         assertNoSecrets(`${JSON.stringify(run, null, 2)}\n`, secrets, "a recording"),

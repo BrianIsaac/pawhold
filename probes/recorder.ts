@@ -45,24 +45,8 @@ export function recordingFetch(
   now: () => number = Date.now,
 ): typeof fetch {
   return async (input, init) => {
-    const url = new URL(input instanceof Request ? input.url : String(input));
-    const method = (init?.method ?? "GET").toUpperCase();
-    const headers = new Headers(init?.headers);
-    const isToken = url.pathname === TOKEN_PATH;
     const sentAt = now();
-    const sent = {
-      at: new Date(sentAt).toISOString(),
-      method,
-      path: `${url.pathname}${url.search}`,
-      requestId: headers.get("paypal-request-id"),
-      sentHeaders: Object.fromEntries(
-        KEPT_HEADERS.flatMap((name) => {
-          const value = headers.get(name);
-          return value === null ? [] : [[name, value]];
-        }),
-      ),
-      requestBody: isToken ? null : parseBody(init?.body),
-    };
+    const sent = { at: new Date(sentAt).toISOString(), ...describeRequest(input, init) };
     let answer: Response;
     try {
       answer = await base(input, init);
@@ -70,6 +54,7 @@ export function recordingFetch(
       log.push({ ...sent, ms: now() - sentAt, status: null, debugId: null, responseBody: null });
       throw error;
     }
+    const isToken = sent.path === TOKEN_PATH;
     const text = isToken ? "" : await answer.clone().text();
     const body = text.length === 0 ? null : safeJson(text);
     log.push({
@@ -80,6 +65,41 @@ export function recordingFetch(
       responseBody: isToken ? null : redact(body),
     });
     return answer;
+  };
+}
+
+/** What the probes keep of a request. */
+export type RequestRecord = Pick<
+  Exchange,
+  "method" | "path" | "requestId" | "sentHeaders" | "requestBody"
+>;
+
+/**
+ * What the probes keep of a request: its method and path, its
+ * `PayPal-Request-Id`, the headers that change PayPal's behaviour and its
+ * JSON body, redacted (none for the token call).
+ *
+ * @param input - fetch's input.
+ * @param init - fetch's init.
+ * @returns The record.
+ */
+export function describeRequest(
+  input: Parameters<typeof fetch>[0],
+  init: Parameters<typeof fetch>[1],
+): RequestRecord {
+  const url = new URL(input instanceof Request ? input.url : String(input));
+  const headers = new Headers(init?.headers);
+  return {
+    method: (init?.method ?? "GET").toUpperCase(),
+    path: `${url.pathname}${url.search}`,
+    requestId: headers.get("paypal-request-id"),
+    sentHeaders: Object.fromEntries(
+      KEPT_HEADERS.flatMap((name) => {
+        const value = headers.get(name);
+        return value === null ? [] : [[name, value]];
+      }),
+    ),
+    requestBody: url.pathname === TOKEN_PATH ? null : parseBody(init?.body),
   };
 }
 

@@ -14,6 +14,8 @@ const WITHIN_SECONDS = 60;
 /** How long to keep reading before calling it not shown. */
 const GIVE_UP_SECONDS = 180;
 const READ_EVERY_MS = 10_000;
+/** A bound on the readings, should PayPal's time be unreadable. */
+const MAX_READINGS = Math.ceil((GIVE_UP_SECONDS * 1000) / READ_EVERY_MS) + 1;
 
 const BRANCH = "The video shows pawhold's timeline and the webhook ticks, not the buyer's account.";
 
@@ -59,7 +61,8 @@ async function watchFor(
     if (entry) {
       return { reading, entry, readings };
     }
-    if ((Date.parse(reading.at) - since) / 1000 > GIVE_UP_SECONDS) {
+    const waited = (Date.parse(reading.at) - since) / 1000;
+    if (readings >= MAX_READINGS || waited > GIVE_UP_SECONDS) {
       return { reading: null, entry: null, readings };
     }
     await context.sleep(READ_EVERY_MS);
@@ -88,7 +91,7 @@ export const p9: Probe = {
   title: "The sandbox account shows it",
   question: `Does the buyer's own sandbox account (www.sandbox.paypal.com, the summary's recent activity) show the hold and then the capture, each within ${WITHIN_SECONDS} s of PayPal's \`create_time\` for it? Pass if both do.`,
   async run(context) {
-    const asked = 1_000 + (Math.trunc(context.now().getTime() / 1000) % 9_000);
+    const asked = 1_000 + (Math.trunc(context.startedAt.getTime() / 1000) % 9_000);
     return context.buyer.session(async (session) => {
       const created = await createAuthorizeOrder(context.client, {
         amount: gbp(asked),

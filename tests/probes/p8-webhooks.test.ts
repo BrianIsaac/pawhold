@@ -98,7 +98,7 @@ async function runP8(setup: Parameters<typeof createP8>[0]) {
     notes: [],
     cleanup: null,
   };
-  return replay(createP8(setup), recorded);
+  return replay(createP8(setup), recorded, { strict: false });
 }
 
 describe("P8 before the listener is deployed", () => {

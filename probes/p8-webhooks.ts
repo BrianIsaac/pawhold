@@ -18,6 +18,7 @@ const CYCLES = 10;
 const P95_BAR_SECONDS = 10;
 const WAIT_AFTER_LAST_MS = 5 * 60 * 1000;
 const POLL_EVERY_MS = 5_000;
+const MAX_POLLS = WAIT_AFTER_LAST_MS / POLL_EVERY_MS;
 
 const BRANCH =
   "The screens move on PayPal's API answer and show the webhook's tick when it lands (\"Confirmed by PayPal\"); the video's cut waits on the tick and, if it is long, shows it sped up with the real time in a caption. A failed verification is a defect to fix in U1, not a branch.";
@@ -233,9 +234,12 @@ export function createP8(setup: P8Setup): Probe {
         const lastAnswer = Date.parse(expected.at(-1)!.answeredAt);
         const ids = [...new Set(expected.map((e) => e.resourceId))];
         let arrivals = matchArrivals(expected, await store.find(ids));
-        while (
+        for (
+          let polls = 0;
+          polls < MAX_POLLS &&
           arrivals.some((a) => a.delivery === null) &&
-          context.now().getTime() - lastAnswer < WAIT_AFTER_LAST_MS
+          context.now().getTime() - lastAnswer < WAIT_AFTER_LAST_MS;
+          polls += 1
         ) {
           await context.sleep(POLL_EVERY_MS);
           arrivals = matchArrivals(expected, await store.find(ids));
@@ -278,7 +282,12 @@ async function judge(context: ProbeContext, webhookId: string, arrivals: readonl
       headersOf(a.delivery),
       webhookId,
       a.delivery.rawBody,
-    ).catch(() => "UNAVAILABLE" as const);
+    ).catch((error: unknown) => {
+      context.note(
+        `postback of ${a.delivery!.eventId} got no verdict: ${error instanceof Error ? error.message : String(error)}`,
+      );
+      return "UNAVAILABLE" as const;
+    });
     if (posted === "SUCCESS") {
       byPostback += 1;
     }

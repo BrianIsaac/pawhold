@@ -173,6 +173,12 @@ export const p6: Probe = {
         throw error;
       }
       observations["what happened"] = error.message;
+      const firstHold = context.holds.entries.length <= 1;
+      if (!error.reached && !firstHold) {
+        throw new Error(
+          `a later card hold did not reach the card after an earlier one authorised: ${error.message}`,
+        );
+      }
       return error.reached
         ? { verdict: "fail", summary: error.message, observations, branch: BRANCH }
         : {

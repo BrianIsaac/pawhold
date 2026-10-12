@@ -56,14 +56,43 @@ describe("the probes' retrying fetch", () => {
     expect(calls()).toBe(3);
   });
 
-  it("never retries an HTTP answer, whatever its status", async () => {
+  it("retries a 5xx or 429 answer to an idempotent request, and gives the last answer when it persists", async () => {
+    const statuses = [503, 429, 200];
     let calls = 0;
-    const failing: typeof fetch = () => {
+    const answering: typeof fetch = () =>
+      Promise.resolve(new Response("{}", { status: statuses[calls++] ?? 500 }));
+
+    const answer = await retryingFetch(answering, options)(`${URL_BASE}/v2/payments/captures/C1`);
+    expect(answer.status).toBe(200);
+    expect(calls).toBe(3);
+
+    calls = 0;
+    const always503: typeof fetch = () => {
       calls += 1;
       return Promise.resolve(new Response("{}", { status: 503 }));
     };
-    const answer = await retryingFetch(failing, options)(`${URL_BASE}/v2/payments/captures/C1`);
-    expect(answer.status).toBe(503);
-    expect(calls).toBe(1);
+    expect(
+      (await retryingFetch(always503, options)(`${URL_BASE}/v2/payments/captures/C1`)).status,
+    ).toBe(503);
+    expect(calls).toBe(3);
+  });
+
+  it("never retries a 4xx other than 429, nor any answer to a POST without a PayPal-Request-Id", async () => {
+    for (const [status, init] of [
+      [422, { method: "GET" }],
+      [503, { method: "POST" }],
+    ] as const) {
+      let calls = 0;
+      const answering: typeof fetch = () => {
+        calls += 1;
+        return Promise.resolve(new Response("{}", { status }));
+      };
+      const answer = await retryingFetch(answering, options)(
+        `${URL_BASE}/v2/checkout/orders`,
+        init,
+      );
+      expect(answer.status).toBe(status);
+      expect(calls).toBe(1);
+    }
   });
 });

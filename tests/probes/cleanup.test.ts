@@ -37,7 +37,7 @@ const read = (id: string, status: string) =>
  * @returns The client and what is left unserved.
  */
 function scripted(exchanges: Exchange[]) {
-  const served = replayFetch([token, ...exchanges]);
+  const served = replayFetch([token, ...exchanges], { strict: false });
   const client = createPayPalClient({
     clientId: "id",
     clientSecret: "secret",
@@ -151,7 +151,43 @@ describe("the clean-up of a run that ended early", () => {
     expect(remaining()).toBe(0);
     expect(notes.map((n) => n.text)).toEqual([
       "clean-up voided A1 (was CREATED)",
-      "clean-up could not void A3: UNPROCESSABLE_ENTITY PREVIOUSLY_CAPTURED",
+      "clean-up could not close A3: UNPROCESSABLE_ENTITY PREVIOUSLY_CAPTURED",
+    ]);
+  });
+});
+
+describe("the clean-up when PayPal fails part way", () => {
+  it("goes on to the next hold and still checks every one, failing the check for what it could not read", async () => {
+    const { client, remaining } = scripted([
+      answer("GET", "/v2/payments/authorizations/A1", 404, { name: "RESOURCE_NOT_FOUND" }),
+      read("A2", "CREATED"),
+      answer("POST", "/v2/payments/authorizations/A2/void", 200, { id: "A2", status: "VOIDED" }),
+      answer("GET", "/v2/payments/authorizations/A1", 404, { name: "RESOURCE_NOT_FOUND" }),
+      read("A2", "VOIDED"),
+    ]);
+    const { context, notes } = createContext(
+      client,
+      replayBuyer([]),
+      { holds: [], run: 1 },
+      () => new Date("2026-10-12T11:00:00Z"),
+    );
+    for (const [i, id] of ["A1", "A2"].entries()) {
+      context.holds.order(`h${i}`, `O${i + 1}`);
+      context.holds.authorised(`O${i + 1}`, id);
+    }
+
+    await releaseLeftovers(context);
+    const check = await checkClean(client, context.holds);
+
+    expect(remaining()).toBe(0);
+    expect(notes.map((n) => n.text)).toEqual([
+      "clean-up could not close A1: RESOURCE_NOT_FOUND",
+      "clean-up voided A2 (was CREATED)",
+    ]);
+    expect(check.clean).toBe(false);
+    expect(check.rows.map((r) => [r.authorizationId, r.status, r.ok])).toEqual([
+      ["A1", "unread: RESOURCE_NOT_FOUND", false],
+      ["A2", "VOIDED", true],
     ]);
   });
 });

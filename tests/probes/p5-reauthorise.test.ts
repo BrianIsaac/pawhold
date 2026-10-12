@@ -77,7 +77,7 @@ async function scripted(probe: Probe, at: string, exchanges: Exchange[]) {
     notes: [],
     cleanup: null,
   };
-  return replay(probe, recorded);
+  return replay(probe, recorded, { strict: false });
 }
 
 const p5b = PROBES.get("P5B")!;
@@ -189,5 +189,57 @@ describe("P5 (c) on 17 October, over scripted answers", () => {
       verdict: "pass",
       observations: { "reauthorisation refused, issue": "REAUTHORIZATION_NOT_SUPPORTED" },
     });
+  });
+});
+
+describe("P5's refusals that are not PayPal's answer on the merits", () => {
+  it("breaks the run, with no verdict, when PayPal answers 503 to the reauthorisation", async () => {
+    const { run } = await scripted(p5c, "2026-10-17T09:00:00.000Z", [
+      exchange("GET", "/v2/payments/authorizations/STANDING1", 200, STANDING),
+      exchange("POST", "/v2/payments/authorizations/STANDING1/reauthorize", 503, {
+        name: "SERVICE_UNAVAILABLE",
+      }),
+      exchange("POST", "/v2/payments/authorizations/STANDING1/reauthorize", 503, {
+        name: "SERVICE_UNAVAILABLE",
+      }),
+      exchange("POST", "/v2/payments/authorizations/STANDING1/reauthorize", 503, {
+        name: "SERVICE_UNAVAILABLE",
+      }),
+      exchange("POST", "/v2/payments/authorizations/STANDING1/reauthorize", 503, {
+        name: "SERVICE_UNAVAILABLE",
+      }),
+      exchange("GET", "/v2/payments/authorizations/STANDING1", 200, STANDING),
+      exchange("POST", "/v2/payments/authorizations/STANDING1/void", 200, {
+        id: "STANDING1",
+        status: "VOIDED",
+      }),
+      exchange("GET", "/v2/payments/authorizations/STANDING1", 200, {
+        id: "STANDING1",
+        status: "VOIDED",
+      }),
+    ]);
+
+    expect(run.outcome).toBeNull();
+    expect(run.error).toMatch(/SERVICE_UNAVAILABLE/);
+  });
+
+  it("breaks the run when the standing hold is no longer CREATED", async () => {
+    const { run } = await scripted(p5c, "2026-10-17T09:00:00.000Z", [
+      exchange("GET", "/v2/payments/authorizations/STANDING1", 200, {
+        ...STANDING,
+        status: "VOIDED",
+      }),
+      exchange("GET", "/v2/payments/authorizations/STANDING1", 200, {
+        ...STANDING,
+        status: "VOIDED",
+      }),
+      exchange("GET", "/v2/payments/authorizations/STANDING1", 200, {
+        ...STANDING,
+        status: "VOIDED",
+      }),
+    ]);
+
+    expect(run.outcome).toBeNull();
+    expect(run.error).toMatch(/reads VOIDED, not CREATED/);
   });
 });

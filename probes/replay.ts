@@ -2,7 +2,9 @@ import { readFileSync, writeFileSync } from "node:fs";
 
 import type { ActivityReading, Approval, Buyer, BuyerSession, CardPayment } from "./buyer";
 import type { Probe } from "./probe";
-import type { Exchange } from "./recorder";
+import { isDeepStrictEqual } from "node:util";
+
+import { describeRequest, type Exchange } from "./recorder";
 import { type BuyerEvent, type ProbeRun, runOnce } from "./run-once";
 
 /*
@@ -49,24 +51,49 @@ export interface ReplayFetch {
   readonly remaining: () => number;
 }
 
+/** How closely a replay holds the probe to the recorded requests. */
+export interface ReplayOptions {
+  /**
+   * Also compare each request's body, its behaviour-changing headers and
+   * whether it carries a `PayPal-Request-Id` (the ids themselves are random
+   * per run). On for recordings; off for hand-scripted answers, which record
+   * no requests.
+   */
+  readonly strict: boolean;
+}
+
 /**
  * A fetch that answers with a run's recorded exchanges, in order, refusing a
  * request that is not the next one recorded.
  *
  * @param exchanges - The recorded exchanges.
+ * @param options - How closely to compare.
  * @returns The fetch.
  */
-export function replayFetch(exchanges: readonly Exchange[]): ReplayFetch {
+export function replayFetch(
+  exchanges: readonly Exchange[],
+  options: ReplayOptions = { strict: true },
+): ReplayFetch {
   const queue = [...exchanges];
   const fetchImpl: typeof fetch = (input, init) => {
-    const url = new URL(input instanceof Request ? input.url : String(input));
-    const method = (init?.method ?? "GET").toUpperCase();
-    const path = `${url.pathname}${url.search}`;
+    const sent = describeRequest(input, init);
     const next = queue.shift();
-    if (!next || next.method !== method || next.path !== path) {
+    if (!next || next.method !== sent.method || next.path !== sent.path) {
       throw new Error(
-        `replay: ${method} ${path} was not the next request recorded (${next ? `${next.method} ${next.path}` : "none left"})`,
+        `replay: ${sent.method} ${sent.path} was not the next request recorded (${next ? `${next.method} ${next.path}` : "none left"})`,
       );
+    }
+    if (options.strict) {
+      const differs = [
+        isDeepStrictEqual(sent.requestBody, next.requestBody) ? null : "body",
+        isDeepStrictEqual(sent.sentHeaders, next.sentHeaders) ? null : "headers",
+        (sent.requestId === null) === (next.requestId === null) ? null : "PayPal-Request-Id",
+      ].filter((d) => d !== null);
+      if (differs.length > 0) {
+        throw new Error(
+          `replay: ${sent.method} ${sent.path} differs from the recording in its ${differs.join(", ")}: sent ${JSON.stringify(sent)}, recorded ${JSON.stringify({ requestBody: next.requestBody, sentHeaders: next.sentHeaders, requestId: next.requestId })}`,
+        );
+      }
     }
     if (next.status === null) {
       return Promise.reject(new TypeError("fetch failed (recorded)"));
@@ -108,7 +135,16 @@ export function replayBuyer(events: readonly BuyerEvent[]): Buyer {
   return {
     approve: (url) => session.approve(url),
     session: (steps) => steps(session),
-    payByCard: () => Promise.resolve(take("card") as CardPayment),
+    payByCard: (orderId) => {
+      const recorded = take("card") as CardPayment;
+      const paidFor = (recorded.data as { orderId?: unknown } | null)?.orderId;
+      if (paidFor !== undefined && paidFor !== orderId) {
+        throw new Error(
+          `replay: card fields asked to pay ${orderId}, recorded paying ${String(paidFor)}`,
+        );
+      }
+      return Promise.resolve(recorded);
+    },
   };
 }
 
@@ -117,13 +153,15 @@ export function replayBuyer(events: readonly BuyerEvent[]): Buyer {
  *
  * @param probe - The probe.
  * @param recorded - The recorded run.
+ * @param options - How closely to compare; strict by default.
  * @returns The replayed run and how many recorded exchanges went unserved.
  */
 export async function replay(
   probe: Probe,
   recorded: ProbeRun,
+  options: ReplayOptions = { strict: true },
 ): Promise<{ run: ProbeRun; unserved: number }> {
-  const served = replayFetch(recorded.exchanges);
+  const served = replayFetch(recorded.exchanges, options);
   const run = await runOnce(probe, {
     clientId: "REPLAY-CLIENT",
     clientSecret: "REPLAY-SECRET",
