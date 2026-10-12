@@ -8,7 +8,7 @@ import {
   estimateIntro,
   LINES_LABEL,
   rangeLine,
-  YOUR_VET,
+  vetCalled,
 } from "@/owner/wording";
 
 import { OwnerLines } from "./lines";
@@ -33,22 +33,23 @@ export function Estimate({
 }) {
   const money = (pence: number) => formatPence(pence, page.currency);
   const high = money(page.totals.highPence);
+  const vet = vetCalled(page.header.vetName);
   return (
     <article className={styles.page} aria-labelledby="estimate-heading">
       <header className={styles.header}>
         <h1 id="estimate-heading">
           {estimateHeading(page.header.patientName, page.header.practiceName)}
         </h1>
-        <p className={styles.intro}>{estimateIntro(YOUR_VET, page.header.patientName, high)}</p>
+        <p className={styles.intro}>{estimateIntro(vet, page.header.patientName, high)}</p>
       </header>
 
-      <p className={styles.range}>{rangeLine(YOUR_VET, money(page.totals.lowPence), high)}</p>
+      <p className={styles.range}>{rangeLine(vet, money(page.totals.lowPence), high)}</p>
 
       <OwnerLines lines={page.lines} currency={page.currency} label={LINES_LABEL} id="lines" />
 
       {authorise ? <section className={styles.authorise}>{authorise}</section> : null}
 
-      <p className={styles.askFirst}>{askFirst(YOUR_VET, high)}</p>
+      <p className={styles.askFirst}>{askFirst(vet, high)}</p>
     </article>
   );
 }

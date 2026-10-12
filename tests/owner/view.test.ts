@@ -2,7 +2,7 @@ import { eq } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
 
 import { appendAuditEvent } from "@/audit/writer";
-import { capture } from "@/db/schema";
+import { capture, patientCase } from "@/db/schema";
 import { loadEstimateVersion, makeEstimateVersion } from "@/estimate/version";
 import { discharge } from "@/money/discharge";
 import { authoriseHold, orderHold, sendEstimate, withdrawEstimate } from "@/money/holds";
@@ -31,6 +31,7 @@ describe("the owner's page for a link", () => {
       practiceName: "View practice",
       patientName: "Biscuit",
       ownerName: "Ann Owner",
+      vetName: null,
     });
     expect(page.currency).toBe("GBP");
     expect(page.totals).toEqual({ lowPence: 57_700, highPence: 77_300 });
@@ -69,6 +70,24 @@ describe("the owner's page for a link", () => {
         highPence: 7_200,
       },
     ]);
+  });
+});
+
+describe("the vet the owner's page names", () => {
+  const { db } = connectTestDatabase();
+
+  it("is the vet who opened the case, when the practice named one (section 6's {vet name})", async () => {
+    const fixture = await makeDentalCase(db, "Named vet practice");
+    await db
+      .update(patientCase)
+      .set({ vetName: "Rowan Hale" })
+      .where(eq(patientCase.id, fixture.caseId));
+    const draft = await makeEstimateVersion(db, { ...fixture, actor: "vet", lines: DENTAL_LINES });
+    await sendEstimate(db, { practiceId: fixture.practiceId, versionId: draft.id, actor: "vet" });
+
+    const page = await ownerPage(db, { ...fixture, versionId: draft.id });
+
+    expect(page?.header.vetName).toBe("Rowan Hale");
   });
 });
 

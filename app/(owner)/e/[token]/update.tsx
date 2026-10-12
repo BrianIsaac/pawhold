@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 import { updateHeading } from "@/agent/wording";
 import { formatPence } from "@/money/format";
 import type { OwnerUpdatePage } from "@/owner/view";
-import { ADDED_LABEL, capitalised, updateAdds, YOUR_VET } from "@/owner/wording";
+import { ADDED_LABEL, capitalised, updateAdds, vetCalled } from "@/owner/wording";
 
 import { OwnerLines } from "./lines";
 import styles from "./page.module.css";
@@ -31,7 +31,7 @@ export function Update({
     <article className={styles.page} aria-labelledby="update-heading">
       <header className={styles.header}>
         <p className={styles.eyebrow}>{page.header.practiceName}</p>
-        <h1 id="update-heading">{updateHeading(capitalised(YOUR_VET))}</h1>
+        <h1 id="update-heading">{updateHeading(capitalised(vetCalled(page.header.vetName)))}</h1>
         {page.explanation ? <p className={styles.explanation}>{page.explanation}</p> : null}
       </header>
 

@@ -27,6 +27,8 @@ export interface OwnerCaseHeader {
   readonly practiceName: string;
   readonly patientName: string;
   readonly ownerName: string;
+  /** The vet who opened the case, or null for a case opened before vets were named. */
+  readonly vetName: string | null;
 }
 
 /** One line of an estimate as the owner reads it. */
@@ -144,6 +146,7 @@ async function caseHeader(
       practiceName: practice.name,
       patientName: patientCase.patientName,
       ownerName: patientCase.ownerName,
+      vetName: patientCase.vetName,
       state: patientCase.moneyState,
     })
     .from(patientCase)

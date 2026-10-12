@@ -7,11 +7,22 @@
  */
 
 /**
- * Who section 6's "{vet name}" is on the owner's pages: no vet's name is
- * kept on a case or a version (U1's, U2's and U3's shapes carry none), so the
- * pages say "your vet". Flagged in the handover.
+ * Who section 6's "{vet name}" is for a case opened before the practice
+ * named its vet (`patient_case.vet_name` is null): "your vet". Flagged in
+ * U6's handover.
  */
 export const YOUR_VET = "your vet";
+
+/**
+ * Section 6's "{vet name}": the vet who opened the case, or "your vet" when
+ * the case names none.
+ *
+ * @param vetName - The case's vet, or null.
+ * @returns Who the owner's pages say the vet is.
+ */
+export function vetCalled(vetName: string | null): string {
+  return vetName ?? YOUR_VET;
+}
 
 /**
  * A sentence's text with its first letter in capitals, for "{vet name}" at

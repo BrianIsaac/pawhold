@@ -23,7 +23,7 @@ test.describe("the update page", () => {
     await page.goto(update.path);
 
     await expect(page.getByRole("heading", { level: 1 })).toHaveText(
-      "Your vet found something and is asking before going ahead.",
+      "Rowan Hale found something and is asking before going ahead.",
     );
     await expect(page.getByText(BRAMBLE_EXPLANATION)).toBeVisible();
     const added = page.getByRole("list", { name: "What this adds" }).getByRole("listitem");

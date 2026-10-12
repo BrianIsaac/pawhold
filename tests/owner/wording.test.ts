@@ -14,6 +14,7 @@ import {
   PAYPAL_ERROR,
   rangeLine,
   YOUR_VET,
+  vetCalled,
   capitalised,
   updateAdds,
   DONT_GO_AHEAD,
@@ -90,6 +91,19 @@ describe("authorising, in section 6's words", () => {
     );
     expect(PAYPAL_ERROR).toBe(
       "PayPal couldn't complete that. Nothing has been charged. Try again, or use a card.",
+    );
+  });
+});
+
+describe("the vet, as section 6's {vet name}", () => {
+  it("is the case's vet by name, or the plain words for a case opened before vets were named", () => {
+    expect(vetCalled("Rowan Hale")).toBe("Rowan Hale");
+    expect(vetCalled(null)).toBe(YOUR_VET);
+    expect(estimateIntro(vetCalled("Rowan Hale"), "Bramble", "£927.00")).toBe(
+      "This is what Rowan Hale expects Bramble's treatment to cost. Nothing is charged now: PayPal holds up to £927.00, and you'll only pay for what's done.",
+    );
+    expect(updateHeading(capitalised(vetCalled("Rowan Hale")))).toBe(
+      "Rowan Hale found something and is asking before going ahead.",
     );
   });
 });

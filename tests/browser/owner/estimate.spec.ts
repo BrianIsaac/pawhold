@@ -26,15 +26,15 @@ test.describe("the estimate page", () => {
     );
     await expect(
       page.getByText(
-        "This is what your vet expects Bramble's treatment to cost. Nothing is charged now: PayPal holds up to £927.00, and you'll only pay for what's done.",
+        "This is what Rowan Hale expects Bramble's treatment to cost. Nothing is charged now: PayPal holds up to £927.00, and you'll only pay for what's done.",
       ),
     ).toBeVisible();
     await expect(
-      page.getByText("Likely £731.00 to £927.00, depending on what your vet finds."),
+      page.getByText("Likely £731.00 to £927.00, depending on what Rowan Hale finds."),
     ).toBeVisible();
     await expect(
       page.getByText(
-        "If your vet finds something that needs more, they'll ask you first. Nothing above £927.00 is charged without your yes.",
+        "If Rowan Hale finds something that needs more, they'll ask you first. Nothing above £927.00 is charged without your yes.",
       ),
     ).toBeVisible();
 

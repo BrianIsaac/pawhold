@@ -125,7 +125,8 @@ export function browserSecret(): string {
 }
 
 /**
- * A practice seeded as a judge's is, with Bramble's case and no estimate yet.
+ * A practice seeded as a judge's is, with Bramble's case (its vet Rowan Hale,
+ * as U5's showcase case names) and no estimate yet.
  *
  * @param db - The run's database.
  * @returns The practice and the case.
@@ -146,6 +147,7 @@ export async function brambleCase(
         patientName: "Bramble",
         ownerName: "Sam Carter",
         procedure: "Dental under anaesthetic",
+        vetName: "Rowan Hale",
       })
       .returning();
     return { practiceId: made!.id, caseId: kase!.id };
