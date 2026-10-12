@@ -1,0 +1,215 @@
+.bill {
+  display: grid;
+  gap: var(--space-5);
+  margin-bottom: var(--space-6);
+}
+
+.lines {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* A bill line: what was done, the quantity done, and its money. */
+.line {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 12rem 10rem;
+  gap: var(--space-3) var(--space-4);
+  align-items: start;
+  padding: var(--space-4) 0;
+  border-top: 1px solid var(--colour-line-soft);
+}
+
+.line:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.lineWhat {
+  display: grid;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.lineNote {
+  margin: 0;
+  color: var(--colour-ink-muted);
+  font-size: var(--font-size-0);
+}
+
+.lineDone {
+  margin: 0;
+  min-width: 0;
+}
+
+.linePrice {
+  display: grid;
+  justify-items: end;
+  gap: var(--space-1);
+  margin: 0;
+  text-align: right;
+}
+
+.unitPrice {
+  color: var(--colour-ink-muted);
+  font-size: var(--font-size-0);
+  font-variant-numeric: tabular-nums;
+}
+
+.lineTotal {
+  font-size: var(--font-size-2);
+  font-variant-numeric: tabular-nums;
+  font-weight: var(--font-weight-bold);
+  white-space: nowrap;
+}
+
+.refused {
+  margin: 0;
+  color: var(--colour-danger);
+  font-weight: var(--font-weight-medium);
+}
+
+.notCharged {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.extraForm {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 8rem auto;
+  gap: var(--space-3);
+  align-items: end;
+  padding: var(--space-4);
+  border-radius: var(--radius-2);
+  background: var(--colour-canvas);
+}
+
+.extraAction {
+  display: flex;
+  align-items: flex-start;
+}
+
+.sentence {
+  margin: 0;
+  padding: var(--space-4);
+  border-left: 4px solid var(--colour-accent);
+  border-radius: var(--radius-2);
+  background: var(--colour-accent-soft);
+  font-weight: var(--font-weight-medium);
+}
+
+.totals {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+}
+
+.totals div {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding: var(--space-2) 0;
+  border-bottom: 1px solid var(--colour-line-soft);
+}
+
+.totals dt {
+  font-weight: var(--font-weight-medium);
+}
+
+.totals dd {
+  margin: 0;
+  font-size: var(--font-size-2);
+  font-variant-numeric: tabular-nums;
+  font-weight: var(--font-weight-bold);
+}
+
+@media (max-width: 47.99rem) {
+  .line {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .lineWhat {
+    grid-column: 1 / -1;
+  }
+
+  .lineDone {
+    max-width: 9rem;
+  }
+
+  .extraForm {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.verdict {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.confirm {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.summary {
+  margin: 0;
+  font-weight: var(--font-weight-medium);
+}
+
+.holds {
+  display: grid;
+  gap: var(--space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.hold {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-4);
+  border: 1px solid var(--colour-line-soft);
+  border-radius: var(--radius-2);
+}
+
+.steps {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.step {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: var(--space-1) var(--space-4);
+  font-variant-numeric: tabular-nums;
+}
+
+.confirmed {
+  color: var(--colour-success-ink);
+  font-weight: var(--font-weight-medium);
+}
+
+.waiting {
+  color: var(--colour-ink-muted);
+}
+
+.resume {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.work {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.refund {
+  display: grid;
+  gap: var(--space-3);
+  justify-items: start;
+}

@@ -3,6 +3,9 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { z } from "zod";
 
+import { refundableCaptures } from "@/discharge/refund";
+import { chargeOption, refundedConfirmation } from "@/discharge/wording";
+import { toPayPalValue } from "@/money/paypal-value";
 import { PracticeError } from "@/practice/errors";
 import { loadCaseView } from "@/practice/estimate";
 import { caseTimeline } from "@/practice/timeline";
@@ -20,6 +23,8 @@ import { Chip } from "../../../components/Chip";
 import practice from "../../practice.module.css";
 import { SignedOut } from "../../SignedOut";
 import styles from "./case.module.css";
+import { refundAction } from "./discharge/actions";
+import { RefundForm } from "./discharge/RefundForm";
 import { EstimateSection } from "./EstimateSection";
 import { TimelineSection } from "./TimelineSection";
 import { StatusMessage } from "./StatusMessage";
@@ -31,6 +36,9 @@ export const dynamic = "force-dynamic";
 
 /** The states a case can be discharged from (U7 fills the discharge page). */
 const DISCHARGEABLE = new Set(["held", "update_declined"]);
+
+/** The states of a case whose bill is signed off: its discharge page shows the bill and what it charged. */
+const DISCHARGED = new Set(["captured", "released", "refunded"]);
 
 /**
  * A case (section 6): the notes beside the drafted estimate, review and send;
@@ -59,6 +67,9 @@ export default async function CasePage(props: PageProps<"/cases/[id]">) {
     notFound();
   }
   const timeline = await caseTimeline(database().db, session.practiceId, id);
+  const refundable = DISCHARGED.has(view.money.state)
+    ? await refundableCaptures(database().db, session.practiceId, id)
+    : [];
   const first = view.case.ownerFirstName;
   const confirmation =
     search.sent === "estimate" && view.money.state === "awaiting_owner"
@@ -69,7 +80,9 @@ export default async function CasePage(props: PageProps<"/cases/[id]">) {
           ? estimateWithdrawn(first)
           : search.withdrawn === "update" && view.update.awaiting === null
             ? updateWithdrawn(first)
-            : null;
+            : search.refunded === "1" && view.money.state === "refunded"
+              ? refundedConfirmation(first)
+              : null;
 
   return (
     <>
@@ -82,6 +95,10 @@ export default async function CasePage(props: PageProps<"/cases/[id]">) {
           {DISCHARGEABLE.has(view.money.state) ? (
             <ButtonLink href={`/cases/${view.case.id}/discharge` as Route} variant="secondary">
               Discharge
+            </ButtonLink>
+          ) : DISCHARGED.has(view.money.state) ? (
+            <ButtonLink href={`/cases/${view.case.id}/discharge` as Route} variant="secondary">
+              Itemised bill
             </ButtonLink>
           ) : null}
         </div>
@@ -122,6 +139,23 @@ export default async function CasePage(props: PageProps<"/cases/[id]">) {
             Update
           </h2>
           <UpdateSection view={view} />
+        </section>
+      ) : null}
+      {refundable.length > 0 ? (
+        <section id="refund" className={styles.section} aria-labelledby="refund-title">
+          <h2 id="refund-title" className={styles.sectionTitle}>
+            Refund
+          </h2>
+          <RefundForm
+            key={refundable.map((one) => `${one.captureId}:${one.leftPence}`).join()}
+            ownerFirstName={first}
+            charges={refundable.map((one) => ({
+              captureId: one.captureId,
+              label: chargeOption(one.holdName, one.leftPence, one.capturedPence, view.currency),
+              left: toPayPalValue(one.leftPence),
+            }))}
+            action={refundAction.bind(null, view.case.id)}
+          />
         </section>
       ) : null}
       <section id="timeline" className={styles.section} aria-labelledby="timeline-title">

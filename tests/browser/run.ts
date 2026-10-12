@@ -5,6 +5,7 @@ import { delimiter } from "node:path";
 
 import { migrateDatabase } from "../../src/db/migrate";
 import { connectAdmin, DEFAULT_ADMIN_URL } from "../setup/database";
+import { createPayPalDouble } from "../support/paypal-double-server";
 
 /**
  * `pnpm test:browser`: makes a database for the run and migrates it, finds a
@@ -13,8 +14,10 @@ import { connectAdmin, DEFAULT_ADMIN_URL } from "../setup/database";
  * playwright.config.ts) against the built server on them with the recorded
  * model double (never the live model), and drops the database whatever the
  * outcome. PayPal's sandbox values pass through when the environment has
- * them, for the owner's sandbox walks; without them those walks are skipped.
- * Arguments are passed to `playwright test`.
+ * them, for the owner's sandbox walks; without them those walks are skipped,
+ * and the server talks instead to U3's PayPal double, started here for the
+ * run (the discharge walks confirm against it; playwright.config.ts hands
+ * its address to the server alone). Arguments are passed to `playwright test`.
  */
 
 /**
@@ -53,30 +56,56 @@ async function main(): Promise<number> {
     await migrateDatabase(url.toString());
     const port = process.env.PAWHOLD_BROWSER_PORT ?? String(await freePort());
     const secret = randomBytes(32).toString("base64url");
-    return await new Promise<number>((resolve, reject) => {
-      const child = spawn("pnpm", ["exec", "playwright", "test", ...process.argv.slice(2)], {
-        stdio: "inherit",
-        env: {
-          ...process.env,
-          NODE_ENV: "production",
-          NEXT_TELEMETRY_DISABLED: "1",
-          DATABASE_URL: url.toString(),
-          SESSION_SECRET: secret,
-          PAWHOLD_BROWSER_SECRET: secret,
-          PAWHOLD_BROWSER_PORT: port,
-          AGENT_RECORDED_DIR: ["evals/recorded", "tests/browser/recorded"].join(delimiter),
-          AGENT_DRAFTS_PER_HOUR: "off",
-          OPENAI_API_KEY: "",
-          PAYPAL_ENV: "sandbox",
-        },
-      });
-      child.once("error", reject);
-      child.once("exit", (code, signal) => resolve(code ?? (signal ? 1 : 0)));
-    });
+    const sandbox = Boolean(process.env.PAYPAL_CLIENT_ID && process.env.PAYPAL_CLIENT_SECRET);
+    const double = sandbox ? null : createPayPalDouble({ liveClock: true });
+    const doubleUrl = double ? await double.listen() : null;
+    try {
+      return await walk(url.toString(), port, secret, doubleUrl);
+    } finally {
+      await double?.close();
+    }
   } finally {
     await admin.unsafe(`drop database if exists ${name} with (force)`);
     await admin.end();
   }
+}
+
+/**
+ * Runs `playwright test` against the run's database, port and secret.
+ *
+ * @param databaseUrl - The run's database.
+ * @param port - The server's port.
+ * @param secret - The session secret.
+ * @param doubleUrl - The PayPal double's address, when the run has no sandbox credentials.
+ * @returns The exit code.
+ */
+function walk(
+  databaseUrl: string,
+  port: string,
+  secret: string,
+  doubleUrl: string | null,
+): Promise<number> {
+  return new Promise<number>((resolve, reject) => {
+    const child = spawn("pnpm", ["exec", "playwright", "test", ...process.argv.slice(2)], {
+      stdio: "inherit",
+      env: {
+        ...process.env,
+        NODE_ENV: "production",
+        NEXT_TELEMETRY_DISABLED: "1",
+        DATABASE_URL: databaseUrl,
+        SESSION_SECRET: secret,
+        PAWHOLD_BROWSER_SECRET: secret,
+        PAWHOLD_BROWSER_PORT: port,
+        AGENT_RECORDED_DIR: ["evals/recorded", "tests/browser/recorded"].join(delimiter),
+        AGENT_DRAFTS_PER_HOUR: "off",
+        OPENAI_API_KEY: "",
+        PAYPAL_ENV: "sandbox",
+        ...(doubleUrl ? { PAWHOLD_BROWSER_PAYPAL_DOUBLE_URL: doubleUrl } : {}),
+      },
+    });
+    child.once("error", reject);
+    child.once("exit", (code, signal) => resolve(code ?? (signal ? 1 : 0)));
+  });
 }
 
 main().then(

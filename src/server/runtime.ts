@@ -61,6 +61,7 @@ export function paypalClient(): PayPalClient | null {
           clientId: parsed.data.PAYPAL_CLIENT_ID,
           clientSecret: parsed.data.PAYPAL_CLIENT_SECRET,
           environment: parsed.data.PAYPAL_ENV,
+          ...(parsed.data.PAYPAL_DOUBLE_URL ? { baseUrl: parsed.data.PAYPAL_DOUBLE_URL } : {}),
         })
       : null;
   }
@@ -164,11 +165,13 @@ export function ownerHandlers(): ReturnType<typeof createOwnerHandlers> {
 
 /**
  * The sandbox app's client id for the owner's page, the one PayPal value
- * that reaches the browser; null when the app's credentials are not set.
+ * that reaches the browser; null when the app's credentials are not set, or
+ * when the server talks to the browser suite's double, which PayPal's browser
+ * SDK cannot reach.
  *
  * @returns The client id, or null.
  */
 export function paypalBrowserClientId(): string | null {
   const parsed = paypalEnvironment.safeParse(process.env);
-  return parsed.success ? parsed.data.PAYPAL_CLIENT_ID : null;
+  return parsed.success && !parsed.data.PAYPAL_DOUBLE_URL ? parsed.data.PAYPAL_CLIENT_ID : null;
 }

@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 
-import { openBrowserDatabase, refundedBramble } from "./support/cases";
+import { dischargedCase, DOUBLE_URL, receiptPath, refundAtTheDouble } from "../support/discharge";
+import { brambleCase, openBrowserDatabase, refundedBramble } from "./support/cases";
 import { expectNoSeriousViolations, expectTargetsAtLeast44 } from "./support/checks";
 import { saveShot } from "./support/shots";
 
@@ -51,5 +52,26 @@ test.describe("the receipt", () => {
     await expect(page.getByRole("heading", { level: 1 })).toHaveText(
       "Bramble's receipt from Hollins Lane Veterinary Surgery",
     );
+  });
+
+  test("a refund after discharge appears on the receipt", async ({ page }) => {
+    test.skip(!DOUBLE_URL, "the run talks to PayPal's sandbox: the double's walk is skipped");
+    // Discharged and refunded by U7's own functions against U3's PayPal double.
+    const { practiceId } = await brambleCase(database.db);
+    const kase = await dischargedCase(database.db, practiceId);
+    await refundAtTheDouble(database.db, kase, "40.00", "Correction: one line charged twice");
+
+    await page.goto(await receiptPath(database.db, kase));
+
+    await expect(
+      page.getByText(
+        "You paid £1,017.00 for Pepper's treatment. £98.00 of what was held has been released.",
+      ),
+    ).toBeVisible();
+    await expect(
+      page.getByText("That is £1,057.00 charged at discharge, less £40.00 refunded to you."),
+    ).toBeVisible();
+    await expectNoSeriousViolations(page);
+    await expectTargetsAtLeast44(page);
   });
 });

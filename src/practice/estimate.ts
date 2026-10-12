@@ -80,7 +80,7 @@ export interface CaseView {
 }
 
 /** The order the price list's categories are offered in (plan 3.3). */
-const CATEGORY_ORDER: readonly PriceCategory[] = [
+export const CATEGORY_ORDER: readonly PriceCategory[] = [
   "consultation",
   "anaesthesia",
   "procedure",

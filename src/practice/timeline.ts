@@ -109,7 +109,10 @@ const WORDS: Record<string, (event: Described) => string> = {
   "hold.honour_period_over": ({ amount }) =>
     `flagged the hold of ${amount}: its honour period is over`,
   "bill.signed_off": ({ amount }) => `signed off the bill: ${amount}`,
-  "capture.refund_requested": ({ amount }) => `asked PayPal to refund ${amount}`,
+  "bill.work_not_charged": ({ detail }) =>
+    `noted work not on an approved estimate, not charged: ${workNoted(detail.items)}`,
+  "capture.refund_requested": ({ amount, detail }) =>
+    `asked PayPal to refund ${amount}${text(detail.reason) ? `: "${text(detail.reason)}"` : ""}`,
   "capture.refund_refused": () => "asked PayPal for a refund; PayPal refused",
   "capture.refunded": ({ event, amount, context }) => {
     const confirmed = event.paypalRefundId
@@ -123,6 +126,25 @@ const WORDS: Record<string, (event: Described) => string> = {
   "webhook.flagged": ({ detail }) =>
     `webhook ${text(detail.eventType)} flagged: ${text(detail.reason) ?? "it does not match the case"}`,
 };
+
+/**
+ * The work noted on a bill and not charged (U7), as "Consultation, 15 minutes
+ * (1)", joined.
+ *
+ * @param items - The event's items.
+ * @returns The words.
+ */
+function workNoted(items: unknown): string {
+  if (!Array.isArray(items)) {
+    return "work";
+  }
+  return items
+    .map((item: unknown) => {
+      const one = (item ?? {}) as Record<string, unknown>;
+      return `${text(one.name) ?? text(one.code) ?? "an item"} (${text(one.quantity) ?? "?"})`;
+    })
+    .join(", ");
+}
 
 /** Every action the timeline has words of its own for. */
 export const DESCRIBED_ACTIONS: ReadonlySet<string> = new Set(Object.keys(WORDS));
