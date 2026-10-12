@@ -32,18 +32,19 @@ on:
 permissions:
   contents: read
 
-# A newer push's wait replaces an older one's (Render deploys the newest
-# commit); a scheduled or dispatched check is never cancelled.
-concurrency:
-  group: live-smoke-${{ github.event_name == 'push' && 'deploy' || github.run_id }}
-  cancel-in-progress: ${{ github.event_name == 'push' }}
-
 env:
   PAWHOLD_LIVE_URL: ${{ inputs.base_url || 'https://pawhold.onrender.com' }}
 
 jobs:
   deployed:
     if: github.event_name == 'push'
+    # A newer push's wait replaces an older one's, since Render deploys the
+    # newest commit. Only the wait: a check or a walk is never cancelled, as
+    # a walk cut off between PayPal's approval and the discharge would leave
+    # a hold standing.
+    concurrency:
+      group: live-smoke-deploy
+      cancel-in-progress: true
     runs-on: ubuntu-24.04
     timeout-minutes: 13
     steps:
@@ -61,7 +62,7 @@ jobs:
 
   uptime:
     needs: deployed
-    if: ${{ !failure() && !cancelled() }}
+    if: ${{ !failure() && !cancelled() && needs.deployed.result != 'cancelled' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:

@@ -41,6 +41,10 @@ const job = z
     "timeout-minutes": z.number().int().positive(),
     needs: z.union([z.string(), z.array(z.string())]).optional(),
     if: z.string().optional(),
+    concurrency: z
+      .object({ group: z.string(), "cancel-in-progress": z.boolean() })
+      .strict()
+      .optional(),
     services: z.record(z.string(), z.unknown()).optional(),
     env: z.record(z.string(), z.string()).optional(),
     steps: z.array(step).min(1),
@@ -63,12 +67,22 @@ const workflow = z
 
 type Job = z.infer<typeof job>;
 
-/** The commands a job runs, in order. */
+/**
+ * The commands a job runs, in order.
+ *
+ * @param one - The job.
+ * @returns Each `run`, trimmed.
+ */
 function runs(one: Job): string[] {
   return one.steps.flatMap((each) => (each.run === undefined ? [] : [each.run.trim()]));
 }
 
-/** The actions a job uses, in order. */
+/**
+ * The actions a job uses, in order.
+ *
+ * @param one - The job.
+ * @returns Each `uses`.
+ */
 function uses(one: Job): string[] {
   return one.steps.flatMap((each) => (each.uses === undefined ? [] : [each.uses]));
 }
@@ -183,7 +197,9 @@ describe("the live smoke workflow (U10)", () => {
     const uptime = smoke.jobs.uptime!;
 
     expect(uptime.needs).toBe("deployed");
-    expect(uptime.if).toBe("${{ !failure() && !cancelled() }}");
+    expect(uptime.if).toBe(
+      "${{ !failure() && !cancelled() && needs.deployed.result != 'cancelled' }}",
+    );
     expect(uses(uptime)).toEqual(SETUP);
     expect(runs(uptime)).toEqual([
       "pnpm install --frozen-lockfile",
@@ -222,10 +238,14 @@ describe("the live smoke workflow (U10)", () => {
     expect(Object.values(smoke.jobs).flatMap(runs).join("\n")).not.toMatch(/echo|printenv|env\b/);
   });
 
-  it("lets a newer push's wait replace an older one's, and never cancels a check", () => {
-    expect(smoke.concurrency).toEqual({
-      group: "live-smoke-${{ github.event_name == 'push' && 'deploy' || github.run_id }}",
-      "cancel-in-progress": "${{ github.event_name == 'push' }}",
+  it("lets a newer push's wait replace an older one's, and never cancels a check or a walk", () => {
+    // A walk cut off between PayPal's approval and the discharge would leave a hold standing.
+    expect(smoke.concurrency).toBeUndefined();
+    expect(smoke.jobs.deployed!.concurrency).toEqual({
+      group: "live-smoke-deploy",
+      "cancel-in-progress": true,
     });
+    expect(smoke.jobs.uptime!.concurrency).toBeUndefined();
+    expect(smoke.jobs.walk!.concurrency).toBeUndefined();
   });
 });
