@@ -11,6 +11,7 @@ import {
   MAX_LINE_QUANTITY,
 } from "@/estimate/version";
 import type { CurrencyCode } from "@/money/currency";
+import { type BillLineInput, planDischarge, type PlannedHold } from "@/money/discharge";
 import { type CaseMoney, caseMoney } from "@/money/view";
 import { firstName } from "@/practice/chips";
 import { PracticeError } from "@/practice/errors";
@@ -20,7 +21,9 @@ import { approvedVersions } from "@/practice/panels";
 import {
   aboveApproved,
   aboveHolds,
+  allocationSentence,
   approvedWithHeading,
+  confirmLabel,
   LINE_ABOVE_APPROVED,
   NOT_ON_ESTIMATE,
   NOTHING_HELD,
@@ -309,9 +312,20 @@ export interface ReviewedExtra {
   readonly issue: string;
 }
 
-/** Whether the bill can be confirmed, and if not, why. */
+/** Whether the bill can be confirmed: if so, how it falls on the holds; if not, why. */
 export type BillVerdict =
-  { readonly kind: "ready" } | { readonly kind: "refused"; readonly reason: string };
+  | {
+      readonly kind: "ready";
+      /** Each hold's capture and release, in the order the holds were made (U3's plan). */
+      readonly holds: readonly PlannedHold[];
+      /** Section 6's sentence before confirming. */
+      readonly sentence: string;
+      /** The confirm button's label. */
+      readonly confirm: string;
+      /** Why the bill, sound as it is, still cannot be charged (holds seeded for the demo); null when it can. */
+      readonly blocked: string | null;
+    }
+  | { readonly kind: "refused"; readonly reason: string };
 
 /** The bill as the vet has it: each line's money and fault, the totals and the verdict. */
 export interface BillReview {
@@ -414,48 +428,90 @@ export async function reviewBill(
   });
 
   const billedPence = lines.reduce((sum, line) => sum + line.amountPence, 0);
+  const refusal = refusalOf(view, lines, reviewedExtras, billedPence);
   return {
     currency: view.currency,
     lines,
     extras: reviewedExtras,
     billedPence,
     heldPence: view.heldPence,
-    verdict: verdictOf(view, lines, reviewedExtras, billedPence),
+    verdict: refusal
+      ? { kind: "refused", reason: refusal }
+      : await allocated(executor, practiceId, view, lines),
   };
 }
 
 /**
- * Whether the bill can be confirmed, the first reason it cannot in the order
- * the vet would fix them: nothing held; holds seeded for the demo; a quantity
- * not a whole number; a bill above the holds (rule 1); a line above what the
- * owner approved.
+ * The bill allocated to the case's holds by U3's `planDischarge` (rules 1
+ * and 2), and section 6's sentence and button from it.
+ *
+ * @param executor - The pool or an open transaction.
+ * @param practiceId - The practice.
+ * @param view - The discharge page's view.
+ * @param lines - The reviewed lines, every one chargeable.
+ * @returns The verdict.
+ */
+async function allocated(
+  executor: Executor,
+  practiceId: string,
+  view: DischargeView,
+  lines: readonly ReviewedLine[],
+): Promise<BillVerdict> {
+  const plan = await planDischarge(executor, {
+    practiceId,
+    caseId: view.case.id,
+    lines: billLines(lines),
+  });
+  return {
+    kind: "ready",
+    holds: plan.holds,
+    sentence: allocationSentence(plan.holds, view.currency, view.case.ownerFirstName),
+    confirm: confirmLabel(plan.billedPence, plan.releasedPence, view.currency),
+    blocked: view.seeded ? SEEDED_HOLDS : null,
+  };
+}
+
+/**
+ * The reviewed lines as U3's bill lines: the lines done, a line not done
+ * (nought) left off the bill.
+ *
+ * @param lines - The reviewed lines, every quantity a whole number.
+ * @returns The bill's lines.
+ */
+export function billLines(lines: readonly ReviewedLine[]): BillLineInput[] {
+  return lines
+    .filter((line) => (line.quantity ?? 0) > 0)
+    .map((line) => ({ estimateLineId: line.estimateLineId, quantity: line.quantity! }));
+}
+
+/**
+ * Why the bill cannot be confirmed, the first reason in the order the vet
+ * would fix them: nothing held; a quantity not a whole number; a bill above the holds (rule 1); a line above what the owner
+ * approved. Null when it can be.
  *
  * @param view - The discharge page's view.
  * @param lines - The reviewed lines.
  * @param extras - The reviewed work not on the estimate.
  * @param billedPence - What the charged lines come to.
- * @returns The verdict.
+ * @returns The reason, or null.
  */
-function verdictOf(
+function refusalOf(
   view: DischargeView,
   lines: readonly ReviewedLine[],
   extras: readonly ReviewedExtra[],
   billedPence: number,
-): BillVerdict {
+): string | null {
   if (view.heldPence === 0) {
-    return { kind: "refused", reason: NOTHING_HELD };
-  }
-  if (view.seeded) {
-    return { kind: "refused", reason: SEEDED_HOLDS };
+    return NOTHING_HELD;
   }
   if (lines.some((line) => line.quantity === null) || extras.some((one) => one.quantity === null)) {
-    return { kind: "refused", reason: QUANTITY_INVALID };
+    return QUANTITY_INVALID;
   }
   if (billedPence > view.heldPence) {
-    return { kind: "refused", reason: aboveHolds(billedPence, view.heldPence, view.currency) };
+    return aboveHolds(billedPence, view.heldPence, view.currency);
   }
   if (lines.some((line) => line.issue !== null)) {
-    return { kind: "refused", reason: LINE_ABOVE_APPROVED };
+    return LINE_ABOVE_APPROVED;
   }
-  return { kind: "ready" };
+  return null;
 }

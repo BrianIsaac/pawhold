@@ -185,14 +185,21 @@ export function BillForm({
             <dd>{money(answer.heldPence, currency)}</dd>
           </div>
         </dl>
-        <div aria-live="polite">
+        <div aria-live="polite" className={styles.verdict}>
           {message ? (
             <p role="alert" className={caseStyles.notice}>
               {message}
             </p>
           ) : answer.verdict.kind === "refused" ? (
             <p className={caseStyles.notice}>{answer.verdict.reason}</p>
-          ) : null}
+          ) : (
+            <>
+              <p className={styles.sentence}>{answer.verdict.sentence}</p>
+              {answer.verdict.blocked ? (
+                <p className={caseStyles.notice}>{answer.verdict.blocked}</p>
+              ) : null}
+            </>
+          )}
         </div>
       </section>
     </div>

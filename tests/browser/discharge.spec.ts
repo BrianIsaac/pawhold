@@ -41,5 +41,30 @@ for (const width of Object.keys(WIDTHS) as Width[]) {
       ).toBeVisible();
       await expect(extra.getByText(/not charged$/)).toBeVisible();
     });
+
+    test("the allocation is shown before confirming, and a bill above the holds says why it cannot be confirmed", async ({
+      page,
+    }) => {
+      await signInAsPractice(page);
+      await page.goto("/today");
+      await page.getByRole("link", { name: "Bramble" }).click();
+      await page.getByRole("link", { name: "Discharge" }).click();
+
+      const total = page.getByRole("region", { name: "Total" });
+      await expect(
+        total.getByText(
+          "£731.00 will be captured from the hold. £196.00 will be released to Nadia.",
+        ),
+      ).toBeVisible();
+      await expect(total.getByText(/seeded for the demo/)).toBeVisible();
+
+      await page.getByRole("textbox", { name: "Done: Tooth extraction, surgical" }).fill("5");
+      await expect(
+        total.getByText(
+          "The bill is £1,221.00, above the £927.00 held. Nothing above a hold is charged: send an update for the rest, or change the bill.",
+        ),
+      ).toBeVisible();
+      await expect(total.getByText(/will be captured/)).toHaveCount(0);
+    });
   });
 }

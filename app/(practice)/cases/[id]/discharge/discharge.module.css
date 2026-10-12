@@ -90,6 +90,15 @@
   align-items: flex-start;
 }
 
+.sentence {
+  margin: 0;
+  padding: var(--space-4);
+  border-left: 4px solid var(--colour-accent);
+  border-radius: var(--radius-2);
+  background: var(--colour-accent-soft);
+  font-weight: var(--font-weight-medium);
+}
+
 .totals {
   display: grid;
   gap: var(--space-2);
@@ -131,4 +140,9 @@
   .extraForm {
     grid-template-columns: minmax(0, 1fr);
   }
+}
+
+.verdict {
+  display: grid;
+  gap: var(--space-3);
 }

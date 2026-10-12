@@ -128,3 +128,66 @@ export const WHOLE_NUMBER = "Enter a whole number";
 export function quantityHint(low: number, high: number): string {
   return low === high ? `Approved: ${high}` : `Approved: ${low} to ${high}`;
 }
+
+/** A hold's part in a discharge, as the sentence reads it. */
+export interface HoldShare {
+  readonly capturePence: number;
+  readonly releasePence: number;
+}
+
+/**
+ * Section 6's sentence before confirming: "{amount} will be captured: {a}
+ * from the first hold, {b} from the update's hold. {c} will be released to
+ * {owner first name}." With one hold it names the hold once; with several
+ * updates it names each update's hold in order; a hold that pays nothing
+ * pays "nothing"; and it says so when nothing is captured or left to release.
+ *
+ * @param holds - Each hold's capture and release, in the order the holds were made.
+ * @param currency - The case's currency.
+ * @param ownerFirstName - The owner's first name.
+ * @returns The sentence.
+ */
+export function allocationSentence(
+  holds: readonly HoldShare[],
+  currency: CurrencyCode,
+  ownerFirstName: string,
+): string {
+  const captured = holds.reduce((sum, one) => sum + one.capturePence, 0);
+  const released = holds.reduce((sum, one) => sum + one.releasePence, 0);
+  let captures: string;
+  if (captured === 0) {
+    captures = "Nothing will be captured.";
+  } else if (holds.length === 1) {
+    captures = `${money(captured, currency)} will be captured from the hold.`;
+  } else {
+    const parts = holds.map(
+      (one, at) =>
+        `${one.capturePence === 0 ? "nothing" : money(one.capturePence, currency)} from ${holdName(at, holds.length)}`,
+    );
+    captures = `${money(captured, currency)} will be captured: ${parts.join(", ")}.`;
+  }
+  const releases =
+    released === 0
+      ? "Nothing is left to release."
+      : `${money(released, currency)} will be released to ${ownerFirstName}.`;
+  return `${captures} ${releases}`;
+}
+
+/**
+ * The confirm button (section 6): "Confirm and charge {amount}"; when the
+ * bill charges nothing, what confirming does instead.
+ *
+ * @param capturedPence - What will be captured.
+ * @param releasedPence - What will be released.
+ * @param currency - The case's currency.
+ * @returns The label.
+ */
+export function confirmLabel(
+  capturedPence: number,
+  releasedPence: number,
+  currency: CurrencyCode,
+): string {
+  return capturedPence > 0
+    ? `Confirm and charge ${money(capturedPence, currency)}`
+    : `Confirm and release ${money(releasedPence, currency)}`;
+}
