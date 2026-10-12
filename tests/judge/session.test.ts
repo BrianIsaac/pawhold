@@ -1,7 +1,7 @@
 import { eq } from "drizzle-orm";
 import { describe, expect, it, vi } from "vitest";
 
-import { auditEvent, practice, session } from "@/db/schema";
+import { auditEvent, practice } from "@/db/schema";
 import {
   createJudgeSessionHandlers,
   readSessionCookie,
@@ -127,15 +127,25 @@ describe("judge-mode sessions (plan 7.4)", () => {
   });
 
   it("refuses a session started from another site", async () => {
-    const handlers = createJudgeSessionHandlers({ db, secret: SECRET });
-    const before = await db.select().from(session);
+    // Every session is made with its practice, seeded in the same transaction:
+    // a seed never called means no practice and no session was made. (A count
+    // of the whole table raced the files that make sessions beside this one.)
+    const seed = vi.fn(async () => {});
+    const handlers = createJudgeSessionHandlers({ db, secret: SECRET, seed });
 
     const answer = await handlers.POST(
       request("POST", { body: { door: "practice" }, origin: "https://attacker.example" }),
     );
 
     expect(answer.status).toBe(403);
-    expect(await db.select().from(session)).toHaveLength(before.length);
+    expect(answer.headers.get("set-cookie")).toBeNull();
+    expect(seed).not.toHaveBeenCalled();
+
+    const sameSite = await handlers.POST(
+      request("POST", { body: { door: "practice" }, origin: ORIGIN }),
+    );
+    expect(sameSite.status).toBe(201);
+    expect(seed).toHaveBeenCalledTimes(1);
   });
 });
 
