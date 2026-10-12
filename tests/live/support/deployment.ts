@@ -21,8 +21,11 @@ export interface DeploymentWait {
 
 /** How the wait asks and passes time; the real ones by default. */
 export interface DeploymentWaitDependencies {
+  /** Asks the health check. */
   readonly fetch: (url: string, init?: RequestInit) => Promise<Response>;
+  /** Waits between asks. */
   readonly sleep: (ms: number) => Promise<void>;
+  /** The time, in milliseconds. */
   readonly now: () => number;
 }
 
@@ -44,6 +47,7 @@ export type DeploymentWaitResult =
 /** How long one ask may take before it counts as no answer. */
 const ASK_TIMEOUT_MS = 10_000;
 
+/** The real fetch, timer and clock. */
 const REAL: DeploymentWaitDependencies = {
   fetch: (url, init) => fetch(url, init),
   sleep: (ms) => new Promise((done) => setTimeout(done, ms)),

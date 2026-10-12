@@ -16,8 +16,12 @@ const baseUrl = z.object({
   PAWHOLD_LIVE_URL: z
     .union([z.literal(""), z.url({ protocol: /^https?$/ })])
     .optional()
-    .transform((value) => (value ? value.replace(/\/+$/, "") : DEPLOYMENT_URL))
-    .refine((value) => new URL(value).origin === value, "must be an origin, with no path"),
+    .transform((value) => new URL(value || DEPLOYMENT_URL))
+    .refine(
+      (url) => url.pathname === "/" && url.search === "" && url.hash === "",
+      "must be an origin, with no path, query or fragment",
+    )
+    .transform((url) => url.origin),
 });
 
 const buyer = z.object({
@@ -25,18 +29,21 @@ const buyer = z.object({
   PAWHOLD_SMOKE_BUYER_PASSWORD: z.string().min(1),
 });
 
-/** `GET /api/health`'s answer: 200 with the database reached, or 503 (U1). */
-export const healthAnswer = z
-  .object({
-    status: z.enum(["ok", "unavailable"]),
-    database: z.enum(["reached", "unreachable", "unconfigured"]),
-    commit: z
-      .string()
-      .regex(/^[0-9a-f]{40}$/)
-      .nullable(),
-  })
-  .strict();
+/**
+ * `GET /api/health`'s answer: 200 with the database reached, or 503 (U1).
+ * Fields the check does not read are let through, so a new one does not
+ * turn the uptime check red.
+ */
+export const healthAnswer = z.object({
+  status: z.enum(["ok", "unavailable"]),
+  database: z.enum(["reached", "unreachable", "unconfigured"]),
+  commit: z
+    .string()
+    .regex(/^[0-9a-f]{40}$/)
+    .nullable(),
+});
 
+/** What the health check reports. */
 export type HealthAnswer = z.infer<typeof healthAnswer>;
 
 /**

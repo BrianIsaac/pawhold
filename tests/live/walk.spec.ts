@@ -1,10 +1,12 @@
 import { expect, type Locator, type Page, test } from "@playwright/test";
+import { z } from "zod";
 
-import { approveInWindow } from "../../probes/buyer";
+import { approveInWindow, type BuyerLogin } from "../../probes/buyer";
 import { DRAFT_FAILED } from "../../src/agent/wording";
 import { WIDTHS } from "../browser/fixtures";
 import { type ReadmeWalk, walkReadme } from "../browser/support/readme-walk";
 
+import { sandboxPanelLogin } from "./support/panel";
 import { smokeBuyer } from "./support/target";
 
 /*
@@ -15,11 +17,15 @@ import { smokeBuyer } from "./support/target";
  * window with the GB buyer (U0's buyer automation); "As the practice"
  * discharges that session's Otis, which captures at PayPal and releases the
  * rest, and drafts an estimate with the live model. The model's lines are
- * never asserted, only that a draft arrived or the empty estimate said why.
+ * never asserted, only that a draft arrived or the empty estimate said why
+ * (the log says which).
  * Then the case's timeline must show PayPal's webhook confirming the hold
  * and the capture, and the walk writes PayPal's ids to the log. Nothing is
- * voided by hand: the discharge leaves nothing held, and the session's
- * clean-up prunes it after seven days.
+ * voided by hand: the discharge leaves nothing held, and a walk that fails
+ * part way leaves its practice's id in the log and its hold to the
+ * session's clean-up, which voids it after seven days. The README's two
+ * minutes are checked last, so a slow sandbox never stops a walk before
+ * its discharge.
  */
 
 /** The README's promise: a stranger reaches a held case in under two minutes. */
@@ -28,62 +34,59 @@ const TWO_MINUTES_MS = 2 * 60 * 1000;
 /** How long a live draft may take: the model's own 120 s limit, and the page. */
 const DRAFT_MS = 150_000;
 
+/** The words under each drafted line (U4), which the README's draft step names. */
+const DRAFTED = "From your notes";
+
 /** How long PayPal's webhooks may take to reach the deployment (P8: p95 34 s). */
 const WEBHOOK_MS = 5 * 60 * 1000;
 
-/** What the owner's sandbox panel says when the server has no buyer login (U9). */
-const LOGIN_IN_README = "In the Testing instructions of pawhold's README.";
+/** How long a read of a term the page has already drawn may take. */
+const READ_MS = 5_000;
 
-const buyer = smokeBuyer();
-const secrets = [buyer.email, buyer.password];
+/** `GET /api/judge/session`'s answer, as far as the walk reads it. */
+const judgeSession = z.object({ practiceId: z.uuid() });
 
 /**
- * PayPal's step: the GB sandbox buyer approves in PayPal's own window,
- * after the sandbox panel's login line is recorded (the server shows the
- * login once Render's service has it, else the README's pointer).
+ * How the live smoke walks the README: PayPal's step by the GB sandbox
+ * buyer in PayPal's own window (after the sandbox panel is recorded), and a
+ * draft from the live model, which shows "From your notes" under each line
+ * or, when it did not work, the empty estimate's sentence; only the draft
+ * waits as long as the model may take.
  *
- * @param page - The owner's page.
+ * @param buyer - The README's buyer.
+ * @returns The walk.
  */
-async function approveAsBuyer(page: Page): Promise<void> {
-  const login = await page
-    .locator("dt", { hasText: "PayPal login" })
-    .locator("xpath=following-sibling::dd[1]")
-    .first()
-    .textContent();
-  record(
-    "owner's sandbox panel",
-    login?.includes(buyer.email)
-      ? "shows the sandbox buyer's login"
-      : login?.trim() === LOGIN_IN_README
-        ? "points to the README for the login"
-        : "shows no login",
-  );
-  const button = page.locator("paypal-button");
-  await expect(button).toBeVisible({ timeout: 30_000 });
-  const opened = page.waitForEvent("popup");
-  await button.click();
-  const approval = await approveInWindow(await opened, buyer, secrets);
-  test.info().annotations.push({
-    type: "PayPal approval",
-    description: `${approval.seconds} s, funding ${String(approval.funding)}`,
-  });
+function liveWalk(buyer: BuyerLogin): ReadmeWalk {
+  const secrets = [buyer.email, buyer.password];
+  return {
+    approve: async (page) => {
+      record("owner's sandbox panel", `shows ${await sandboxPanelLogin(page, buyer)}`);
+      const button = page.locator("paypal-button");
+      await expect(button).toBeVisible({ timeout: 30_000 });
+      const opened = page.waitForEvent("popup");
+      await button.click();
+      const approval = await approveInWindow(await opened, buyer, secrets);
+      record("PayPal approval", `${approval.seconds} s, funding ${String(approval.funding)}`);
+    },
+    seen: (page, text) => {
+      const seen = page.getByText(text).first();
+      return text === DRAFTED ? seen.or(page.getByText(DRAFT_FAILED)).first() : seen;
+    },
+    seeTimeoutMs: (text) => (text === DRAFTED ? DRAFT_MS : 20_000),
+  };
 }
 
 /**
- * What a step's words must find on the live deployment: a draft from the
- * live model shows "From your notes" under each line, and a draft that did
- * not work shows the empty estimate's sentence instead.
+ * Records the walk's judge practice, so a walk that fails part way can be
+ * found; it never throws over the walk's own failure.
  *
- * @param page - The page.
- * @param text - The step's words.
- * @returns The element showing them.
+ * @param page - The page, in the walk's session.
  */
-function seenLive(page: Page, text: string): Locator {
-  const seen = page.getByText(text).first();
-  return text === "From your notes" ? seen.or(page.getByText(DRAFT_FAILED)).first() : seen;
+async function recordSession(page: Page): Promise<void> {
+  const answer = await page.request.get("/api/judge/session").catch(() => null);
+  const session = answer?.ok() ? judgeSession.safeParse(await answer.json()) : null;
+  record("judge practice", session?.success ? session.data.practiceId : "no session");
 }
-
-const LIVE: ReadmeWalk = { approve: approveAsBuyer, seen: seenLive, seeTimeoutMs: DRAFT_MS };
 
 /**
  * The value beside a term of a timeline row's "Show PayPal and model details".
@@ -94,7 +97,7 @@ const LIVE: ReadmeWalk = { approve: approveAsBuyer, seen: seenLive, seeTimeoutMs
  */
 async function detail(row: Locator, term: string): Promise<string> {
   const value = row.locator("dt", { hasText: term }).locator("xpath=following-sibling::dd[1]");
-  return (await value.first().textContent())?.trim() ?? "";
+  return (await value.first().textContent({ timeout: READ_MS }))?.trim() ?? "";
 }
 
 /**
@@ -121,23 +124,20 @@ test("a judge's walk on the deployment: the owner door's hold with PayPal, the d
       timezoneId: "Europe/London",
     });
     const page = await context.newPage();
+    const walk = liveWalk(smokeBuyer());
 
     const started = Date.now();
-    await walkReadme(page, "Two minutes as the owner", LIVE);
+    try {
+      await walkReadme(page, "Two minutes as the owner", walk);
+    } finally {
+      await recordSession(page);
+    }
     const took = Date.now() - started;
     record("owner door to held", `${took} ms`);
-    expect(took).toBeLessThan(TWO_MINUTES_MS);
 
-    await test.step("the session is the judge's own", async () => {
-      const session = await page.request.get("/api/judge/session");
-      expect(session.status()).toBe(200);
-      const { practiceId } = (await session.json()) as { practiceId: string };
-      record("judge practice", practiceId);
-    });
-
-    await walkReadme(page, "As the practice", LIVE);
+    await walkReadme(page, "As the practice", walk);
     const drafted = await page
-      .getByText("From your notes")
+      .getByText(DRAFTED)
       .first()
       .isVisible()
       .catch(() => false);
@@ -170,8 +170,14 @@ test("a judge's walk on the deployment: the owner door's hold with PayPal, the d
       record("PayPal order", await detail(authorised, "PayPal order"));
       record("PayPal authorisation", await detail(authorised, "PayPal authorisation"));
       record("PayPal capture", await detail(captured, "PayPal capture"));
-      record("captured", (await captured.locator("p").first().textContent())?.trim() ?? "");
+      record(
+        "captured",
+        (await captured.locator("p").first().textContent({ timeout: READ_MS }))?.trim() ?? "",
+      );
     });
+
+    // Checked last, once the discharge has left nothing held.
+    expect(took, "the README's two minutes, owner door to held").toBeLessThan(TWO_MINUTES_MS);
   } finally {
     await browser.close();
   }

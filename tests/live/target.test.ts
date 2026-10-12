@@ -12,6 +12,18 @@ describe("the live smoke's target (U10)", () => {
     );
   });
 
+  it("reads a base URL as its origin, whatever its case or default port", () => {
+    expect(liveBaseUrl({ PAWHOLD_LIVE_URL: "https://Pawhold.onrender.com" })).toBe(
+      "https://pawhold.onrender.com",
+    );
+    expect(liveBaseUrl({ PAWHOLD_LIVE_URL: "https://pawhold.onrender.com:443/" })).toBe(
+      "https://pawhold.onrender.com",
+    );
+    expect(liveBaseUrl({ PAWHOLD_LIVE_URL: "http://127.0.0.1:3000" })).toBe(
+      "http://127.0.0.1:3000",
+    );
+  });
+
   it("refuses a base URL that is not an http or https origin", () => {
     expect(() => liveBaseUrl({ PAWHOLD_LIVE_URL: "pawhold.onrender.com" })).toThrow(
       /PAWHOLD_LIVE_URL/,
@@ -20,6 +32,9 @@ describe("the live smoke's target (U10)", () => {
       /PAWHOLD_LIVE_URL/,
     );
     expect(() => liveBaseUrl({ PAWHOLD_LIVE_URL: "https://pawhold.onrender.com/today" })).toThrow(
+      /an origin/,
+    );
+    expect(() => liveBaseUrl({ PAWHOLD_LIVE_URL: "https://pawhold.onrender.com/?x=1" })).toThrow(
       /an origin/,
     );
   });
@@ -54,6 +69,9 @@ describe("the live smoke's target (U10)", () => {
     expect(
       healthAnswer.parse({ status: "unavailable", database: "unreachable", commit: null }),
     ).toEqual({ status: "unavailable", database: "unreachable", commit: null });
+    expect(
+      healthAnswer.parse({ status: "ok", database: "reached", commit, region: "frankfurt" }),
+    ).toEqual({ status: "ok", database: "reached", commit });
     expect(() => healthAnswer.parse({ status: "ok" })).toThrow();
     expect(() =>
       healthAnswer.parse({ status: "ok", database: "reached", commit: "main" }),

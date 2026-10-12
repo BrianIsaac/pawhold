@@ -27,8 +27,8 @@ export interface ReadmeWalk {
    * element showing those words by default.
    */
   readonly seen?: (page: Page, text: string) => Locator;
-  /** How long a "see" waits; 20 seconds by default. */
-  readonly seeTimeoutMs?: number;
+  /** How long a "see" of these words waits; 20 seconds by default. */
+  readonly seeTimeoutMs?: (text: string) => number;
 }
 
 /**
@@ -77,7 +77,9 @@ async function act(
       return;
     case "see": {
       const seen = walk.seen?.(page, action.text) ?? page.getByText(action.text).first();
-      await expect(seen, where).toBeVisible({ timeout: walk.seeTimeoutMs ?? 20_000 });
+      await expect(seen, where).toBeVisible({
+        timeout: walk.seeTimeoutMs?.(action.text) ?? 20_000,
+      });
       return;
     }
     case "new_case": {

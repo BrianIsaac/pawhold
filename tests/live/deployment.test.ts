@@ -35,7 +35,13 @@ function bed(answers: readonly ({ status: number; body: unknown } | Error)[]) {
   };
 }
 
-const up = (commit: string) => ({
+/**
+ * The health check's answer with the database reached, at a commit.
+ *
+ * @param commit - The deployed commit.
+ * @returns The answer, as {@link bed} takes it.
+ */
+const up = (commit: string): { status: number; body: unknown } => ({
   status: 200,
   body: { status: "ok", database: "reached", commit },
 });
