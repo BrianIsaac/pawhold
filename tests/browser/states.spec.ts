@@ -6,7 +6,15 @@ import { patientCase } from "@/db/schema";
 import { caseEstimateVersions } from "@/estimate/version";
 import { ownerLink } from "@/owner/link";
 
-import { expect, openNewCase, signInAsPractice, test, WIDTHS, type Width } from "./fixtures";
+import {
+  expect,
+  openNewCase,
+  PLAN_NOTES,
+  signInAsPractice,
+  test,
+  WIDTHS,
+  type Width,
+} from "./fixtures";
 import { browserSecret, openBrowserDatabase } from "./owner/support/cases";
 
 /*
@@ -115,6 +123,56 @@ for (const width of Object.keys(WIDTHS) as Width[]) {
           "Hollins Lane Veterinary Surgery withdrew this update, so there is nothing to approve. What you authorised before stays as it was.",
         ),
       ).toBeVisible();
+    });
+
+    test("an update's page lists what it adds and nothing it carried over, with the finding in full", async ({
+      page,
+    }) => {
+      await ownerPageOf(page, "Juno");
+      const added = page.getByRole("list", { name: "What this adds" }).getByRole("listitem");
+      await expect(added).toHaveCount(2);
+      await expect(added.first()).toContainText("Removing the second lump");
+      await expect(added.last()).toContainText("Laboratory check of the second lump");
+      await expect(page.getByText("This adds £345.00 to Juno's estimate.")).toBeVisible();
+      await expect(
+        page.getByText(
+          "Rowan found a second lump, on Juno's right shoulder, at the check before the operation.",
+          { exact: false },
+        ),
+      ).toBeVisible();
+      await expect(
+        page.getByText(/^Pre-op check found a second lump on the right shoulder/),
+      ).toBeVisible();
+
+      const practiceSide = await signInAsPractice(page);
+      await page.goto(`/cases/${await caseOf(practiceSide, "Juno")}`);
+      const sent = page.getByRole("list", { name: "Lines of version 2" });
+      await expect(sent.getByRole("listitem")).toHaveCount(2);
+    });
+
+    test("after Sent, the practice can open the page the owner's link opens, as a judge has no phone", async ({
+      page,
+    }) => {
+      await signInAsPractice(page);
+      await openNewCase(page, { patient: "Pepper", owner: "Sam Patel", procedure: "Dental" });
+      await page.getByRole("textbox", { name: "Clinical notes" }).fill(PLAN_NOTES);
+      await page.getByRole("button", { name: "Draft estimate" }).click();
+      await page.getByRole("button", { name: "Send to Sam" }).click();
+      await page
+        .getByRole("dialog", { name: "Send this estimate to Sam?" })
+        .getByRole("button", { name: "Send to Sam" })
+        .click();
+      await expect(page.getByRole("status")).toBeVisible();
+      await expect(
+        page.getByText("There is no phone in the demo: this is the page Sam's link opens."),
+      ).toBeVisible();
+      const opened = page.waitForEvent("popup");
+      await page.getByRole("link", { name: /^Open Sam's page/ }).click();
+      const owner = await opened;
+      await expect(owner.getByRole("heading", { level: 1 })).toHaveText(
+        "Pepper's estimate from Hollins Lane Veterinary Surgery",
+      );
+      await owner.close();
     });
 
     test("an update the owner has answered is told in the past", async ({ page }) => {

@@ -65,7 +65,7 @@ export const SHOWCASE_CASE = {
       code: "DEN-EXT-SG",
       quantityLow: 0,
       quantityHigh: 2,
-      dependsOn: "if the X-rays show the teeth need to come out",
+      dependsOn: "the X-rays show the teeth need to come out",
       notesSpan: "probable two extractions upper PM",
       ownerWording: "Removing up to two damaged teeth, if needed",
     },
