@@ -6,25 +6,9 @@ import { describe, expect, it } from "vitest";
 import { patientCase, practice, session, webhookEvent } from "@/db/schema";
 
 import { connectTestDatabase } from "../support/database";
+import { refusalOf } from "../support/postgres-error";
 
 const { db } = connectTestDatabase();
-
-/**
- * Reads the Postgres error code a failed statement carries, through the
- * driver's wrapping.
- *
- * @param promise - The statement expected to fail.
- * @returns The SQLSTATE code.
- */
-async function sqlState(promise: Promise<unknown>): Promise<string | undefined> {
-  try {
-    await promise;
-  } catch (error) {
-    const cause = (error as { cause?: { code?: string } }).cause;
-    return cause?.code ?? (error as { code?: string }).code;
-  }
-  return undefined;
-}
 
 describe("the schema as migrated", () => {
   it("holds the five tables U1 owns", async () => {
@@ -70,7 +54,7 @@ describe("the schema as migrated", () => {
       .values({ name: "Test practice", kind: "judge" })
       .returning();
 
-    const code = await sqlState(
+    const { code } = await refusalOf(
       db.insert(patientCase).values({
         practiceId: created!.id,
         patientName: "Biscuit",
@@ -90,7 +74,7 @@ describe("the schema as migrated", () => {
       .returning();
     const now = new Date();
 
-    const code = await sqlState(
+    const { code } = await refusalOf(
       db.insert(session).values({
         practiceId: created!.id,
         door: "practice",
@@ -116,6 +100,6 @@ describe("the schema as migrated", () => {
     };
     await db.insert(webhookEvent).values(row);
 
-    expect(await sqlState(db.insert(webhookEvent).values(row))).toBe("23505");
+    expect((await refusalOf(db.insert(webhookEvent).values(row))).code).toBe("23505");
   });
 });

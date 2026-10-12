@@ -36,3 +36,9 @@ export function createDatabase(url: string, options: DatabaseOptions = {}): Data
     close: () => client.end({ timeout: 5 }),
   };
 }
+
+/** A transaction opened on the application's database. */
+export type Transaction = Parameters<Parameters<PostgresJsDatabase<Schema>["transaction"]>[0]>[0];
+
+/** Anything a statement can run on: the pool or an open transaction. */
+export type Executor = PostgresJsDatabase<Schema> | Transaction;
