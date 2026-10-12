@@ -2,9 +2,10 @@ import { eq } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
 
 import { patientCase, session } from "@/db/schema";
-import { caseEstimateVersions } from "@/estimate/version";
+import { caseEstimateVersions, makeEstimateVersion } from "@/estimate/version";
 import { createJudgeDoors } from "@/judge/doors";
 import { SESSION_COOKIE, signSessionId } from "@/judge/session";
+import { sendEstimate, withdrawEstimate } from "@/money/holds";
 import { verifyOwnerToken } from "@/owner/link";
 
 import { seedFictionalPractice } from "../../seed/practice";
@@ -109,6 +110,34 @@ describe("the landing page's doors (section 6, plan 7.4)", () => {
     });
     const versions = await caseEstimateVersions(db, kase!.practiceId, kase!.id);
     expect(check.status === "valid" && check.versionId).toBe(versions.at(-1)!.id);
+  });
+
+  it("opens the newest estimate sent to the owner, so a judge can answer what the practice sent since", async () => {
+    const first = await click("practice");
+    const cookie = cookieFrom(first);
+    const practiceId = seeded.at(-1)!;
+    const [otis] = await db
+      .select()
+      .from(patientCase)
+      .where(eq(patientCase.practiceId, practiceId))
+      .then((cases) => cases.filter((kase) => kase.patientName === OWNER_DOOR_CASE.patientName));
+    await withdrawEstimate(db, { practiceId, caseId: otis!.id, actor: "vet" });
+    const again = await makeEstimateVersion(db, {
+      practiceId,
+      caseId: otis!.id,
+      actor: "vet",
+      lines: [...OWNER_DOOR_CASE.lines],
+    });
+    await sendEstimate(db, { practiceId, versionId: again.id, actor: "vet" });
+
+    const response = await click("owner", { cookie });
+
+    const check = verifyOwnerToken(
+      (response.headers.get("location") ?? "").slice(3),
+      SECRET,
+      new Date(),
+    );
+    expect(check.status === "valid" && check.versionId).toBe(again.id);
   });
 
   it("is idempotent: a door clicked again with the session's cookie seeds nothing and keeps the session", async () => {

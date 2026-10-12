@@ -220,13 +220,18 @@
 
 .sandbox dl {
   display: grid;
-  grid-template-columns: max-content minmax(0, 1fr);
-  gap: var(--owner-space-1) var(--owner-space-3);
+  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+  gap: var(--owner-space-3);
   margin: 0;
+}
+
+.sandbox dl > div {
+  min-width: 0;
 }
 
 .sandbox dt {
   color: var(--owner-ink-soft);
+  font-size: 0.875rem;
 }
 
 .sandbox dd {

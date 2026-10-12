@@ -23,33 +23,45 @@ export function SandboxDetails({ login }: { readonly login: SandboxBuyerLogin | 
       <dl>
         {login ? (
           <>
-            <dt>PayPal email</dt>
-            <dd>
-              <code>{login.email}</code>
-            </dd>
-            <dt>PayPal password</dt>
-            <dd>
-              <code>{login.password}</code>
-            </dd>
+            <div>
+              <dt>PayPal email</dt>
+              <dd>
+                <code>{login.email}</code>
+              </dd>
+            </div>
+            <div>
+              <dt>PayPal password</dt>
+              <dd>
+                <code>{login.password}</code>
+              </dd>
+            </div>
           </>
         ) : (
           <>
-            <dt>PayPal login</dt>
-            <dd>In the Testing instructions of pawhold&apos;s README.</dd>
+            <div>
+              <dt>PayPal login</dt>
+              <dd>In the Testing instructions of pawhold&apos;s README.</dd>
+            </div>
           </>
         )}
-        <dt>Card number</dt>
-        <dd>
-          <code>{groupedCardNumber(SANDBOX_TEST_CARD.number)}</code>
-        </dd>
-        <dt>Expiry</dt>
-        <dd>
-          <code>{SANDBOX_TEST_CARD.expiry}</code>
-        </dd>
-        <dt>Security code</dt>
-        <dd>
-          <code>{SANDBOX_TEST_CARD.cvv}</code>
-        </dd>
+        <div>
+          <dt>Card number</dt>
+          <dd>
+            <code>{groupedCardNumber(SANDBOX_TEST_CARD.number)}</code>
+          </dd>
+        </div>
+        <div>
+          <dt>Expiry</dt>
+          <dd>
+            <code>{SANDBOX_TEST_CARD.expiry}</code>
+          </dd>
+        </div>
+        <div>
+          <dt>Security code</dt>
+          <dd>
+            <code>{SANDBOX_TEST_CARD.cvv}</code>
+          </dd>
+        </div>
       </dl>
     </aside>
   );
