@@ -16,7 +16,7 @@ const webhookEnvelope = z.object({
   event_type: z.string().min(1).max(255),
   resource_type: z.string().max(255).optional(),
   summary: z.string().optional(),
-  create_time: z.iso.datetime({ offset: true }).optional(),
+  create_time: z.string().optional(),
   resource: z.record(z.string(), z.unknown()).optional(),
 });
 
@@ -161,7 +161,7 @@ async function storeEvent(
         resourceType: envelope.resource_type ?? null,
         resourceId,
         summary: envelope.summary ?? null,
-        eventCreatedAt: envelope.create_time ? new Date(envelope.create_time) : null,
+        eventCreatedAt: timestampOrNull(envelope.create_time),
         transmissionId: transmission.transmissionId,
         transmissionTime: transmission.transmissionTime,
         certUrl: transmission.certUrl,
@@ -201,6 +201,20 @@ async function storeEvent(
     });
     return true;
   });
+}
+
+/**
+ * Reads PayPal's `create_time`, which is metadata: a value that is not an
+ * RFC 3339 timestamp is stored as null rather than refusing the event.
+ *
+ * @param value - The event's `create_time`.
+ * @returns The time, or null.
+ */
+function timestampOrNull(value: string | undefined): Date | null {
+  if (value === undefined || !z.iso.datetime({ offset: true }).safeParse(value).success) {
+    return null;
+  }
+  return new Date(value);
 }
 
 /**

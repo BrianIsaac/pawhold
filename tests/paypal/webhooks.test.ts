@@ -48,6 +48,8 @@ describe("the certificate URL check", () => {
     "https://paypal.com@attacker.example/v1/notifications/certs/CERT-1",
     "https://api.sandbox.paypal.com:8443/v1/notifications/certs/CERT-1",
     "https://api.sandbox.paypal.com/v1/oauth2/token",
+    "https://api.sandbox.paypal.com/v1/notifications/certs/CERT-1?n=1",
+    "https://api.sandbox.paypal.com/v1/notifications/certs/CERT-1#n",
     "not a url",
   ])("refuses one off PayPal's host or path: %s", (url) => {
     expect(isPayPalCertificateUrl(url)).toBe(false);
@@ -193,6 +195,33 @@ describe("the certificate cache", () => {
     );
   });
 
+  it("treats 408 and 429 from PayPal's host as unavailable, so the postback can stand in", async () => {
+    for (const status of [408, 429]) {
+      const cache = createCertificateCache({
+        fetch: async () => new Response("slow down", { status }),
+      });
+
+      await expect(cache.get(new URL(SANDBOX_CERT_URL))).rejects.toBeInstanceOf(
+        CertificateUnavailableError,
+      );
+    }
+  });
+
+  it("keeps at most its limit of certificates", async () => {
+    const fetchCertificate = vi.fn(
+      async () => new Response(signer.certificatePem, { status: 200 }),
+    );
+    const cache = createCertificateCache({ fetch: fetchCertificate, maxEntries: 2 });
+    const url = (n: number) => new URL(`${SANDBOX_CERT_URL}-${n}`);
+
+    await cache.get(url(1));
+    await cache.get(url(2));
+    await cache.get(url(3));
+    await cache.get(url(1));
+
+    expect(fetchCertificate).toHaveBeenCalledTimes(4);
+  });
+
   it("refuses a certificate outside its validity period", async () => {
     const fetchCertificate = vi.fn(
       async () => new Response(signer.certificatePem, { status: 200 }),
@@ -310,6 +339,33 @@ describe("postback verification (the fallback)", () => {
 
     expect(result).toEqual({ outcome: "refused", reason: "certificate_refused" });
     expect(paypal.requests).toHaveLength(0);
+  });
+
+  it("never posts back a body that is not a JSON object", async () => {
+    const result = await verifyWebhook({
+      rawBody: Buffer.from('{}, "cert_url": "https://attacker.example/"'),
+      headers: guideHeaders,
+      webhookId: WEBHOOK_ID,
+      certificates: unavailable,
+      postback: client(),
+    });
+
+    expect(result).toEqual({ outcome: "refused", reason: "body_invalid" });
+    expect(paypal.requests).toHaveLength(0);
+  });
+
+  it("accepts a 4096-bit key's signature header", async () => {
+    const headers = new Headers(signer.headersFor(BODY, { webhookId: WEBHOOK_ID }));
+    headers.set("paypal-transmission-sig", "A".repeat(684));
+
+    const result = await verifyWebhook({
+      rawBody: Buffer.from(BODY),
+      headers,
+      webhookId: WEBHOOK_ID,
+      certificates,
+    });
+
+    expect(result).toEqual({ outcome: "refused", reason: "signature_mismatch" });
   });
 
   it("answers unavailable, so PayPal retries, when neither the certificate nor a postback can be had", async () => {

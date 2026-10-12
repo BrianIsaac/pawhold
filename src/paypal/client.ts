@@ -139,7 +139,7 @@ export function createPayPalClient(options: PayPalClientOptions): PayPalClient {
       },
       body: "grant_type=client_credentials",
     });
-    const text = await answer.text();
+    const text = await readText(answer, "POST", TOKEN_PATH);
     if (!answer.ok) {
       throw PayPalError.fromResponse(answer.status, text);
     }
@@ -192,7 +192,7 @@ export function createPayPalClient(options: PayPalClientOptions): PayPalClient {
       }
     }
     const final = answer!;
-    const text = await final.text();
+    const text = await readText(final, method, path);
     if (!final.ok) {
       throw PayPalError.fromResponse(final.status, text);
     }
@@ -219,6 +219,25 @@ export function createPayPalClient(options: PayPalClientOptions): PayPalClient {
       return call("POST", path, headers, body, postOptions.response);
     },
   };
+}
+
+/**
+ * Reads an answer's body, reporting a read that fails part way (a reset, a
+ * timeout) as a transport failure: for a money POST, the outcome is unknown
+ * and the caller retries with the same `PayPal-Request-Id`.
+ *
+ * @param answer - The response.
+ * @param method - The request's method.
+ * @param path - The request's path.
+ * @returns The body text.
+ * @throws PayPalTransportError when the body cannot be read.
+ */
+async function readText(answer: Response, method: string, path: string): Promise<string> {
+  try {
+    return await answer.text();
+  } catch (error) {
+    throw new PayPalTransportError(method, path, error);
+  }
 }
 
 /**

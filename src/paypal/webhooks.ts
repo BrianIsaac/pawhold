@@ -30,13 +30,17 @@ const CERTIFICATE_PATH_PREFIX = "/v1/notifications/certs/";
 const MAX_CERTIFICATE_BYTES = 64 * 1024;
 const DEFAULT_CERTIFICATE_TTL_MS = 24 * 60 * 60 * 1000;
 const DEFAULT_CERTIFICATE_TIMEOUT_MS = 10_000;
+const DEFAULT_MAX_CERTIFICATES = 16;
 const VERIFY_PATH = "/v1/notifications/verify-webhook-signature";
 
-/** PayPal's transmission headers, bounded as the verify endpoint's schema bounds them. */
+/**
+ * PayPal's transmission headers, bounded as the verify endpoint's schema
+ * bounds them, except the signature: a 4096-bit key's is 684 characters.
+ */
 const transmissionHeaders = z.object({
   transmissionId: z.string().min(1).max(50),
   transmissionTime: z.string().min(1).max(100),
-  transmissionSig: z.string().min(1).max(500),
+  transmissionSig: z.string().min(1).max(1024),
   certUrl: z.string().min(1).max(500),
   authAlgo: z.string().min(1).max(100),
 });
@@ -50,7 +54,8 @@ export type RefusalReason =
   | "cert_url_not_paypal"
   | "certificate_refused"
   | "signature_mismatch"
-  | "postback_failure";
+  | "postback_failure"
+  | "body_invalid";
 
 /** The verdict on one delivery. */
 export type WebhookVerification =
@@ -125,7 +130,8 @@ export function readTransmissionHeaders(headers: Headers): TransmissionHeaders |
 
 /**
  * Whether a certificate URL is PayPal's: HTTPS, one of PayPal's API hosts on
- * the default port, no credentials, under the certificates path.
+ * the default port, no credentials, under the certificates path, with no
+ * query or fragment (each would be a fresh cache entry and a fresh fetch).
  *
  * @param value - The `paypal-cert-url` header.
  * @returns True when it may be fetched.
@@ -140,6 +146,8 @@ export function isPayPalCertificateUrl(value: string): boolean {
   return (
     url.protocol === "https:" &&
     url.port === "" &&
+    url.search === "" &&
+    url.hash === "" &&
     url.username === "" &&
     url.password === "" &&
     PAYPAL_CERTIFICATE_HOSTS.has(url.hostname) &&
@@ -297,18 +305,35 @@ async function postbackFallback(input: VerifyWebhookInput): Promise<WebhookVerif
   if (!input.postback) {
     return { outcome: "unavailable", reason: "certificate_unavailable" };
   }
+  const rawText = jsonObjectText(input.rawBody);
+  if (rawText === null) {
+    return { outcome: "refused", reason: "body_invalid" };
+  }
   try {
-    const status = await verifyByPostback(
-      input.postback,
-      input.headers,
-      input.webhookId,
-      Buffer.from(input.rawBody).toString("utf8"),
-    );
+    const status = await verifyByPostback(input.postback, input.headers, input.webhookId, rawText);
     return status === "SUCCESS"
       ? { outcome: "verified", method: "postback", isMock: false }
       : { outcome: "refused", reason: "postback_failure" };
   } catch {
     return { outcome: "unavailable", reason: "postback_unavailable" };
+  }
+}
+
+/**
+ * The body as text, when it is UTF-8 holding one JSON object: only then is
+ * it spliced into the postback, so it cannot add keys of its own to the
+ * request PayPal reads under pawhold's token.
+ *
+ * @param rawBody - The body exactly as received.
+ * @returns The text, or null.
+ */
+function jsonObjectText(rawBody: Uint8Array): string | null {
+  try {
+    const text = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(rawBody);
+    const parsed: unknown = JSON.parse(text);
+    return typeof parsed === "object" && parsed !== null && !Array.isArray(parsed) ? text : null;
+  } catch {
+    return null;
   }
 }
 
@@ -319,6 +344,8 @@ export interface CertificateCacheOptions {
   /** How long a downloaded certificate is kept before it is fetched again. */
   readonly ttlMs?: number;
   readonly timeoutMs?: number;
+  /** The most certificates kept; the oldest is dropped past it. */
+  readonly maxEntries?: number;
 }
 
 /**
@@ -326,8 +353,9 @@ export interface CertificateCacheOptions {
  * should automatically be downloaded and cached for future use") and keeps
  * it for a day or until it expires, whichever is sooner. Redirects are
  * refused, so a fetch never leaves the host that was checked; failures are
- * not cached. A 4xx or a body that is not a certificate is a refusal; a
- * network failure, a 5xx or a certificate out of date is "unavailable", for
+ * not cached. A 4xx (but 408 and 429) or a body that is not a certificate is
+ * a refusal; a network failure, a 5xx, a 408 or 429, or a certificate out of
+ * date is "unavailable", for
  * which the postback is the fallback.
  *
  * @param options - Test seams and limits.
@@ -335,6 +363,7 @@ export interface CertificateCacheOptions {
  */
 export function createCertificateCache(options: CertificateCacheOptions = {}): CertificateSource {
   const fetchImpl = options.fetch ?? fetch;
+  const maxEntries = options.maxEntries ?? DEFAULT_MAX_CERTIFICATES;
   const now = options.now ?? Date.now;
   const ttlMs = options.ttlMs ?? DEFAULT_CERTIFICATE_TTL_MS;
   const timeoutMs = options.timeoutMs ?? DEFAULT_CERTIFICATE_TIMEOUT_MS;
@@ -354,7 +383,10 @@ export function createCertificateCache(options: CertificateCacheOptions = {}): C
     if (answer.status !== 200) {
       await answer.body?.cancel();
       const Failure =
-        answer.status >= 400 && answer.status < 500
+        answer.status >= 400 &&
+        answer.status < 500 &&
+        answer.status !== 408 &&
+        answer.status !== 429
           ? CertificateRefusedError
           : CertificateUnavailableError;
       throw new Failure(`${url.toString()} answered ${answer.status}`);
@@ -376,6 +408,9 @@ export function createCertificateCache(options: CertificateCacheOptions = {}): C
       throw new CertificateUnavailableError(`the certificate at ${url.toString()} is not in date`);
     }
     entries.set(url.toString(), { certificate, keepUntil: Math.min(now() + ttlMs, validTo) });
+    while (entries.size > maxEntries) {
+      entries.delete(entries.keys().next().value!);
+    }
     return certificate;
   };
 

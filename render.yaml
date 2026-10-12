@@ -12,7 +12,10 @@ services:
     plan: 0.5c-512mb
     branch: main
     autoDeployTrigger: commit
-    buildCommand: corepack pnpm install --frozen-lockfile && corepack pnpm build
+    # NODE_ENV=development for the install only: pnpm skips devDependencies
+    # (TypeScript, which `next build` needs) when NODE_ENV is production, and
+    # whether Render sets it at build time is not documented on the pages read.
+    buildCommand: NODE_ENV=development corepack pnpm install --frozen-lockfile && corepack pnpm build
     preDeployCommand: corepack pnpm db:migrate
     startCommand: corepack pnpm start
     healthCheckPath: /api/health

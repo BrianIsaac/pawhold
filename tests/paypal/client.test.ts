@@ -1,7 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
 
-import { createPayPalClient, PayPalContractError, PayPalError } from "@/paypal/client";
+import {
+  createPayPalClient,
+  PayPalContractError,
+  PayPalError,
+  PayPalTransportError,
+} from "@/paypal/client";
 
 import { paypalFixture } from "../support/fixtures";
 import { startMockPayPal } from "../support/mock-paypal";
@@ -239,6 +244,35 @@ describe("the PayPal client's errors", () => {
     await expect(
       client().get("/v2/payments/authorizations/91T13242G72341823", { response: authorization }),
     ).rejects.toBeInstanceOf(PayPalContractError);
+  });
+
+  it("reports a body that fails mid-read as a transport failure, not a raw error", async () => {
+    const failing = async (input: string | URL | Request) => {
+      if (String(input).endsWith("/v1/oauth2/token")) {
+        return Response.json(TOKEN);
+      }
+      const body = new ReadableStream({
+        start(controller) {
+          controller.error(new Error("connection reset"));
+        },
+      });
+      return new Response(body, { status: 201 });
+    };
+    const paypalClient = createPayPalClient({
+      clientId: CLIENT_ID,
+      clientSecret: CLIENT_SECRET,
+      environment: "sandbox",
+      baseUrl: "https://paypal.invalid",
+      fetch: failing as typeof fetch,
+    });
+
+    await expect(
+      paypalClient.post("/v2/payments/authorizations/91T13242G72341823/capture", {
+        requestId: "8f0f8a3e-0000-8000-8000-000000000005",
+        body: {},
+        response: authorization,
+      }),
+    ).rejects.toBeInstanceOf(PayPalTransportError);
   });
 
   it("sends a JSON body and PayPal-Request-Id on a POST", async () => {

@@ -127,7 +127,12 @@ export class PayPalError extends Error {
   }
 }
 
-/** PayPal answered with a success whose body is not the shape the caller expects. */
+/**
+ * PayPal answered with a success whose body is not the shape the caller
+ * expects. On a money POST the action has happened at PayPal: the caller
+ * reads the resource back (or retries with the same `PayPal-Request-Id`)
+ * rather than treating it as a failure.
+ */
 export class PayPalContractError extends Error {
   override readonly name = "PayPalContractError";
 

@@ -162,6 +162,19 @@ describe("POST /api/paypal/webhook", () => {
     expect(await storedRows(eventId)).toHaveLength(0);
   });
 
+  it("stores a verified event whose create_time is not a timestamp, with the time left empty", async () => {
+    const { body: original, eventId } = sample("payment-capture-refunded.json", "odd-time");
+    const body = original.replace(/"create_time":"[^"]*"/, '"create_time":"yesterday"');
+
+    const answer = await handler(
+      delivery(body, signer.headersFor(body, { webhookId: WEBHOOK_ID })),
+    );
+
+    expect(answer.status).toBe(200);
+    const [row] = await storedRows(eventId);
+    expect(row!.eventCreatedAt).toBeNull();
+  });
+
   it("refuses a body that is not UTF-8 JSON, 400", async () => {
     const body = Buffer.from([0x7b, 0xff, 0x7d]);
 
