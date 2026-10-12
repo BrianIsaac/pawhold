@@ -1,7 +1,16 @@
-import { and, desc, eq, isNotNull, max, sql } from "drizzle-orm";
+import { and, asc, desc, eq, isNotNull, max, sql } from "drizzle-orm";
 
 import type { Executor } from "@/db/client";
-import { auditEvent, estimateVersion, patientCase, practice } from "@/db/schema";
+import {
+  auditEvent,
+  bill,
+  billLine,
+  estimateLine,
+  estimateVersion,
+  patientCase,
+  practice,
+  priceListItem,
+} from "@/db/schema";
 import {
   estimateDelta,
   type EstimateLineView,
@@ -11,7 +20,7 @@ import {
 } from "@/estimate/version";
 import type { CurrencyCode } from "@/money/currency";
 import type { MoneyState } from "@/money/state";
-import { caseHolds, type HoldView, updateIncrease } from "@/money/view";
+import { caseHolds, caseMoney, type HoldView, updateIncrease } from "@/money/view";
 
 /** Who a case is for and who sent it, as the owner's pages name them. */
 export interface OwnerCaseHeader {
@@ -65,8 +74,42 @@ export interface OwnerUpdatePage extends OwnerVersionPage {
   readonly increasePence: number;
 }
 
+/** One line of the bill the vet signed off, as the owner reads it. */
+export interface OwnerBillLine {
+  readonly position: number;
+  /** The estimate line's owner's wording, or the price list's name. */
+  readonly wording: string;
+  readonly quantity: number;
+  readonly amountPence: number;
+}
+
+/** What one approval (a hold) paid at discharge. */
+export interface OwnerApproval {
+  readonly holdPence: number;
+  readonly capturedPence: number;
+  readonly releasedPence: number;
+}
+
+/** The receipt after discharge (section 6), whichever of the case's links opens it. */
+export interface OwnerReceiptPage extends OwnerVersionPage {
+  readonly kind: "receipt";
+  /** The bill's lines in the bill's order; empty if the bill is not the database's yet. */
+  readonly lines: readonly OwnerBillLine[];
+  /** Each approval that held money, in the order given. */
+  readonly approvals: readonly OwnerApproval[];
+  /** What discharge captured. */
+  readonly chargedPence: number;
+  /** What was refunded after. */
+  readonly refundedPence: number;
+  /** What the holds held beyond what was captured, released to the owner. */
+  readonly releasedPence: number;
+}
+
 /** What an owner's link opens, as its page shows it. */
-export type OwnerPage = OwnerEstimatePage | OwnerUpdatePage;
+export type OwnerPage = OwnerEstimatePage | OwnerUpdatePage | OwnerReceiptPage;
+
+/** The money states after discharge, when every link of the case opens the receipt. */
+const DISCHARGED: ReadonlySet<MoneyState> = new Set(["captured", "released", "refunded"]);
 
 /** A hold's statuses once it held the owner's money. */
 const HELD_ONCE: ReadonlySet<HoldView["status"]> = new Set([
@@ -139,6 +182,9 @@ export async function ownerPage(
     isLatest: await isLatestSent(executor, version),
     hold: holds.find((one) => one.id === version.id) ?? null,
   };
+  if (DISCHARGED.has(found.state)) {
+    return { kind: "receipt", ...base, ...(await receipt(executor, request)) };
+  }
   const earlier = holds.filter(
     (one) => one.versionNumber < version.number && HELD_ONCE.has(one.status),
   );
@@ -168,6 +214,53 @@ export async function ownerPage(
     added: version.lines.filter((line) => changed.has(line.code)).map(ownerLine),
     heldPence,
     increasePence,
+  };
+}
+
+/**
+ * The receipt's figures: U3's `caseMoney` for what each hold captured and
+ * released and what was refunded, and the signed-off bill's lines.
+ *
+ * @param executor - The pool or an open transaction.
+ * @param request - The practice and the case.
+ * @returns The receipt's lines and money.
+ */
+async function receipt(
+  executor: Executor,
+  request: OwnerPageRequest,
+): Promise<Omit<OwnerReceiptPage, keyof OwnerVersionPage | "kind">> {
+  const money = await caseMoney(executor, request.practiceId, request.caseId);
+  const lines = await executor
+    .select({
+      position: billLine.position,
+      ownerWording: estimateLine.ownerWording,
+      name: priceListItem.name,
+      quantity: billLine.quantity,
+      amountPence: billLine.amountPence,
+    })
+    .from(bill)
+    .innerJoin(billLine, eq(billLine.billId, bill.id))
+    .innerJoin(estimateLine, eq(estimateLine.id, billLine.estimateLineId))
+    .innerJoin(priceListItem, eq(priceListItem.id, estimateLine.priceListItemId))
+    .where(and(eq(bill.caseId, request.caseId), eq(bill.practiceId, request.practiceId)))
+    .orderBy(asc(billLine.position));
+  return {
+    lines: lines.map((line) => ({
+      position: line.position,
+      wording: line.ownerWording ?? line.name,
+      quantity: line.quantity,
+      amountPence: line.amountPence,
+    })),
+    approvals: money.holds
+      .filter((one) => HELD_ONCE.has(one.status))
+      .map((one) => ({
+        holdPence: one.amount.pence,
+        capturedPence: one.capturedPence,
+        releasedPence: one.releasedPence,
+      })),
+    chargedPence: money.capturedPence,
+    refundedPence: money.refundedPence,
+    releasedPence: money.releasedPence,
   };
 }
 

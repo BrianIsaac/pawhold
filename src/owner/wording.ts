@@ -240,3 +240,85 @@ export function linkReplaced(practice: string): string {
 
 /** The heading over a replaced estimate's notice: this unit's wording. */
 export const REPLACED_HEADING = "There is a newer estimate";
+
+/**
+ * The receipt's first sentence (section 6: "You paid {amount} for
+ * {patient}'s treatment. {released} of what was held has been released.");
+ * the second is left out when nothing was released.
+ *
+ * @param paid - What the owner paid, shown.
+ * @param patient - The patient's name.
+ * @param released - What was released, shown, or null when nothing was.
+ * @returns The sentence.
+ */
+export function receiptPaid(paid: string, patient: string, released: string | null): string {
+  const first = `You paid ${paid} for ${patient}'s treatment.`;
+  return released ? `${first} ${released} of what was held has been released.` : first;
+}
+
+const ORDINALS = ["first", "second", "third", "fourth", "fifth", "sixth", "seventh", "eighth"];
+
+/**
+ * What each approval paid (section 6: "Paid from your first approval: {a}.
+ * Paid from your second approval: {b}."); one approval is "your approval",
+ * this unit's wording.
+ *
+ * @param amounts - What each approval paid, shown, in the order they were given.
+ * @returns The sentences.
+ */
+export function paidFromApprovals(amounts: readonly string[]): string {
+  if (amounts.length === 1) {
+    return `Paid from your approval: ${amounts[0]}.`;
+  }
+  return amounts
+    .map(
+      (amount, at) => `Paid from your ${ORDINALS[at] ?? `number ${at + 1}`} approval: ${amount}.`,
+    )
+    .join(" ");
+}
+
+/**
+ * Under the receipt (section 6, flagged there: the timing of a release on a
+ * buyer's statement is not in the pages read, so the sentence is general).
+ */
+export const RELEASE_TIMING =
+  "Released holds can take a few days to disappear from your statement.";
+
+/**
+ * A refund after discharge: this unit's wording (section 6 drafts none).
+ *
+ * @param charged - What was captured at discharge, shown.
+ * @param refunded - What was refunded, shown.
+ * @returns The sentence.
+ */
+export function refundedNote(charged: string, refunded: string): string {
+  return `That is ${charged} charged at discharge, less ${refunded} refunded to you.`;
+}
+
+/**
+ * The receipt's heading: this unit's wording.
+ *
+ * @param patient - The patient's name.
+ * @param practice - The practice's name.
+ * @returns The heading.
+ */
+export function receiptHeading(patient: string, practice: string): string {
+  return `${patient}'s receipt from ${practice}`;
+}
+
+/** Above the bill's lines (section 6's discharge heading). */
+export const BILL_LABEL = "Itemised bill";
+
+/** The bill's total row: this unit's wording. */
+export const BILL_TOTAL = "Total";
+
+/**
+ * Under a bill line done more than once: this unit's wording.
+ *
+ * @param quantity - How many were done.
+ * @param unit - The price of one, shown.
+ * @returns The line.
+ */
+export function billQuantity(quantity: number, unit: string): string {
+  return `${quantity} at ${unit} each`;
+}

@@ -184,3 +184,18 @@
   border-radius: var(--owner-radius);
   background: var(--owner-card);
 }
+
+.range p {
+  margin: 0;
+}
+
+.range .rangeNote {
+  margin-top: var(--owner-space-2);
+  font-size: 0.9375rem;
+  font-weight: 500;
+}
+
+.total,
+.total .lineWording {
+  font-weight: 600;
+}

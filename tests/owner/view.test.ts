@@ -1,8 +1,12 @@
+import { eq } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
 
 import { appendAuditEvent } from "@/audit/writer";
-import { makeEstimateVersion } from "@/estimate/version";
+import { capture } from "@/db/schema";
+import { loadEstimateVersion, makeEstimateVersion } from "@/estimate/version";
+import { discharge } from "@/money/discharge";
 import { authoriseHold, orderHold, sendEstimate } from "@/money/holds";
+import { refundCaptured } from "@/money/refunds";
 import { ownerPage } from "@/owner/view";
 
 import { connectTestDatabase } from "../support/database";
@@ -154,5 +158,64 @@ describe("the owner's page for an update", () => {
     expect(page?.kind).toBe("estimate");
     expect(page?.kind === "estimate" ? page.hold?.status : null).toBe("authorised");
     expect(page?.isLatest).toBe(false);
+  });
+});
+
+describe("the owner's receipt", () => {
+  const { db } = connectTestDatabase();
+  const paypal = startPayPalDouble();
+
+  it("is what was paid from which approval, what was released and what was refunded, line by line", async () => {
+    const fixture = await makeDentalCase(db, "Receipt practice");
+    const deps = { db, paypal: paypal.client() };
+    const holdFor = async (lines: typeof DENTAL_LINES) => {
+      const draft = await makeEstimateVersion(db, { ...fixture, actor: "vet", lines });
+      await sendEstimate(db, { practiceId: fixture.practiceId, versionId: draft.id, actor: "vet" });
+      const { hold: ordered } = await orderHold(deps, { ...fixture, versionId: draft.id });
+      paypal.approve(ordered.paypalOrderId, "card");
+      await authoriseHold(deps, { ...fixture, holdId: ordered.id });
+      return (await loadEstimateVersion(db, fixture.practiceId, draft.id))!;
+    };
+    const first = await holdFor(DENTAL_LINES);
+    const update = await holdFor(DENTAL_UPDATE_LINES);
+    const line = (code: string) => update.lines.find((one) => one.code === code)!.id;
+    await discharge(deps, {
+      ...fixture,
+      actor: "vet",
+      lines: ["GA-DENT", "DEN-SP", "DEN-EXT", "LAB-PRE", "XR-DENT"].map((code) => ({
+        estimateLineId: line(code),
+        quantity: 1,
+      })),
+    });
+    const [captured] = await db.select().from(capture).where(eq(capture.holdId, first.id));
+    await refundCaptured(deps, {
+      ...fixture,
+      captureId: captured!.id,
+      amountPence: 2_500,
+      reason: "Goodwill: the clinic ran late",
+      actor: "vet",
+    });
+
+    const page = await ownerPage(db, { ...fixture, versionId: first.id });
+
+    expect(page?.kind).toBe("receipt");
+    if (page?.kind !== "receipt") {
+      return;
+    }
+    expect(page.state).toBe("refunded");
+    expect(page.chargedPence).toBe(79_500);
+    expect(page.refundedPence).toBe(2_500);
+    expect(page.releasedPence).toBe(13_300);
+    expect(page.approvals).toEqual([
+      { holdPence: 77_300, capturedPence: 67_500, releasedPence: 9_800 },
+      { holdPence: 15_500, capturedPence: 12_000, releasedPence: 3_500 },
+    ]);
+    expect(page.lines.map((one) => [one.wording, one.quantity, one.amountPence])).toEqual([
+      ["General anaesthetic for dental work", 1, 32_000],
+      ["Dental scale and polish", 1, 18_500],
+      ["Removing up to two damaged teeth, if needed", 1, 9_800],
+      ["Pre-anaesthetic blood screen", 1, 7_200],
+      ["Dental radiographs", 1, 12_000],
+    ]);
   });
 });

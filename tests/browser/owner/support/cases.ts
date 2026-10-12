@@ -4,8 +4,23 @@ import { eq } from "drizzle-orm";
 
 import { appendAuditEvent } from "@/audit/writer";
 import { createDatabase, type Database } from "@/db/client";
-import { hold, patientCase, practice } from "@/db/schema";
-import { type EstimateLineInput, makeEstimateVersion } from "@/estimate/version";
+import {
+  allocation,
+  bill,
+  billLine,
+  capture,
+  hold,
+  patientCase,
+  practice,
+  refund,
+} from "@/db/schema";
+import {
+  type EstimateLineInput,
+  type EstimateVersionView,
+  loadEstimateVersion,
+  makeEstimateVersion,
+} from "@/estimate/version";
+import { allocateBill, approvalsByHold } from "@/money/allocation";
 import { sendEstimate } from "@/money/holds";
 import { ownerLink } from "@/owner/link";
 
@@ -282,4 +297,166 @@ export async function brambleUpdate(
     { secret: browserSecret(), now: new Date() },
   );
   return { first, update: { ...fixture, versionId: draft.id, path: link.path, token: link.token } };
+}
+
+/** What Bramble's bill did: three extractions of the four approved, the rest as estimated. */
+const BRAMBLE_BILL: readonly { readonly code: string; readonly quantity: number }[] = [
+  { code: "LAB-PRE", quantity: 1 },
+  { code: "GA-DENT", quantity: 1 },
+  { code: "DEN-CHART", quantity: 1 },
+  { code: "DEN-SP", quantity: 1 },
+  { code: "IMG-XR-DENT", quantity: 1 },
+  { code: "DEN-EXT-SG", quantity: 3 },
+  { code: "MED-NSAID-ORAL", quantity: 1 },
+  { code: "MED-ANTIB-TAB", quantity: 1 },
+];
+
+/** The goodwill refund after discharge. */
+export const BRAMBLE_REFUND_PENCE = 2_500;
+
+/**
+ * Bramble's case discharged and then part refunded, as the seed would show
+ * a judge (U3's "To U9"): the first estimate and the update each held (on a
+ * card and on PayPal), the bill signed off and allocated by U3's own
+ * allocator, each hold captured once and final, and £25.00 refunded as
+ * goodwill. Written as rows in one transaction, so U3's deferred checks of
+ * the money rules hold them to the same sums the lifecycle would; no PayPal
+ * call is made (the ids are seeded).
+ *
+ * @param db - The run's database.
+ * @returns The first estimate's link and the update's.
+ */
+export async function refundedBramble(
+  db: Database["db"],
+): Promise<{ first: SentCase; update: SentCase }> {
+  const { first, update } = await brambleUpdate(db);
+  const versions = await Promise.all(
+    [first.versionId, update.versionId].map(
+      async (id) => (await loadEstimateVersion(db, first.practiceId, id))!,
+    ),
+  );
+  const [v1, v2] = versions as [EstimateVersionView, EstimateVersionView];
+  const holdIds = [v1.id, v2.id];
+  const amounts = [v1.totals.highPence, v2.totals.highPence - v1.totals.highPence];
+  const billLines = BRAMBLE_BILL.map(({ code, quantity }) => {
+    const line = v2.lines.find((one) => one.code === code)!;
+    return { line, quantity, amountPence: line.unitPricePence * quantity };
+  });
+  const plan = allocateBill(
+    approvalsByHold(
+      versions.map((version) => ({
+        holdId: version.id,
+        items: version.lines.map((line) => ({ code: line.code, highPence: line.highPence })),
+      })),
+    ),
+    billLines.map(({ line, amountPence }) => ({ code: line.code, amountPence })),
+  );
+  const now = new Date();
+
+  await db.transaction(async (tx) => {
+    const authorizationId = seededId();
+    await tx.insert(hold).values({
+      id: v2.id,
+      practiceId: first.practiceId,
+      caseId: first.caseId,
+      versionNumber: v2.number,
+      versionHighPence: v2.totals.highPence,
+      heldBeforePence: amounts[0]!,
+      amountPence: amounts[1]!,
+      currencyCode: "GBP",
+      status: "authorised",
+      paypalOrderId: seededId(),
+      authorizationId,
+      originalAuthorizationId: authorizationId,
+      paymentKind: "card",
+      authorisedAt: now,
+      confirmedAt: now,
+    });
+    const [signed] = await tx
+      .insert(bill)
+      .values({
+        practiceId: first.practiceId,
+        caseId: first.caseId,
+        currencyCode: "GBP",
+        totalPence: plan.billedPence,
+        signedOffBy: "vet",
+      })
+      .returning();
+    const lines = await tx
+      .insert(billLine)
+      .values(
+        billLines.map(({ line, quantity }, at) => ({
+          billId: signed!.id,
+          position: at + 1,
+          estimateLineId: line.id,
+          quantity,
+          unitPricePence: line.unitPricePence,
+        })),
+      )
+      .returning();
+    await tx.insert(allocation).values(
+      plan.byLine.flatMap((parts, at) =>
+        parts.map((part) => ({
+          billLineId: lines[at]!.id,
+          holdId: part.holdId,
+          amountPence: part.amountPence,
+        })),
+      ),
+    );
+    const captures = [];
+    for (const holdId of holdIds) {
+      const [held] = await tx.select().from(hold).where(eq(hold.id, holdId));
+      const [taken] = await tx
+        .insert(capture)
+        .values({
+          holdId,
+          sequence: 1,
+          paypalCaptureId: seededId(),
+          authorizationId: held!.authorizationId!,
+          amountPence: plan.byHold.get(holdId) ?? 0,
+          currencyCode: "GBP",
+          finalCapture: true,
+          status: "completed",
+          capturedAt: now,
+          confirmedAt: now,
+        })
+        .returning();
+      captures.push(taken!);
+      await tx.update(hold).set({ status: "captured", closedAt: now }).where(eq(hold.id, holdId));
+      await appendAuditEvent(tx, {
+        practiceId: first.practiceId,
+        caseId: first.caseId,
+        actor: "system",
+        action: "hold.captured",
+        amount: { pence: taken!.amountPence, currency: "GBP" },
+        paypal: {
+          orderId: held!.paypalOrderId,
+          authorizationId: held!.authorizationId!,
+          captureId: taken!.paypalCaptureId,
+        },
+        detail: {
+          holdId,
+          releasedPence: held!.amountPence - taken!.amountPence,
+          seeded: true,
+        },
+      });
+    }
+    await tx.insert(refund).values({
+      captureId: captures[0]!.id,
+      sequence: 1,
+      amountPence: BRAMBLE_REFUND_PENCE,
+      currencyCode: "GBP",
+      reason: "Goodwill: the discharge ran late",
+      requestedBy: "vet",
+      status: "completed",
+      paypalRefundId: seededId(),
+      refundedAt: now,
+      confirmedAt: now,
+    });
+    await tx
+      .update(patientCase)
+      .set({ moneyState: "refunded" })
+      .where(eq(patientCase.id, first.caseId));
+  });
+  return { first, update };
 }

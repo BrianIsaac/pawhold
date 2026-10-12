@@ -19,6 +19,7 @@ import { Decline } from "./decline";
 import { Estimate } from "./estimate";
 import { HeldStatus } from "./held";
 import styles from "./page.module.css";
+import { Receipt } from "./receipt";
 import { Update } from "./update";
 
 export const dynamic = "force-dynamic";
@@ -47,6 +48,10 @@ export default async function OwnerLinkPage({ params }: PageProps<"/e/[token]">)
   const page = await ownerPage(db, resolved);
   if (!page) {
     return <AskThePractice practiceName={null} />;
+  }
+
+  if (page.kind === "receipt") {
+    return <Receipt page={page} />;
   }
 
   const held = page.hold?.status === "authorised";

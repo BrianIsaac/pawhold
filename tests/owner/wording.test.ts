@@ -19,6 +19,11 @@ import {
   PRACTICE_WILL_CALL,
   updateDeclined,
   linkReplaced,
+  receiptPaid,
+  paidFromApprovals,
+  RELEASE_TIMING,
+  refundedNote,
+  billQuantity,
 } from "@/owner/wording";
 import { updateHeading } from "@/agent/wording";
 
@@ -112,6 +117,37 @@ describe("an update, in section 6's words", () => {
     );
     expect(linkReplaced("Hollins Lane Veterinary Surgery")).toBe(
       "This estimate has been replaced by a newer one. Ask Hollins Lane Veterinary Surgery for its link.",
+    );
+  });
+});
+
+describe("the receipt, in section 6's words", () => {
+  it("says what was paid and what was released", () => {
+    expect(receiptPaid("£795.00", "Bramble", "£133.00")).toBe(
+      "You paid £795.00 for Bramble's treatment. £133.00 of what was held has been released.",
+    );
+    expect(receiptPaid("£927.00", "Bramble", null)).toBe(
+      "You paid £927.00 for Bramble's treatment.",
+    );
+  });
+
+  it("says what each approval paid, in the order they were given", () => {
+    expect(paidFromApprovals(["£675.00", "£120.00"])).toBe(
+      "Paid from your first approval: £675.00. Paid from your second approval: £120.00.",
+    );
+    expect(paidFromApprovals(["£731.00"])).toBe("Paid from your approval: £731.00.");
+  });
+
+  it("says how many of a bill line were done", () => {
+    expect(billQuantity(3, "£98.00")).toBe("3 at £98.00 each");
+  });
+
+  it("keeps the release's timing general, and names a refund", () => {
+    expect(RELEASE_TIMING).toBe(
+      "Released holds can take a few days to disappear from your statement.",
+    );
+    expect(refundedNote("£795.00", "£25.00")).toBe(
+      "That is £795.00 charged at discharge, less £25.00 refunded to you.",
     );
   });
 });
