@@ -1,0 +1,19 @@
+{
+  "id": "06-lump-cytology-first",
+  "title": "Lump sampled first, removed only if it is not a lipoma",
+  "notes": "Molly, 18kg, 10yo. Lump on L flank ~2cm, FNA cytology first. If not lipoma, excise with histo. Pre-GA bloods given age.",
+  "expected": ["LAB-CYTO", "SURG-LUMP", "LAB-HIST", "LAB-PRE"],
+  "acceptable": [
+    "CON-STD",
+    "CONS-CLIP",
+    "CONS-KIT",
+    "CONS-SUTURE",
+    "GA-M",
+    "HOSP-DAY",
+    "MED-NSAID-INJ",
+    "MED-OPIOID",
+    "MED-PREMED",
+    "SURG-LUMP-C"
+  ],
+  "unmatched": []
+}

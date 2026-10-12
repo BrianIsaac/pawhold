@@ -1,0 +1,8 @@
+{
+  "id": "21-parvo-isolation",
+  "title": "A puppy in isolation, with a test the list does not carry",
+  "notes": "Puppy, 9 wks, 4kg, bloody diarrhoea, vomiting, unvacc. Parvo snap test +ve. Isolation ward 3-5 days, IVFT, anti-emetic, abs inj, assisted feeding.",
+  "expected": ["HOSP-ISO", "HOSP-FLUID", "MED-ANTIEM", "MED-ANTIB-INJ", "HOSP-FEED"],
+  "acceptable": ["CON-OOH", "CON-STD", "HOSP-CATH", "LAB-BG", "LAB-FAEC", "LAB-HAEM", "MED-OPIOID"],
+  "unmatched": ["Parvo snap test"]
+}

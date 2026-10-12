@@ -1,0 +1,25 @@
+{
+  "id": "03-dog-castrate-large",
+  "title": "Castration of a large dog with oral pain relief home",
+  "notes": "Max, 32kg Labrador, entire male, 2 yrs. Castrate today. Pre-op check, premed, buster collar or body suit to go home, 7 days oral metacam.",
+  "expected": [
+    "NEU-DOG-M-L",
+    "CON-PRE",
+    "MED-PREMED",
+    ["CONS-COLLAR", "CONS-SUIT"],
+    "MED-NSAID-ORAL"
+  ],
+  "acceptable": [
+    "CONS-CLIP",
+    "CONS-COLLAR",
+    "CONS-KIT",
+    "CONS-SUIT",
+    "CONS-SUTURE",
+    "GA-L",
+    "HOSP-DAY",
+    "MED-DISP",
+    "MED-NSAID-INJ",
+    "MED-OPIOID"
+  ],
+  "unmatched": []
+}

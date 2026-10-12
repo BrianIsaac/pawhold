@@ -1,0 +1,10 @@
+{
+  "hash": "875229f639e1c4cc2e77d1548b4eddc048b9553e0223a5676ee6cfcf81d5de80",
+  "job": "draft",
+  "promptVersion": "draft.v1",
+  "model": "gpt-6.1-sol",
+  "reasoningEffort": "medium",
+  "servedModel": "gpt-6.1-sol",
+  "text": "{\"lines\":[{\"code\":\"SURG-ENUC\",\"quantityLow\":1,\"quantityHigh\":1,\"dependsOn\":null,\"notesSpan\":\"Enucleation R eye\",\"ownerWording\":\"Removal of the right eye\"},{\"code\":\"GA-S\",\"quantityLow\":1,\"quantityHigh\":1,\"dependsOn\":null,\"notesSpan\":\"Enucleation R eye\",\"ownerWording\":\"General anaesthetic for surgery\"},{\"code\":\"CONS-COLLAR\",\"quantityLow\":1,\"quantityHigh\":1,\"dependsOn\":null,\"notesSpan\":\"collar\",\"ownerWording\":\"Protective collar\"},{\"code\":\"HOSP-DAY\",\"quantityLow\":1,\"quantityHigh\":1,\"dependsOn\":null,\"notesSpan\":\"Day patient\",\"ownerWording\":\"Day hospital stay\"}],\"unmatched\":[{\"notesSpan\":\"Abs\"},{\"notesSpan\":\"pain relief\"}]}",
+  "recordedAt": "2026-10-12T05:38:01.526Z"
+}

@@ -1,0 +1,33 @@
+{
+  "id": "14-pyometra",
+  "title": "Suspected pyometra: scan and bloods, emergency spay if confirmed",
+  "notes": "Rosie, 22kg bitch, 8yo, lethargic, PUPD, vulval discharge. Suspect pyo. Abdo US, bloods. If confirmed, emergency spay tonight, IVFT, abs, hospitalise overnight.",
+  "expected": [
+    "IMG-US-ABD",
+    "LAB-BIO",
+    "NEU-DOG-F-L",
+    "HOSP-FLUID",
+    ["MED-ANTIB-INJ", "MED-ANTIB-TAB"],
+    "HOSP-NIGHT"
+  ],
+  "acceptable": [
+    "CON-OOH",
+    "CON-STD",
+    "CONS-CLIP",
+    "CONS-KIT",
+    "CONS-SUTURE",
+    "GA-M",
+    "GA-MON",
+    "HOSP-CATH",
+    "IMG-US-FAST",
+    "LAB-COAG",
+    "LAB-HAEM",
+    "LAB-PRE",
+    "MED-ANTIB-INJ",
+    "MED-ANTIB-TAB",
+    "MED-NSAID-INJ",
+    "MED-OPIOID",
+    "MED-PREMED"
+  ],
+  "unmatched": []
+}

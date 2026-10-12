@@ -1,0 +1,24 @@
+{
+  "id": "05-foreign-body",
+  "title": "Suspected foreign body: radiographs, then surgery only if confirmed",
+  "notes": "Bruno, 24kg Staffie, vomiting x3 days, suspect FB. Abdo rads 2 views, if FB confirmed ex-lap + FB removal. IVFT, hospitalise overnight, maropitant.",
+  "expected": ["IMG-XR", "IMG-XR-ADD", "SURG-FB", "HOSP-FLUID", "HOSP-NIGHT", "MED-ANTIEM"],
+  "acceptable": [
+    "CON-STD",
+    "CONS-CLIP",
+    "CONS-KIT",
+    "CONS-SUTURE",
+    "GA-EXTRA",
+    "GA-M",
+    "GA-MON",
+    "HOSP-CATH",
+    "IMG-US-ABD",
+    "LAB-BIO",
+    "LAB-PRE",
+    "MED-ANTIB-INJ",
+    "MED-NSAID-INJ",
+    "MED-OPIOID",
+    "MED-PREMED"
+  ],
+  "unmatched": []
+}

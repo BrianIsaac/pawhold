@@ -1,0 +1,10 @@
+{
+  "hash": "f6ed0bdeefee62aba1d6cd0b117b88ffaec7826ef5ca1d19f8c52d0a6c165d9b",
+  "job": "draft",
+  "promptVersion": "draft.v1",
+  "model": "gpt-6.1-sol",
+  "reasoningEffort": "medium",
+  "servedModel": "gpt-6.1-sol",
+  "text": "{\n  \"lines\": [\n    {\n      \"code\": \"SURG-AURAL\",\n      \"quantityLow\": 1,\n      \"quantityHigh\": 1,\n      \"dependsOn\": null,\n      \"notesSpan\": \"R aural haematoma. Surgical repair\",\n      \"ownerWording\": \"Surgical repair of the swelling in the right ear flap\"\n    },\n    {\n      \"code\": \"GA-L\",\n      \"quantityLow\": 1,\n      \"quantityHigh\": 1,\n      \"dependsOn\": null,\n      \"notesSpan\": \"Surgical repair under GA\",\n      \"ownerWording\": \"General anaesthetic for surgery\"\n    },\n    {\n      \"code\": \"CONS-DRESS\",\n      \"quantityLow\": 1,\n      \"quantityHigh\": 1,\n      \"dependsOn\": null,\n      \"notesSpan\": \"bandage\",\n      \"ownerWording\": \"Bandage for the ear\"\n    },\n    {\n      \"code\": \"CONS-COLLAR\",\n      \"quantityLow\": 1,\n      \"quantityHigh\": 1,\n      \"dependsOn\": null,\n      \"notesSpan\": \"collar\",\n      \"ownerWording\": \"Protective collar\"\n    },\n    {\n      \"code\": \"CON-POST\",\n      \"quantityLow\": 1,\n      \"quantityHigh\": 1,\n      \"dependsOn\": null,\n      \"notesSpan\": \"check in 3 days\",\n      \"ownerWording\": \"Post-operative check in three days\"\n    }\n  ],\n  \"unmatched\": []\n}",
+  "recordedAt": "2026-10-12T05:37:52.764Z"
+}

@@ -1,0 +1,10 @@
+{
+  "hash": "68326deb213dc57b50e2b17ea98d0ff27bdfd66a533dc679d743574b471b7383",
+  "job": "draft",
+  "promptVersion": "draft.v1",
+  "model": "gpt-6.1-sol",
+  "reasoningEffort": "medium",
+  "servedModel": "gpt-6.1-sol",
+  "text": "{\n  \"lines\": [\n    {\n      \"code\": \"DEN-CHART\",\n      \"quantityLow\": 1,\n      \"quantityHigh\": 1,\n      \"dependsOn\": null,\n      \"notesSpan\": \"chart\",\n      \"ownerWording\": \"Charting the teeth\"\n    },\n    {\n      \"code\": \"IMG-XR-DENT\",\n      \"quantityLow\": 1,\n      \"quantityHigh\": 1,\n      \"dependsOn\": null,\n      \"notesSpan\": \"full mouth rads\",\n      \"ownerWording\": \"Dental X-rays of the whole mouth\"\n    },\n    {\n      \"code\": \"DEN-SP\",\n      \"quantityLow\": 1,\n      \"quantityHigh\": 1,\n      \"dependsOn\": null,\n      \"notesSpan\": \"scale/polish\",\n      \"ownerWording\": \"Cleaning and polishing the teeth\"\n    },\n    {\n      \"code\": \"GA-DENT\",\n      \"quantityLow\": 1,\n      \"quantityHigh\": 1,\n      \"dependsOn\": null,\n      \"notesSpan\": \"scale/polish\",\n      \"ownerWording\": \"General anaesthetic for dental treatment\"\n    },\n    {\n      \"code\": \"DEN-EXT-SG\",\n      \"quantityLow\": 0,\n      \"quantityHigh\": 5,\n      \"dependsOn\": \"extractions are needed\",\n      \"notesSpan\": \"likely several resorptive lesions needing surgical extractions (est 2-5)\",\n      \"ownerWording\": \"Surgical removal of affected teeth if needed\"\n    },\n    {\n      \"code\": \"LAB-PRE\",\n      \"quantityLow\": 1,\n      \"quantityHigh\": 1,\n      \"dependsOn\": null,\n      \"notesSpan\": \"Pre-GA bloods\",\n      \"ownerWording\": \"Blood test before the anaesthetic\"\n    }\n  ],\n  \"unmatched\": [\n    {\n      \"notesSpan\": \"BP\"\n    }\n  ]\n}",
+  "recordedAt": "2026-10-12T05:38:05.900Z"
+}

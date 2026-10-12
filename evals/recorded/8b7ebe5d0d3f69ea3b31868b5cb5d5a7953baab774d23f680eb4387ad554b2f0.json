@@ -1,0 +1,10 @@
+{
+  "hash": "8b7ebe5d0d3f69ea3b31868b5cb5d5a7953baab774d23f680eb4387ad554b2f0",
+  "job": "draft",
+  "promptVersion": "draft.v1",
+  "model": "gpt-6.1-sol",
+  "reasoningEffort": "medium",
+  "servedModel": "gpt-6.1-sol",
+  "text": "{\n  \"lines\": [\n    {\n      \"code\": \"SURG-LUMP-C\",\n      \"quantityLow\": 1,\n      \"quantityHigh\": 1,\n      \"dependsOn\": null,\n      \"notesSpan\": \"wide excision with skin flap\",\n      \"ownerWording\": \"Lump removal with skin reconstruction\"\n    },\n    {\n      \"code\": \"LAB-HIST\",\n      \"quantityLow\": 1,\n      \"quantityHigh\": 1,\n      \"dependsOn\": null,\n      \"notesSpan\": \"histo for margins\",\n      \"ownerWording\": \"Laboratory examination of the removed tissue and its edges\"\n    },\n    {\n      \"code\": \"GA-L\",\n      \"quantityLow\": 1,\n      \"quantityHigh\": 1,\n      \"dependsOn\": null,\n      \"notesSpan\": \"GA approx 90 mins total\",\n      \"ownerWording\": \"General anaesthetic for surgery\"\n    },\n    {\n      \"code\": \"GA-EXTRA\",\n      \"quantityLow\": 4,\n      \"quantityHigh\": 4,\n      \"dependsOn\": null,\n      \"notesSpan\": \"GA approx 90 mins total\",\n      \"ownerWording\": \"Additional anaesthetic time\"\n    },\n    {\n      \"code\": \"CONS-COLLAR\",\n      \"quantityLow\": 1,\n      \"quantityHigh\": 1,\n      \"dependsOn\": null,\n      \"notesSpan\": \"wide excision with skin flap\",\n      \"ownerWording\": \"Protective collar after surgery\"\n    }\n  ],\n  \"unmatched\": []\n}",
+  "recordedAt": "2026-10-12T05:38:19.550Z"
+}

@@ -1,0 +1,19 @@
+{
+  "id": "09-aural-haematoma",
+  "title": "Aural haematoma repair under anaesthetic",
+  "notes": "Bertie, 28kg GSD, R aural haematoma. Surgical repair under GA, bandage, collar, check in 3 days.",
+  "expected": ["SURG-AURAL", "GA-L", "PROC-BAND", "CONS-COLLAR", "CON-POST"],
+  "acceptable": [
+    "CONS-CLIP",
+    "CONS-DRESS",
+    "CONS-KIT",
+    "CONS-SUTURE",
+    "HOSP-DAY",
+    "MED-ANTIB-TAB",
+    "MED-NSAID-INJ",
+    "MED-NSAID-ORAL",
+    "MED-OPIOID",
+    "MED-PREMED"
+  ],
+  "unmatched": []
+}

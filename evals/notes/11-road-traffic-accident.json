@@ -1,0 +1,24 @@
+{
+  "id": "11-road-traffic-accident",
+  "title": "A dog hit by a car, seen out of hours",
+  "notes": "RTA. Rex, 30kg collie x, lame LH, shocky on arrival OOH. IV cath, IVFT, methadone. Chest + pelvis rads when stable (4 views). Overnight ICU.",
+  "expected": [
+    "CON-OOH",
+    "HOSP-CATH",
+    "HOSP-FLUID",
+    "MED-OPIOID",
+    "IMG-XR",
+    "IMG-XR-ADD",
+    "HOSP-ICU"
+  ],
+  "acceptable": [
+    "GA-SED",
+    "HOSP-NIGHT",
+    "HOSP-OXY",
+    "IMG-US-FAST",
+    "LAB-BIO",
+    "LAB-HAEM",
+    "LAB-PRE"
+  ],
+  "unmatched": []
+}

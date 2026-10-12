@@ -1,0 +1,10 @@
+{
+  "hash": "7ec5cbe6140b797919575acb319bc9a7c070aa1f31398696cfae143498a1c1dd",
+  "job": "draft",
+  "promptVersion": "draft.v1",
+  "model": "gpt-6.1-sol",
+  "reasoningEffort": "medium",
+  "servedModel": "gpt-6.1-sol",
+  "text": "{\"lines\":[{\"code\":\"CON-NURSE\",\"quantityLow\":1,\"quantityHigh\":1,\"dependsOn\":null,\"notesSpan\":\"Nurse appt\",\"ownerWording\":\"Nurse appointment\"},{\"code\":\"PROC-MICRO\",\"quantityLow\":1,\"quantityHigh\":1,\"dependsOn\":null,\"notesSpan\":\"microchip\",\"ownerWording\":\"Microchip implantation\"},{\"code\":\"PROC-NAIL\",\"quantityLow\":1,\"quantityHigh\":1,\"dependsOn\":null,\"notesSpan\":\"nail clip\",\"ownerWording\":\"Nail clipping\"},{\"code\":\"PROC-ANAL\",\"quantityLow\":1,\"quantityHigh\":1,\"dependsOn\":null,\"notesSpan\":\"express anal glands\",\"ownerWording\":\"Anal gland emptying\"}],\"unmatched\":[]}",
+  "recordedAt": "2026-10-12T05:38:05.518Z"
+}

@@ -1,0 +1,8 @@
+{
+  "id": "18-nurse-appointment",
+  "title": "A nurse's appointment for routine procedures",
+  "notes": "Nurse appt: microchip, nail clip, express anal glands.",
+  "expected": ["CON-NURSE", "PROC-MICRO", "PROC-NAIL", "PROC-ANAL"],
+  "acceptable": [],
+  "unmatched": []
+}

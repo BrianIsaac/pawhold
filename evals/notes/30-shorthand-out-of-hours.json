@@ -1,0 +1,17 @@
+{
+  "id": "30-shorthand-out-of-hours",
+  "title": "Dense shorthand out of hours, with a test the list does not carry",
+  "notes": "OOH: Bramble 7kg JRT, PU/PD, V+, D+. Bloods (biochem + haem), UA, abdo US. IVFT o/n, cath. Maropitant SC. ?pancreatitis, SNAP cPL.",
+  "expected": [
+    "CON-OOH",
+    "LAB-BIO",
+    "LAB-URINE",
+    "IMG-US-ABD",
+    "HOSP-FLUID",
+    "HOSP-NIGHT",
+    "HOSP-CATH",
+    "MED-ANTIEM"
+  ],
+  "acceptable": ["HOSP-ICU", "LAB-BG", "LAB-HAEM", "MED-OPIOID"],
+  "unmatched": ["SNAP cPL"]
+}

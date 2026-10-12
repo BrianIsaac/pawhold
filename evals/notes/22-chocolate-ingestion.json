@@ -1,0 +1,8 @@
+{
+  "id": "22-chocolate-ingestion",
+  "title": "Chocolate eaten: treatments the list does not carry",
+  "notes": "Milo 12kg, ate approx 200g dark choc 1hr ago. Induce emesis, activated charcoal, monitor in day ward, ECG.",
+  "expected": ["HOSP-DAY", "IMG-ECG"],
+  "acceptable": ["CON-OOH", "CON-STD", "HOSP-CATH", "HOSP-FLUID"],
+  "unmatched": ["Induce emesis", "activated charcoal"]
+}

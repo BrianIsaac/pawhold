@@ -1,0 +1,20 @@
+{
+  "id": "16-older-cat-dental",
+  "title": "An older cat's dental with charting, radiographs and a range of extractions",
+  "notes": "Poppy, 13yo cat 3.5kg. Dental: chart, full mouth rads, scale/polish, likely several resorptive lesions needing surgical extractions (est 2-5). Pre-GA bloods + BP.",
+  "expected": ["GA-DENT", "DEN-CHART", "IMG-XR-DENT", "DEN-SP", "DEN-EXT-SG", "LAB-PRE"],
+  "acceptable": [
+    "CON-PRE",
+    "GA-EXTRA",
+    "GA-LOCAL",
+    "GA-MON",
+    "HOSP-CATH",
+    "HOSP-DAY",
+    "HOSP-FLUID",
+    "LAB-BIO",
+    "MED-NSAID-INJ",
+    "MED-OPIOID",
+    "MED-PREMED"
+  ],
+  "unmatched": ["BP"]
+}

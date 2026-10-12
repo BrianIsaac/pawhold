@@ -1,0 +1,25 @@
+{
+  "id": "26-mast-cell-excision",
+  "title": "A wide excision with reconstruction and a long anaesthetic",
+  "notes": "Hamish 26kg, mast cell tumour R hind (cytology done), wide excision with skin flap, histo for margins. GA approx 90 mins total.",
+  "expected": ["SURG-LUMP-C", "LAB-HIST", "GA-L", "GA-EXTRA"],
+  "acceptable": [
+    "CONS-CLIP",
+    "CONS-COLLAR",
+    "CONS-KIT",
+    "CONS-SUIT",
+    "CONS-SUTURE",
+    "GA-MON",
+    "HOSP-CATH",
+    "HOSP-DAY",
+    "HOSP-FLUID",
+    "HOSP-NIGHT",
+    "LAB-PRE",
+    "MED-ANTIB-TAB",
+    "MED-NSAID-INJ",
+    "MED-NSAID-ORAL",
+    "MED-OPIOID",
+    "MED-PREMED"
+  ],
+  "unmatched": []
+}

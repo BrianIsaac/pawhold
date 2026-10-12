@@ -1,0 +1,8 @@
+{
+  "id": "10-cat-pupd-workup",
+  "title": "An older cat's drinking and weight loss worked up in the day ward",
+  "notes": "Tigger, 11yo MN cat, PUPD, wt loss. Bloods (biochem/haem), T4, urinalysis, BG curve - hospitalise for day.",
+  "expected": ["LAB-BIO", "LAB-T4", "LAB-URINE", "LAB-BG", "HOSP-DAY"],
+  "acceptable": ["CON-STD", "HOSP-CATH", "LAB-HAEM", "LAB-UCULT"],
+  "unmatched": []
+}

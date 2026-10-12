@@ -1,0 +1,10 @@
+{
+  "hash": "cf8da38b5a777a1c7f6053298c842c21fc15d5bde22ca03111f7ba43db12f8f5",
+  "job": "draft",
+  "promptVersion": "draft.v1",
+  "model": "gpt-6.1-sol",
+  "reasoningEffort": "medium",
+  "servedModel": "gpt-6.1-sol",
+  "text": "{\"lines\":[{\"code\":\"CON-TEL\",\"quantityLow\":1,\"quantityHigh\":1,\"dependsOn\":null,\"notesSpan\":\"Phone consult\",\"ownerWording\":\"Telephone consultation\"},{\"code\":\"MED-NSAID-ORAL\",\"quantityLow\":1,\"quantityHigh\":1,\"dependsOn\":null,\"notesSpan\":\"oral metacam, 1 bottle\",\"ownerWording\":\"Oral anti-inflammatory pain relief\"},{\"code\":\"MED-DISP\",\"quantityLow\":1,\"quantityHigh\":1,\"dependsOn\":null,\"notesSpan\":\"dispense\",\"ownerWording\":\"Medicine dispensing\"}],\"unmatched\":[]}",
+  "recordedAt": "2026-10-12T05:38:11.020Z"
+}

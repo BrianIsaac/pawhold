@@ -1,0 +1,10 @@
+{
+  "hash": "e316c39c16519c1e815cdb3750c5537a079a36a4b4fab194b11ac6cdb68609c9",
+  "job": "draft",
+  "promptVersion": "draft.v1",
+  "model": "gpt-6.1-sol",
+  "reasoningEffort": "medium",
+  "servedModel": "gpt-6.1-sol",
+  "text": "{\n  \"lines\": [\n    {\n      \"code\": \"HOSP-DAY\",\n      \"quantityLow\": 1,\n      \"quantityHigh\": 1,\n      \"dependsOn\": null,\n      \"notesSpan\": \"monitor in day ward\",\n      \"ownerWording\": \"Day ward stay for monitoring\"\n    },\n    {\n      \"code\": \"IMG-ECG\",\n      \"quantityLow\": 1,\n      \"quantityHigh\": 1,\n      \"dependsOn\": null,\n      \"notesSpan\": \"ECG\",\n      \"ownerWording\": \"Heart rhythm recording\"\n    }\n  ],\n  \"unmatched\": [\n    {\n      \"notesSpan\": \"Induce emesis\"\n    },\n    {\n      \"notesSpan\": \"activated charcoal\"\n    }\n  ]\n}",
+  "recordedAt": "2026-10-12T05:38:11.099Z"
+}

@@ -1,0 +1,10 @@
+{
+  "hash": "d936cbe84c7297e3ba3afa7c27c2e83df1162264d223423b4b9e0ae7a32d6618",
+  "job": "draft",
+  "promptVersion": "draft.v1",
+  "model": "gpt-6.1-sol",
+  "reasoningEffort": "medium",
+  "servedModel": "gpt-6.1-sol",
+  "text": "{\n  \"lines\": [\n    {\n      \"code\": \"NEU-DOG-F\",\n      \"quantityLow\": 1,\n      \"quantityHigh\": 1,\n      \"dependsOn\": null,\n      \"notesSpan\": \"Spay\",\n      \"ownerWording\": \"Spay operation\"\n    },\n    {\n      \"code\": \"GA-M\",\n      \"quantityLow\": 1,\n      \"quantityHigh\": 1,\n      \"dependsOn\": null,\n      \"notesSpan\": \"GA\",\n      \"ownerWording\": \"General anaesthetic\"\n    },\n    {\n      \"code\": \"HOSP-CATH\",\n      \"quantityLow\": 1,\n      \"quantityHigh\": 1,\n      \"dependsOn\": null,\n      \"notesSpan\": \"IV cath\",\n      \"ownerWording\": \"Placement of a drip catheter\"\n    },\n    {\n      \"code\": \"HOSP-FLUID\",\n      \"quantityLow\": 1,\n      \"quantityHigh\": 1,\n      \"dependsOn\": null,\n      \"notesSpan\": \"fluids during GA\",\n      \"ownerWording\": \"Fluids through a drip during the anaesthetic\"\n    },\n    {\n      \"code\": \"MED-OPIOID\",\n      \"quantityLow\": 1,\n      \"quantityHigh\": 1,\n      \"dependsOn\": null,\n      \"notesSpan\": \"Opioid\",\n      \"ownerWording\": \"Opioid pain relief injection\"\n    },\n    {\n      \"code\": \"MED-NSAID-INJ\",\n      \"quantityLow\": 1,\n      \"quantityHigh\": 1,\n      \"dependsOn\": null,\n      \"notesSpan\": \"NSAID\",\n      \"ownerWording\": \"Anti-inflammatory pain relief injection\"\n    },\n    {\n      \"code\": \"CONS-SUIT\",\n      \"quantityLow\": 1,\n      \"quantityHigh\": 1,\n      \"dependsOn\": null,\n      \"notesSpan\": \"Body suit\",\n      \"ownerWording\": \"Post-operative body suit\"\n    }\n  ],\n  \"unmatched\": []\n}",
+  "recordedAt": "2026-10-12T05:37:45.309Z"
+}

@@ -1,0 +1,8 @@
+{
+  "id": "17-vomiting-cat-consult",
+  "title": "A consultation with an injection and a recovery diet",
+  "notes": "Consult: Felix, vomiting 2 days, bright. Anti-emetic inj, recovery diet x6 tins, recheck if not improving.",
+  "expected": ["CON-STD", "MED-ANTIEM", "CONS-DIET"],
+  "acceptable": ["CON-REP"],
+  "unmatched": []
+}

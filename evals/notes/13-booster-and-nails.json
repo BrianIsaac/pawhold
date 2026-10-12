@@ -1,0 +1,8 @@
+{
+  "id": "13-booster-and-nails",
+  "title": "Annual booster with flea and worm treatment",
+  "notes": "Annual vacc + health check, Bella 4yo spaniel. Flea/worm x3 months. Nails clipped.",
+  "expected": ["MED-VACC", "MED-FLEA", "PROC-NAIL"],
+  "acceptable": ["CON-STD", "MED-DISP"],
+  "unmatched": []
+}

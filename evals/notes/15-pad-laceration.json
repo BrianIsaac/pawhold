@@ -1,0 +1,19 @@
+{
+  "id": "15-pad-laceration",
+  "title": "A cut pad sutured under sedation, with dressing changes",
+  "notes": "Scout, 15kg, cut pad LF on glass. Clean + suture under sedation, bandage, change dressing in 2 days and again day 5. Abs 7 days.",
+  "expected": ["GA-SED", "PROC-BAND", "MED-ANTIB-TAB"],
+  "acceptable": [
+    "CON-POST",
+    "CON-REP",
+    "CONS-CLIP",
+    "CONS-DRESS",
+    "CONS-SUTURE",
+    "MED-ANTIB-INJ",
+    "MED-DISP",
+    "MED-NSAID-INJ",
+    "MED-NSAID-ORAL",
+    "SURG-WOUND"
+  ],
+  "unmatched": []
+}

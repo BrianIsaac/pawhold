@@ -15,6 +15,7 @@ import {
   createRecordedModel,
   fileRecordedStore,
   memoryRecordedStore,
+  recordedThenLive,
   recordingModel,
 } from "@/agent/recorded";
 import { DRAFT_FORMAT } from "@/agent/schema";
@@ -218,5 +219,26 @@ describe("recording a model's answers", () => {
     };
     await expect(recordingModel(inner, store).answer(REQUEST)).rejects.toThrow(ModelError);
     expect(store.get(requestHash(MODEL_SETTINGS, REQUEST))).toBeUndefined();
+  });
+});
+
+describe("the recorded answer first, then the live model", () => {
+  it("asks the live model only for a request with no recording, and records its answer", async () => {
+    const store = memoryRecordedStore();
+    let calls = 0;
+    const live = {
+      settings: MODEL_SETTINGS,
+      answer: async () => {
+        calls += 1;
+        return { text: ANSWER, servedModel: "gpt-6.1-sol" };
+      },
+    };
+    const model = recordedThenLive(store, live);
+
+    await model.answer(REQUEST);
+    await model.answer(REQUEST);
+
+    expect(calls).toBe(1);
+    expect(store.get(requestHash(MODEL_SETTINGS, REQUEST))?.text).toBe(ANSWER);
   });
 });

@@ -1,0 +1,8 @@
+{
+  "id": "20-lameness-second-opinion",
+  "title": "A second opinion on lameness, CT only if radiographs do not answer it",
+  "notes": "Second opinion, Nala 34kg Rottweiler, chronic RF lameness. Sedated rads of elbows (4 views), CT if rads inconclusive.",
+  "expected": ["CON-SEC", "GA-SED", "IMG-XR", "IMG-XR-ADD", "IMG-CT"],
+  "acceptable": ["GA-L", "HOSP-DAY", "LAB-PRE"],
+  "unmatched": []
+}

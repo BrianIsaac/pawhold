@@ -1,0 +1,28 @@
+{
+  "id": "12-enucleation",
+  "title": "A cat's ruptured eye removed",
+  "notes": "Smudge, 4kg cat, R eye ruptured after fight. Enucleation R eye. Abs + pain relief, collar. Day patient.",
+  "expected": [
+    "SURG-ENUC",
+    ["MED-ANTIB-INJ", "MED-ANTIB-TAB"],
+    ["MED-OPIOID", "MED-NSAID-INJ", "MED-NSAID-ORAL"],
+    "CONS-COLLAR",
+    "HOSP-DAY"
+  ],
+  "acceptable": [
+    "CON-POST",
+    "CONS-CLIP",
+    "CONS-KIT",
+    "CONS-SUTURE",
+    "GA-S",
+    "LAB-PRE",
+    "MED-ANTIB-INJ",
+    "MED-ANTIB-TAB",
+    "MED-DISP",
+    "MED-NSAID-INJ",
+    "MED-NSAID-ORAL",
+    "MED-OPIOID",
+    "MED-PREMED"
+  ],
+  "unmatched": []
+}

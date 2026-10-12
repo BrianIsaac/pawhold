@@ -1,0 +1,10 @@
+{
+  "hash": "d21e2f4d64b77f545fc54f053677c75586ae008da531d5328b85156f8863ccf1",
+  "job": "draft",
+  "promptVersion": "draft.v1",
+  "model": "gpt-6.1-sol",
+  "reasoningEffort": "medium",
+  "servedModel": "gpt-6.1-sol",
+  "text": "{\n  \"lines\": [\n    {\n      \"code\": \"HOSP-ISO\",\n      \"quantityLow\": 3,\n      \"quantityHigh\": 5,\n      \"dependsOn\": null,\n      \"notesSpan\": \"Isolation ward 3-5 days\",\n      \"ownerWording\": \"Stay in the isolation ward\"\n    },\n    {\n      \"code\": \"HOSP-CATH\",\n      \"quantityLow\": 1,\n      \"quantityHigh\": 1,\n      \"dependsOn\": null,\n      \"notesSpan\": \"IVFT\",\n      \"ownerWording\": \"Placement of a drip catheter\"\n    },\n    {\n      \"code\": \"HOSP-FLUID\",\n      \"quantityLow\": 3,\n      \"quantityHigh\": 5,\n      \"dependsOn\": null,\n      \"notesSpan\": \"Isolation ward 3-5 days, IVFT\",\n      \"ownerWording\": \"Fluids through a drip\"\n    },\n    {\n      \"code\": \"MED-ANTIEM\",\n      \"quantityLow\": 1,\n      \"quantityHigh\": 1,\n      \"dependsOn\": null,\n      \"notesSpan\": \"anti-emetic\",\n      \"ownerWording\": \"Anti-sickness injection\"\n    },\n    {\n      \"code\": \"MED-ANTIB-INJ\",\n      \"quantityLow\": 1,\n      \"quantityHigh\": 1,\n      \"dependsOn\": null,\n      \"notesSpan\": \"abs inj\",\n      \"ownerWording\": \"Antibiotic injection\"\n    },\n    {\n      \"code\": \"HOSP-FEED\",\n      \"quantityLow\": 3,\n      \"quantityHigh\": 5,\n      \"dependsOn\": null,\n      \"notesSpan\": \"Isolation ward 3-5 days, IVFT, anti-emetic, abs inj, assisted feeding\",\n      \"ownerWording\": \"Help with feeding\"\n    }\n  ],\n  \"unmatched\": [\n    {\n      \"notesSpan\": \"Parvo snap test +ve\"\n    }\n  ]\n}",
+  "recordedAt": "2026-10-12T05:38:15.764Z"
+}

@@ -1,0 +1,8 @@
+{
+  "id": "23-repeat-by-phone",
+  "title": "A repeat prescription after a telephone consultation",
+  "notes": "Phone consult: Ziggy's arthritis, stable on metacam. Repeat oral metacam, 1 bottle, dispense.",
+  "expected": ["CON-TEL", "MED-NSAID-ORAL", "MED-DISP"],
+  "acceptable": [],
+  "unmatched": []
+}

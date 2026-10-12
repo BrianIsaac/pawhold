@@ -20,7 +20,8 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx scripts/migrate.ts",
     "cron:hourly": "tsx scripts/cron-hourly.ts",
-    "paypal:smoke-order": "tsx scripts/sandbox-order-smoke.ts"
+    "paypal:smoke-order": "tsx scripts/sandbox-order-smoke.ts",
+    "eval": "tsx evals/run.ts"
   },
   "dependencies": {
     "drizzle-orm": "0.45.4",

@@ -1,0 +1,8 @@
+{
+  "id": "07-ear-flush",
+  "title": "Ear flush with a swab the list has no culture for",
+  "notes": "Ollie, 6yo cocker, chronic otitis externa R ear. Sedate for ear flush, ear swab for C&S. Ear drops to go home, recheck 2 wks.",
+  "expected": ["PROC-EAR", "MED-EAR"],
+  "acceptable": ["CON-POST", "CON-REP", "CON-STD", "GA-SED", "LAB-CYTO", "MED-DISP"],
+  "unmatched": ["ear swab for C&S"]
+}

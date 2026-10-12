@@ -1,0 +1,10 @@
+{
+  "hash": "e54ce1857f68ad3cb12bba10443ba89bc2774e0bab43c5954c6e92c2ea87c00d",
+  "job": "draft",
+  "promptVersion": "draft.v1",
+  "model": "gpt-6.1-sol",
+  "reasoningEffort": "medium",
+  "servedModel": "gpt-6.1-sol",
+  "text": "{\"lines\":[{\"code\":\"CON-STD\",\"quantityLow\":1,\"quantityHigh\":1,\"dependsOn\":null,\"notesSpan\":\"Consult\",\"ownerWording\":\"Veterinary consultation\"},{\"code\":\"MED-ANTIEM\",\"quantityLow\":1,\"quantityHigh\":1,\"dependsOn\":null,\"notesSpan\":\"Anti-emetic inj\",\"ownerWording\":\"Anti-sickness injection\"},{\"code\":\"CONS-DIET\",\"quantityLow\":6,\"quantityHigh\":6,\"dependsOn\":null,\"notesSpan\":\"recovery diet x6 tins\",\"ownerWording\":\"Tins of recovery food\"},{\"code\":\"CON-REP\",\"quantityLow\":0,\"quantityHigh\":1,\"dependsOn\":\"Felix is not improving\",\"notesSpan\":\"recheck if not improving\",\"ownerWording\":\"Follow-up consultation if not improving\"}],\"unmatched\":[]}",
+  "recordedAt": "2026-10-12T05:38:05.231Z"
+}

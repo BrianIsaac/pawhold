@@ -1,0 +1,10 @@
+{
+  "hash": "f3a13a74b9cb4c5154f9eeaea0a8e57c9842643708a66b21b98b33d9df6e4bf3",
+  "job": "draft",
+  "promptVersion": "draft.v1",
+  "model": "gpt-6.1-sol",
+  "reasoningEffort": "medium",
+  "servedModel": "gpt-6.1-sol",
+  "text": "{\n  \"lines\": [\n    {\n      \"code\": \"HOSP-OXY\",\n      \"quantityLow\": 2,\n      \"quantityHigh\": 4,\n      \"dependsOn\": null,\n      \"notesSpan\": \"Oxygen 2-4 hrs\",\n      \"ownerWording\": \"Oxygen support\"\n    },\n    {\n      \"code\": \"IMG-US-FAST\",\n      \"quantityLow\": 1,\n      \"quantityHigh\": 1,\n      \"dependsOn\": null,\n      \"notesSpan\": \"FAST scan chest\",\n      \"ownerWording\": \"Focused ultrasound scan of the chest\"\n    },\n    {\n      \"code\": \"IMG-XR\",\n      \"quantityLow\": 0,\n      \"quantityHigh\": 1,\n      \"dependsOn\": \"the cat is stable\",\n      \"notesSpan\": \"chest rads 2 views once stable\",\n      \"ownerWording\": \"First chest X-ray view\"\n    },\n    {\n      \"code\": \"IMG-XR-ADD\",\n      \"quantityLow\": 0,\n      \"quantityHigh\": 1,\n      \"dependsOn\": \"the cat is stable\",\n      \"notesSpan\": \"chest rads 2 views once stable\",\n      \"ownerWording\": \"Second chest X-ray view\"\n    },\n    {\n      \"code\": \"HOSP-ICU\",\n      \"quantityLow\": 1,\n      \"quantityHigh\": 1,\n      \"dependsOn\": null,\n      \"notesSpan\": \"ICU overnight\",\n      \"ownerWording\": \"Intensive care\"\n    },\n    {\n      \"code\": \"HOSP-NIGHT\",\n      \"quantityLow\": 1,\n      \"quantityHigh\": 1,\n      \"dependsOn\": null,\n      \"notesSpan\": \"ICU overnight\",\n      \"ownerWording\": \"Overnight hospital stay with nursing checks\"\n    }\n  ],\n  \"unmatched\": []\n}",
+  "recordedAt": "2026-10-12T05:38:22.160Z"
+}

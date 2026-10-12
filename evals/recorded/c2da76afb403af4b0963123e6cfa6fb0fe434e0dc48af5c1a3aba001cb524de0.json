@@ -1,0 +1,10 @@
+{
+  "hash": "c2da76afb403af4b0963123e6cfa6fb0fe434e0dc48af5c1a3aba001cb524de0",
+  "job": "draft",
+  "promptVersion": "draft.v1",
+  "model": "gpt-6.1-sol",
+  "reasoningEffort": "medium",
+  "servedModel": "gpt-6.1-sol",
+  "text": "{\"lines\":[{\"code\":\"IMG-US-ABD\",\"quantityLow\":1,\"quantityHigh\":1,\"dependsOn\":null,\"notesSpan\":\"Abdo US\",\"ownerWording\":\"Abdominal ultrasound scan\"},{\"code\":\"LAB-BIO\",\"quantityLow\":1,\"quantityHigh\":1,\"dependsOn\":null,\"notesSpan\":\"bloods\",\"ownerWording\":\"Blood tests\"},{\"code\":\"NEU-DOG-F-L\",\"quantityLow\":0,\"quantityHigh\":1,\"dependsOn\":\"pyometra is confirmed\",\"notesSpan\":\"If confirmed, emergency spay tonight\",\"ownerWording\":\"Emergency spay\"},{\"code\":\"GA-M\",\"quantityLow\":0,\"quantityHigh\":1,\"dependsOn\":\"pyometra is confirmed\",\"notesSpan\":\"If confirmed, emergency spay tonight\",\"ownerWording\":\"General anaesthetic for surgery\"},{\"code\":\"CONS-COLLAR\",\"quantityLow\":0,\"quantityHigh\":1,\"dependsOn\":\"pyometra is confirmed\",\"notesSpan\":\"If confirmed, emergency spay tonight\",\"ownerWording\":\"Protective collar after surgery\"},{\"code\":\"HOSP-CATH\",\"quantityLow\":0,\"quantityHigh\":1,\"dependsOn\":\"pyometra is confirmed\",\"notesSpan\":\"IVFT\",\"ownerWording\":\"Placement of a drip catheter\"},{\"code\":\"HOSP-FLUID\",\"quantityLow\":0,\"quantityHigh\":1,\"dependsOn\":\"pyometra is confirmed\",\"notesSpan\":\"IVFT\",\"ownerWording\":\"Fluids through a drip\"},{\"code\":\"HOSP-NIGHT\",\"quantityLow\":0,\"quantityHigh\":1,\"dependsOn\":\"pyometra is confirmed\",\"notesSpan\":\"hospitalise overnight\",\"ownerWording\":\"Overnight hospital stay with nursing checks\"}],\"unmatched\":[{\"notesSpan\":\"abs\"}]}",
+  "recordedAt": "2026-10-12T05:38:03.072Z"
+}

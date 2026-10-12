@@ -1,0 +1,10 @@
+{
+  "hash": "3c36e5d1770154c27204089ac74009884613b8677a9fac7c9fa22ed766ecd1e7",
+  "job": "draft",
+  "promptVersion": "draft.v1",
+  "model": "gpt-6.1-sol",
+  "reasoningEffort": "medium",
+  "servedModel": "gpt-6.1-sol",
+  "text": "{\n  \"lines\": [\n    {\n      \"code\": \"GA-DENT\",\n      \"quantityLow\": 1,\n      \"quantityHigh\": 1,\n      \"dependsOn\": null,\n      \"notesSpan\": \"GA\",\n      \"ownerWording\": \"General anaesthetic for dental treatment\"\n    },\n    {\n      \"code\": \"DEN-SP\",\n      \"quantityLow\": 1,\n      \"quantityHigh\": 1,\n      \"dependsOn\": null,\n      \"notesSpan\": \"dental scale and polish\",\n      \"ownerWording\": \"Dental scale and polish\"\n    },\n    {\n      \"code\": \"DEN-EXT-S\",\n      \"quantityLow\": 0,\n      \"quantityHigh\": 2,\n      \"dependsOn\": \"extractions are needed\",\n      \"notesSpan\": \"probable two extractions upper PM\",\n      \"ownerWording\": \"Removal of up to two upper premolar teeth\"\n    },\n    {\n      \"code\": \"LAB-PRE\",\n      \"quantityLow\": 1,\n      \"quantityHigh\": 1,\n      \"dependsOn\": null,\n      \"notesSpan\": \"pre-op bloods\",\n      \"ownerWording\": \"Blood test before the anaesthetic\"\n    }\n  ],\n  \"unmatched\": []\n}",
+  "recordedAt": "2026-10-12T05:37:26.503Z"
+}

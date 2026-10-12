@@ -1,0 +1,10 @@
+{
+  "hash": "b59d0b643abf084541ca2605e0d49154b172ff325d719791ae62a2ffb1f0c4f7",
+  "job": "draft",
+  "promptVersion": "draft.v1",
+  "model": "gpt-6.1-sol",
+  "reasoningEffort": "medium",
+  "servedModel": "gpt-6.1-sol",
+  "text": "{\n  \"lines\": [\n    {\n      \"code\": \"LAB-CYTO\",\n      \"quantityLow\": 1,\n      \"quantityHigh\": 1,\n      \"dependsOn\": null,\n      \"notesSpan\": \"FNA cytology first.\",\n      \"ownerWording\": \"Laboratory examination of a needle sample from the lump\"\n    },\n    {\n      \"code\": \"SURG-LUMP\",\n      \"quantityLow\": 0,\n      \"quantityHigh\": 1,\n      \"dependsOn\": \"the lump is not a lipoma\",\n      \"notesSpan\": \"If not lipoma, excise with histo.\",\n      \"ownerWording\": \"Removal of the flank lump\"\n    },\n    {\n      \"code\": \"LAB-HIST\",\n      \"quantityLow\": 0,\n      \"quantityHigh\": 1,\n      \"dependsOn\": \"the lump is not a lipoma\",\n      \"notesSpan\": \"If not lipoma, excise with histo.\",\n      \"ownerWording\": \"Laboratory examination of the removed lump\"\n    },\n    {\n      \"code\": \"GA-M\",\n      \"quantityLow\": 0,\n      \"quantityHigh\": 1,\n      \"dependsOn\": \"the lump is not a lipoma\",\n      \"notesSpan\": \"If not lipoma, excise with histo.\",\n      \"ownerWording\": \"General anaesthetic for lump removal\"\n    },\n    {\n      \"code\": \"LAB-PRE\",\n      \"quantityLow\": 0,\n      \"quantityHigh\": 1,\n      \"dependsOn\": \"lump removal under anaesthetic is needed\",\n      \"notesSpan\": \"Pre-GA bloods given age.\",\n      \"ownerWording\": \"Blood screening before the anaesthetic\"\n    },\n    {\n      \"code\": \"CONS-COLLAR\",\n      \"quantityLow\": 0,\n      \"quantityHigh\": 1,\n      \"dependsOn\": \"the lump is removed\",\n      \"notesSpan\": \"If not lipoma, excise with histo.\",\n      \"ownerWording\": \"Protective collar after surgery\"\n    }\n  ],\n  \"unmatched\": []\n}",
+  "recordedAt": "2026-10-12T05:37:47.722Z"
+}

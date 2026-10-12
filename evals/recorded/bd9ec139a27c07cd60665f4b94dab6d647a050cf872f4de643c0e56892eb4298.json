@@ -1,0 +1,10 @@
+{
+  "hash": "bd9ec139a27c07cd60665f4b94dab6d647a050cf872f4de643c0e56892eb4298",
+  "job": "draft",
+  "promptVersion": "draft.v1",
+  "model": "gpt-6.1-sol",
+  "reasoningEffort": "medium",
+  "servedModel": "gpt-6.1-sol",
+  "text": "{\"lines\":[{\"code\":\"NEU-CAT-F\",\"quantityLow\":1,\"quantityHigh\":1,\"dependsOn\":null,\"notesSpan\":\"Routine spay\",\"ownerWording\":\"Spay operation\"},{\"code\":\"GA-S\",\"quantityLow\":1,\"quantityHigh\":1,\"dependsOn\":null,\"notesSpan\":\"Routine spay\",\"ownerWording\":\"General anaesthetic\"},{\"code\":\"CONS-CLIP\",\"quantityLow\":1,\"quantityHigh\":1,\"dependsOn\":null,\"notesSpan\":\"Clip & scrub\",\"ownerWording\":\"Clip and clean the operation site\"},{\"code\":\"HOSP-DAY\",\"quantityLow\":1,\"quantityHigh\":1,\"dependsOn\":null,\"notesSpan\":\"admit as day patient\",\"ownerWording\":\"Day hospital stay\"},{\"code\":\"MED-NSAID-INJ\",\"quantityLow\":1,\"quantityHigh\":1,\"dependsOn\":null,\"notesSpan\":\"NSAID inj post-op\",\"ownerWording\":\"Anti-inflammatory pain relief injection after surgery\"},{\"code\":\"CONS-COLLAR\",\"quantityLow\":1,\"quantityHigh\":1,\"dependsOn\":null,\"notesSpan\":\"send home with buster collar\",\"ownerWording\":\"Protective collar to take home\"}],\"unmatched\":[]}",
+  "recordedAt": "2026-10-12T05:37:40.768Z"
+}

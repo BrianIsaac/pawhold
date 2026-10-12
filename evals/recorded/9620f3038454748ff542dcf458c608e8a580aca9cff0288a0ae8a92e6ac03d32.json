@@ -1,0 +1,10 @@
+{
+  "hash": "9620f3038454748ff542dcf458c608e8a580aca9cff0288a0ae8a92e6ac03d32",
+  "job": "draft",
+  "promptVersion": "draft.v1",
+  "model": "gpt-6.1-sol",
+  "reasoningEffort": "medium",
+  "servedModel": "gpt-6.1-sol",
+  "text": "{\"lines\":[{\"code\":\"CON-POST\",\"quantityLow\":1,\"quantityHigh\":1,\"dependsOn\":null,\"notesSpan\":\"Post-op check\",\"ownerWording\":\"Post-operative check\"}],\"unmatched\":[{\"notesSpan\":\"sutures out\"}]}",
+  "recordedAt": "2026-10-12T05:38:14.319Z"
+}

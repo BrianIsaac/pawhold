@@ -1,0 +1,10 @@
+{
+  "hash": "5633cd7d52867643272587608324b7ad0ea7f73708bf5895de9d5c9703201402",
+  "job": "draft",
+  "promptVersion": "draft.v1",
+  "model": "gpt-6.1-sol",
+  "reasoningEffort": "medium",
+  "servedModel": "gpt-6.1-sol",
+  "text": "{\"lines\":[{\"code\":\"MED-VACC\",\"quantityLow\":1,\"quantityHigh\":1,\"dependsOn\":null,\"notesSpan\":\"Annual vacc\",\"ownerWording\":\"Annual booster vaccination\"},{\"code\":\"CON-STD\",\"quantityLow\":1,\"quantityHigh\":1,\"dependsOn\":null,\"notesSpan\":\"health check\",\"ownerWording\":\"Health check\"},{\"code\":\"MED-FLEA\",\"quantityLow\":3,\"quantityHigh\":3,\"dependsOn\":null,\"notesSpan\":\"Flea/worm x3 months\",\"ownerWording\":\"Three months of flea and worm treatment\"},{\"code\":\"PROC-NAIL\",\"quantityLow\":1,\"quantityHigh\":1,\"dependsOn\":null,\"notesSpan\":\"Nails clipped\",\"ownerWording\":\"Nail clipping\"}],\"unmatched\":[]}",
+  "recordedAt": "2026-10-12T05:37:56.518Z"
+}

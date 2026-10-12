@@ -1,0 +1,10 @@
+{
+  "hash": "e6a4a5e9eed5655741758b1b6247f00b87c15bbb143cfb4f53ecdd88c64c5019",
+  "job": "draft",
+  "promptVersion": "draft.v1",
+  "model": "gpt-6.1-sol",
+  "reasoningEffort": "medium",
+  "servedModel": "gpt-6.1-sol",
+  "text": "{\n  \"lines\": [\n    {\n      \"code\": \"CON-OOH\",\n      \"quantityLow\": 1,\n      \"quantityHigh\": 1,\n      \"dependsOn\": null,\n      \"notesSpan\": \"OOH\",\n      \"ownerWording\": \"Out-of-hours consultation\"\n    },\n    {\n      \"code\": \"LAB-BIO\",\n      \"quantityLow\": 1,\n      \"quantityHigh\": 1,\n      \"dependsOn\": null,\n      \"notesSpan\": \"Bloods (biochem + haem)\",\n      \"ownerWording\": \"Blood chemistry and blood cell tests\"\n    },\n    {\n      \"code\": \"LAB-URINE\",\n      \"quantityLow\": 1,\n      \"quantityHigh\": 1,\n      \"dependsOn\": null,\n      \"notesSpan\": \"UA\",\n      \"ownerWording\": \"Urine analysis\"\n    },\n    {\n      \"code\": \"IMG-US-ABD\",\n      \"quantityLow\": 1,\n      \"quantityHigh\": 1,\n      \"dependsOn\": null,\n      \"notesSpan\": \"abdo US\",\n      \"ownerWording\": \"Abdominal ultrasound scan\"\n    },\n    {\n      \"code\": \"HOSP-FLUID\",\n      \"quantityLow\": 1,\n      \"quantityHigh\": 1,\n      \"dependsOn\": null,\n      \"notesSpan\": \"IVFT o/n\",\n      \"ownerWording\": \"Fluids through a drip\"\n    },\n    {\n      \"code\": \"HOSP-NIGHT\",\n      \"quantityLow\": 1,\n      \"quantityHigh\": 1,\n      \"dependsOn\": null,\n      \"notesSpan\": \"IVFT o/n\",\n      \"ownerWording\": \"Overnight hospital stay with nursing checks\"\n    },\n    {\n      \"code\": \"HOSP-CATH\",\n      \"quantityLow\": 1,\n      \"quantityHigh\": 1,\n      \"dependsOn\": null,\n      \"notesSpan\": \"cath\",\n      \"ownerWording\": \"Placement of an intravenous catheter\"\n    },\n    {\n      \"code\": \"MED-ANTIEM\",\n      \"quantityLow\": 1,\n      \"quantityHigh\": 1,\n      \"dependsOn\": null,\n      \"notesSpan\": \"Maropitant SC\",\n      \"ownerWording\": \"Anti-sickness injection\"\n    }\n  ],\n  \"unmatched\": [\n    {\n      \"notesSpan\": \"SNAP cPL\"\n    }\n  ]\n}",
+  "recordedAt": "2026-10-12T05:38:25.611Z"
+}

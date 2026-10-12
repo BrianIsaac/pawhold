@@ -1,0 +1,10 @@
+{
+  "hash": "415b61ce8647444002ce7cc72744eae9b558b692bfee3a59d4471f8609672775",
+  "job": "draft",
+  "promptVersion": "draft.v1",
+  "model": "gpt-6.1-sol",
+  "reasoningEffort": "medium",
+  "servedModel": "gpt-6.1-sol",
+  "text": "{\"lines\":[{\"code\":\"MED-RX\",\"quantityLow\":1,\"quantityHigh\":1,\"dependsOn\":null,\"notesSpan\":\"a written prescription for Ziggy's metacam\",\"ownerWording\":\"Written prescription for Metacam\"}],\"unmatched\":[]}",
+  "recordedAt": "2026-10-12T05:38:09.202Z"
+}

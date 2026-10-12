@@ -1,0 +1,8 @@
+{
+  "id": "29-nothing-on-the-list",
+  "title": "A conversation about treatments the practice does not offer",
+  "notes": "Owner asks about hydrotherapy and acupuncture for arthritis; advised referral to a rehab centre.",
+  "expected": [],
+  "acceptable": ["CON-STD", "CON-TEL"],
+  "unmatched": ["hydrotherapy", "acupuncture"]
+}

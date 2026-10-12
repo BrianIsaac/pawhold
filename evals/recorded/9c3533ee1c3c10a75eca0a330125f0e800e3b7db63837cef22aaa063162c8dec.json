@@ -1,0 +1,10 @@
+{
+  "hash": "9c3533ee1c3c10a75eca0a330125f0e800e3b7db63837cef22aaa063162c8dec",
+  "job": "draft",
+  "promptVersion": "draft.v1",
+  "model": "gpt-6.1-sol",
+  "reasoningEffort": "medium",
+  "servedModel": "gpt-6.1-sol",
+  "text": "{\"lines\":[{\"code\":\"SURG-WOUND\",\"quantityLow\":1,\"quantityHigh\":1,\"dependsOn\":null,\"notesSpan\":\"Clean + suture under sedation\",\"ownerWording\":\"Clean and stitch the pad wound\"},{\"code\":\"GA-SED\",\"quantityLow\":1,\"quantityHigh\":1,\"dependsOn\":null,\"notesSpan\":\"under sedation\",\"ownerWording\":\"Sedation for wound treatment\"},{\"code\":\"CONS-DRESS\",\"quantityLow\":1,\"quantityHigh\":1,\"dependsOn\":null,\"notesSpan\":\"bandage\",\"ownerWording\":\"Bandage for the injured paw\"},{\"code\":\"PROC-BAND\",\"quantityLow\":2,\"quantityHigh\":2,\"dependsOn\":null,\"notesSpan\":\"change dressing in 2 days and again day 5\",\"ownerWording\":\"Two dressing changes\"},{\"code\":\"MED-ANTIB-TAB\",\"quantityLow\":1,\"quantityHigh\":1,\"dependsOn\":null,\"notesSpan\":\"Abs 7 days\",\"ownerWording\":\"Seven-day course of antibiotic tablets\"}],\"unmatched\":[]}",
+  "recordedAt": "2026-10-12T05:38:06.208Z"
+}

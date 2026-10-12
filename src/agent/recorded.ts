@@ -143,3 +143,34 @@ export function recordingModel(
     },
   };
 }
+
+/**
+ * The recorded answer when there is one, else the live model's, recorded:
+ * a live eval asks the provider once per request, however often it is run.
+ *
+ * @param store - The recorded answers.
+ * @param live - The live model.
+ * @param now - The clock for `recordedAt`.
+ * @returns The model.
+ */
+export function recordedThenLive(
+  store: RecordedStore,
+  live: DraftModel,
+  now: () => Date = () => new Date(),
+): DraftModel {
+  const recorded = createRecordedModel(store);
+  const recording = recordingModel(live, store, now);
+  return {
+    settings: live.settings,
+    answer: async (request) => {
+      try {
+        return await recorded.answer(request);
+      } catch (error) {
+        if (error instanceof ModelError && error.reason === "not_recorded") {
+          return recording.answer(request);
+        }
+        throw error;
+      }
+    },
+  };
+}

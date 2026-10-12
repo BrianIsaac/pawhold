@@ -1,0 +1,10 @@
+{
+  "hash": "e6a8c918839c6666fa2a4a528159f16f5a1fcd0ffafbc73aab341248623cc7f5",
+  "job": "draft",
+  "promptVersion": "draft.v1",
+  "model": "gpt-6.1-sol",
+  "reasoningEffort": "medium",
+  "servedModel": "gpt-6.1-sol",
+  "text": "{\"lines\":[{\"code\":\"LAB-BIO\",\"quantityLow\":1,\"quantityHigh\":1,\"dependsOn\":null,\"notesSpan\":\"Bloods (biochem/haem)\",\"ownerWording\":\"Blood chemistry and blood cell tests\"},{\"code\":\"LAB-T4\",\"quantityLow\":1,\"quantityHigh\":1,\"dependsOn\":null,\"notesSpan\":\"T4\",\"ownerWording\":\"Thyroid hormone blood test\"},{\"code\":\"LAB-URINE\",\"quantityLow\":1,\"quantityHigh\":1,\"dependsOn\":null,\"notesSpan\":\"urinalysis\",\"ownerWording\":\"Urine analysis\"},{\"code\":\"HOSP-DAY\",\"quantityLow\":1,\"quantityHigh\":1,\"dependsOn\":null,\"notesSpan\":\"hospitalise for day\",\"ownerWording\":\"Day stay in hospital\"}],\"unmatched\":[{\"notesSpan\":\"BG curve\"}]}",
+  "recordedAt": "2026-10-12T05:37:51.977Z"
+}

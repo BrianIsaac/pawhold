@@ -1,0 +1,18 @@
+{
+  "id": "04-bitch-spay-small",
+  "title": "Spay of a medium bitch with a drip and pain relief",
+  "notes": "Daisy, 12kg Cocker Spaniel bitch, 18 months. Spay. IV cath + fluids during GA. Opioid + NSAID. Body suit.",
+  "expected": ["NEU-DOG-F", "HOSP-CATH", "HOSP-FLUID", "MED-OPIOID", "MED-NSAID-INJ", "CONS-SUIT"],
+  "acceptable": [
+    "CON-PRE",
+    "CONS-CLIP",
+    "CONS-KIT",
+    "CONS-SUTURE",
+    "GA-M",
+    "GA-MON",
+    "HOSP-DAY",
+    "LAB-PRE",
+    "MED-PREMED"
+  ],
+  "unmatched": []
+}

@@ -1,0 +1,23 @@
+{
+  "id": "08-cystotomy",
+  "title": "Bladder stones out, with a stone analysis the list does not carry",
+  "notes": "Rocco, 9 kg Shih Tzu, haematuria, rads show bladder calculi. Cystotomy, submit stone for analysis, urinalysis + culture pre-op, overnight stay with IVFT.",
+  "expected": ["SURG-CYST", "LAB-URINE", "LAB-UCULT", "HOSP-NIGHT", "HOSP-FLUID"],
+  "acceptable": [
+    "CONS-CLIP",
+    "CONS-KIT",
+    "CONS-SUTURE",
+    "GA-MON",
+    "GA-S",
+    "HOSP-CATH",
+    "IMG-XR",
+    "IMG-XR-ADD",
+    "LAB-PRE",
+    "MED-ANTIB-INJ",
+    "MED-ANTIB-TAB",
+    "MED-NSAID-INJ",
+    "MED-OPIOID",
+    "MED-PREMED"
+  ],
+  "unmatched": ["stone for analysis"]
+}

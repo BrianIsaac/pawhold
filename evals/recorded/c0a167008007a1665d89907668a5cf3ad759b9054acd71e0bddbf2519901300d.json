@@ -1,0 +1,10 @@
+{
+  "hash": "c0a167008007a1665d89907668a5cf3ad759b9054acd71e0bddbf2519901300d",
+  "job": "draft",
+  "promptVersion": "draft.v1",
+  "model": "gpt-6.1-sol",
+  "reasoningEffort": "medium",
+  "servedModel": "gpt-6.1-sol",
+  "text": "{\n  \"lines\": [\n    {\n      \"code\": \"DEN-SP\",\n      \"quantityLow\": 1,\n      \"quantityHigh\": 1,\n      \"dependsOn\": null,\n      \"notesSpan\": \"dental scale & polish\",\n      \"ownerWording\": \"Dental scale and polish\"\n    },\n    {\n      \"code\": \"GA-DENT\",\n      \"quantityLow\": 1,\n      \"quantityHigh\": 1,\n      \"dependsOn\": null,\n      \"notesSpan\": \"dental scale & polish under GA\",\n      \"ownerWording\": \"General anaesthetic for dental treatment\"\n    }\n  ],\n  \"unmatched\": []\n}",
+  "recordedAt": "2026-10-12T05:38:15.949Z"
+}

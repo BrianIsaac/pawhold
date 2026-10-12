@@ -1,0 +1,10 @@
+{
+  "hash": "18fff39824b18bf94f36d17b0bce6b4cbda468988f207bc9ea5d392b5342f710",
+  "job": "draft",
+  "promptVersion": "draft.v1",
+  "model": "gpt-6.1-sol",
+  "reasoningEffort": "medium",
+  "servedModel": "gpt-6.1-sol",
+  "text": "{\n  \"lines\": [\n    {\n      \"code\": \"GA-SED\",\n      \"quantityLow\": 1,\n      \"quantityHigh\": 1,\n      \"dependsOn\": null,\n      \"notesSpan\": \"Sedate for ear flush\",\n      \"ownerWording\": \"Sedation for ear cleaning\"\n    },\n    {\n      \"code\": \"PROC-EAR\",\n      \"quantityLow\": 1,\n      \"quantityHigh\": 1,\n      \"dependsOn\": null,\n      \"notesSpan\": \"Sedate for ear flush\",\n      \"ownerWording\": \"Flush and clean the right ear\"\n    },\n    {\n      \"code\": \"MED-EAR\",\n      \"quantityLow\": 1,\n      \"quantityHigh\": 1,\n      \"dependsOn\": null,\n      \"notesSpan\": \"Ear drops to go home\",\n      \"ownerWording\": \"Ear drops for use at home\"\n    },\n    {\n      \"code\": \"CON-REP\",\n      \"quantityLow\": 1,\n      \"quantityHigh\": 1,\n      \"dependsOn\": null,\n      \"notesSpan\": \"recheck 2 wks\",\n      \"ownerWording\": \"Ear recheck in two weeks\"\n    }\n  ],\n  \"unmatched\": [\n    {\n      \"notesSpan\": \"ear swab for C&S\"\n    }\n  ]\n}",
+  "recordedAt": "2026-10-12T05:37:46.150Z"
+}

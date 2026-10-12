@@ -1,0 +1,8 @@
+{
+  "id": "25-cat-on-oxygen",
+  "title": "A cat in respiratory distress after a fall",
+  "notes": "Cat, 5kg, dyspnoeic after fall from balcony. Oxygen 2-4 hrs, FAST scan chest, chest rads 2 views once stable, ICU overnight.",
+  "expected": ["HOSP-OXY", "IMG-US-FAST", "IMG-XR", "IMG-XR-ADD", "HOSP-ICU"],
+  "acceptable": ["CON-OOH", "CON-STD", "GA-SED", "HOSP-CATH", "HOSP-FLUID", "MED-OPIOID"],
+  "unmatched": []
+}

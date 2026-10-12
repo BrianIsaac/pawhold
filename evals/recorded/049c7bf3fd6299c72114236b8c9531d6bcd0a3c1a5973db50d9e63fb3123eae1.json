@@ -1,0 +1,10 @@
+{
+  "hash": "049c7bf3fd6299c72114236b8c9531d6bcd0a3c1a5973db50d9e63fb3123eae1",
+  "job": "draft",
+  "promptVersion": "draft.v1",
+  "model": "gpt-6.1-sol",
+  "reasoningEffort": "medium",
+  "servedModel": "gpt-6.1-sol",
+  "text": "{\"lines\":[{\"code\":\"IMG-ECHO\",\"quantityLow\":1,\"quantityHigh\":1,\"dependsOn\":null,\"notesSpan\":\"Echo\",\"ownerWording\":\"Heart ultrasound scan\"},{\"code\":\"IMG-ECG\",\"quantityLow\":1,\"quantityHigh\":1,\"dependsOn\":null,\"notesSpan\":\"ECG\",\"ownerWording\":\"Heart electrical tracing\"},{\"code\":\"IMG-XR\",\"quantityLow\":1,\"quantityHigh\":1,\"dependsOn\":null,\"notesSpan\":\"thoracic rads 2 views\",\"ownerWording\":\"Chest X-ray, first view\"},{\"code\":\"IMG-XR-ADD\",\"quantityLow\":1,\"quantityHigh\":1,\"dependsOn\":null,\"notesSpan\":\"thoracic rads 2 views\",\"ownerWording\":\"Chest X-ray, additional view\"}],\"unmatched\":[]}",
+  "recordedAt": "2026-10-12T05:38:06.742Z"
+}

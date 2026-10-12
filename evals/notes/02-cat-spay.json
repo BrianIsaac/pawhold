@@ -1,0 +1,8 @@
+{
+  "id": "02-cat-spay",
+  "title": "Routine cat spay as a day patient",
+  "notes": "Luna, 3.2kg DSH, 7 mo. Routine spay. Clip & scrub, admit as day patient, NSAID inj post-op, send home with buster collar.",
+  "expected": ["NEU-CAT-F", "CONS-CLIP", "HOSP-DAY", "MED-NSAID-INJ", "CONS-COLLAR"],
+  "acceptable": ["CON-PRE", "CONS-KIT", "CONS-SUTURE", "GA-S", "MED-OPIOID", "MED-PREMED"],
+  "unmatched": []
+}

@@ -1,0 +1,8 @@
+{
+  "id": "19-murmur-workup",
+  "title": "A heart murmur with a cough worked up",
+  "notes": "Archie, 9yo CKCS, grade 4/6 murmur, cough. Echo, ECG, thoracic rads 2 views.",
+  "expected": ["IMG-ECHO", "IMG-ECG", "IMG-XR", "IMG-XR-ADD"],
+  "acceptable": ["CON-SEC", "CON-STD", "GA-SED", "LAB-BIO"],
+  "unmatched": []
+}

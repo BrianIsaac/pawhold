@@ -1,0 +1,19 @@
+{
+  "id": "01-dental-plan-example",
+  "title": "Dental from plan 3.4's own example",
+  "notes": "GA, dental scale and polish, probable two extractions upper PM, pre-op bloods",
+  "expected": ["GA-DENT", "DEN-SP", ["DEN-EXT-SG", "DEN-EXT-S"], "LAB-PRE"],
+  "acceptable": [
+    "CON-PRE",
+    "DEN-CHART",
+    "GA-LOCAL",
+    "GA-MON",
+    "HOSP-CATH",
+    "HOSP-DAY",
+    "HOSP-FLUID",
+    "IMG-XR-DENT",
+    "MED-NSAID-INJ",
+    "MED-OPIOID"
+  ],
+  "unmatched": []
+}
