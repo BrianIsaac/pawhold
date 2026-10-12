@@ -1,16 +1,16 @@
-import { and, asc, eq, gt, inArray, lte } from "drizzle-orm";
+import { and, asc, eq, exists, gt, inArray, lte, notExists, notLike } from "drizzle-orm";
 import { z } from "zod";
 
 import { appendAuditEvent } from "@/audit/writer";
-import type { Database } from "@/db/client";
-import { hold, practice, session } from "@/db/schema";
+import type { Database, Executor } from "@/db/client";
+import { auditEvent, bill, hold, practice, session } from "@/db/schema";
 import { currencyCode } from "@/money/currency";
 import { dischargedState } from "@/money/discharge";
 import { askPayPal, MoneyError } from "@/money/errors";
 import { holdRequestId } from "@/money/holds";
 import { lockCase, moveCase } from "@/money/state";
 import { caseHolds } from "@/money/view";
-import type { PayPalClient } from "@/paypal/client";
+import { type PayPalClient, PayPalError } from "@/paypal/client";
 import { getOrder, paymentKindOf } from "@/paypal/orders";
 import {
   type Authorization,
@@ -18,7 +18,7 @@ import {
   parsePayPalTime,
   voidAuthorization,
 } from "@/paypal/payments";
-import { isSeededPayPalId } from "@/paypal/seeded";
+import { isSeededPayPalId, SEEDED_ID_PREFIX } from "@/paypal/seeded";
 
 /** An authorisation PayPal still holds money on. */
 const HOLDING: ReadonlySet<Authorization["status"]> = new Set(["CREATED", "PARTIALLY_CAPTURED"]);
@@ -64,9 +64,12 @@ export interface CleanupReport {
  * never sent to PayPal; a showcase practice is never touched; no row but a
  * session's is ever deleted (U1's rule: the audit trail and the money rows
  * refuse it). A practice whose holds cannot all be settled this run (no
- * credentials, or no answer from PayPal) keeps its sessions until a run
- * that can; each void carries a `PayPal-Request-Id` of its own, so a run
- * repeated, or two at once, void once.
+ * credentials, no answer from PayPal, or a signed bill whose discharge has
+ * not landed) keeps its sessions until a run that can; each void carries a
+ * `PayPal-Request-Id` of its own, so a run repeated, or two at once, void
+ * once. A practice already pruned is visited again whenever it holds an
+ * authorised hold (an owner's authorise in flight as it was pruned), and an
+ * owner's link to it opens nothing ({@link judgePracticeEnded}).
  *
  * @param deps - The database, the PayPal client, the clock and an optional scope.
  * @returns What the run did.
@@ -87,7 +90,25 @@ export async function pruneJudgeSessions(deps: CleanupDependencies): Promise<Cle
       ),
     );
 
-  for (const { practiceId } of ended) {
+  const reopened = await deps.db
+    .selectDistinct({ practiceId: hold.practiceId })
+    .from(hold)
+    .innerJoin(practice, eq(practice.id, hold.practiceId))
+    .where(
+      and(
+        eq(practice.kind, "judge"),
+        eq(hold.status, "authorised"),
+        notLike(hold.paypalOrderId, `${SEEDED_ID_PREFIX}%`),
+        exists(prunedEvent(deps.db, hold.practiceId)),
+        notExists(liveSession(deps.db, hold.practiceId, now)),
+        practiceIds ? inArray(hold.practiceId, practiceIds) : undefined,
+      ),
+    );
+  const visits = [...new Set([...ended, ...reopened].map((one) => one.practiceId))].map(
+    (practiceId) => ({ practiceId }),
+  );
+
+  for (const { practiceId } of visits) {
     const [live] = await deps.db
       .select({ id: session.id })
       .from(session)
@@ -106,6 +127,70 @@ export async function pruneJudgeSessions(deps: CleanupDependencies): Promise<Cle
     report.pruned.push(...(await pruneSessions(deps.db, practiceId, now, holdsVoided)));
   }
   return report;
+}
+
+/**
+ * Whether a judge's practice has ended: pruned by the clean-up, with no
+ * session of it still live. An owner's link to such a practice opens
+ * nothing, so nothing can be held for it after the clean-up released it.
+ *
+ * @param executor - The pool or an open transaction.
+ * @param practiceId - The practice.
+ * @param now - The clock.
+ * @returns True when it has ended.
+ */
+export async function judgePracticeEnded(
+  executor: Executor,
+  practiceId: string,
+  now: Date,
+): Promise<boolean> {
+  const [ended] = await executor
+    .select({ id: practice.id })
+    .from(practice)
+    .where(
+      and(
+        eq(practice.id, practiceId),
+        eq(practice.kind, "judge"),
+        exists(prunedEvent(executor, practice.id)),
+        notExists(liveSession(executor, practice.id, now)),
+      ),
+    );
+  return ended !== undefined;
+}
+
+/**
+ * The practice's `judge.session.pruned` events, for an `exists`.
+ *
+ * @param executor - The pool or an open transaction.
+ * @param practiceId - The practice's id column.
+ * @returns The subquery.
+ */
+function prunedEvent(executor: Executor, practiceId: typeof practice.id | typeof hold.practiceId) {
+  return executor
+    .select({ id: auditEvent.id })
+    .from(auditEvent)
+    .where(
+      and(eq(auditEvent.practiceId, practiceId), eq(auditEvent.action, "judge.session.pruned")),
+    );
+}
+
+/**
+ * The practice's sessions still live, for an `exists`.
+ *
+ * @param executor - The pool or an open transaction.
+ * @param practiceId - The practice's id column.
+ * @param now - The clock.
+ * @returns The subquery.
+ */
+function liveSession(
+  executor: Executor,
+  practiceId: typeof practice.id | typeof hold.practiceId,
+  now: Date,
+) {
+  return executor
+    .select({ id: session.id })
+    .from(session)
+    .where(and(eq(session.practiceId, practiceId), gt(session.expiresAt, now)));
 }
 
 /**
@@ -135,9 +220,22 @@ async function releaseHolds(
   if (!deps.paypal) {
     return { voided: [], settled: false };
   }
+  const billed = new Set(
+    (
+      await deps.db
+        .select({ caseId: bill.caseId })
+        .from(bill)
+        .where(eq(bill.practiceId, practiceId))
+    ).map((one) => one.caseId),
+  );
   const voided: string[] = [];
   let settled = true;
   for (const one of holds) {
+    if (one.status === "authorised" && billed.has(one.caseId)) {
+      // Its bill is signed off: the hourly job resumes its discharge, which closes it.
+      settled = false;
+      continue;
+    }
     try {
       const closed =
         one.status === "authorised"
@@ -249,7 +347,20 @@ async function releaseUnrecorded(
   paypal: PayPalClient,
   row: HoldRow,
 ): Promise<boolean> {
-  const order = await askPayPal("read the order", () => getOrder(paypal, row.paypalOrderId));
+  let order;
+  try {
+    order = await askPayPal("read the order", () => getOrder(paypal, row.paypalOrderId));
+  } catch (error) {
+    // An order PayPal no longer has holds nothing.
+    if (
+      error instanceof MoneyError &&
+      error.detail.cause instanceof PayPalError &&
+      error.detail.cause.status === 404
+    ) {
+      return false;
+    }
+    throw error;
+  }
   const holding = (order.purchase_units ?? [])
     .flatMap((unit) => unit.payments?.authorizations ?? [])
     .filter((found) => HOLDING.has(found.status));

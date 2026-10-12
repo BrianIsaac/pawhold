@@ -6,7 +6,11 @@ import { caseEstimateVersions } from "@/estimate/version";
 import { runHourly } from "@/jobs/hourly";
 import { pruneJudgeSessions } from "@/judge/cleanup";
 import { SESSION_LIFETIME_MS, startJudgeSession } from "@/judge/session";
+import { signOffBill } from "@/money/discharge";
 import { authoriseHold, orderHold } from "@/money/holds";
+import { createOwnerHandlers } from "@/owner/handlers";
+import { ownerLink } from "@/owner/link";
+import { resolveOwnerLink } from "@/owner/resolve";
 import { authorizeOrder } from "@/paypal/orders";
 
 import { seedFictionalPractice } from "../../seed/practice";
@@ -16,6 +20,7 @@ import { startPayPalDouble } from "../support/paypal-double";
 const { db } = connectTestDatabase();
 const double = startPayPalDouble();
 const DAY_MS = 24 * 60 * 60 * 1000;
+const SECRET = "test-session-secret-0123456789abcdef-not-real";
 
 // The hourly job's other parts run over the whole shared database: at a
 // clock before every other file's rows they touch none of them (as U3's
@@ -353,6 +358,103 @@ describe(
 
       expect(report.sessions?.pruned).toEqual([old.sessionId]);
       expect(report.sessionsPruned).toBe(report.sessions!.pruned.length);
+    });
+
+    it("ends an owner's link with its practice: a pruned practice's link asks the practice and holds nothing", async () => {
+      const now = new Date();
+      const old = await judgeSession(now, 8);
+      const caseId = await caseOf(old.practiceId, "Otis");
+      const version = (await caseEstimateVersions(db, old.practiceId, caseId)).at(-1)!;
+      const link = await ownerLink(
+        db,
+        { practiceId: old.practiceId, caseId, versionId: version.id },
+        { secret: SECRET, now },
+      );
+      await pruneJudgeSessions({ db, paypal: double.client(), now, practiceIds: [old.practiceId] });
+
+      expect(await resolveOwnerLink(db, link.token, { secret: SECRET, now })).toEqual({
+        kind: "ask_the_practice",
+        practiceName: "Hollins Lane Veterinary Surgery",
+      });
+      const owner = createOwnerHandlers({ db, paypal: () => double.client(), secret: SECRET });
+      const ordered = await owner.order(
+        new Request(`https://pawhold.test${link.path}/order`, { method: "POST" }),
+        link.token,
+      );
+      expect(ordered.status).toBe(404);
+      expect(double.posts(/\/v2\/checkout\/orders$/)).toEqual([]);
+    });
+
+    it("voids a hold authorised after its practice was pruned, on the next run", async () => {
+      const now = new Date();
+      const old = await judgeSession(now, 8);
+      const { caseId, hold: ordered } = await approvedOrder(old.practiceId, "Otis");
+      const scope = { db, paypal: double.client(), now, practiceIds: [old.practiceId] };
+      // The owner's authorise was already in flight when the clean-up ran:
+      // PayPal held nothing yet, so the session was pruned.
+      expect((await pruneJudgeSessions(scope)).pruned).toEqual([old.sessionId]);
+      await authoriseHold(
+        { db, paypal: double.client() },
+        { practiceId: old.practiceId, caseId, holdId: ordered.id },
+      );
+
+      const report = await pruneJudgeSessions(scope);
+
+      expect(report.voided).toEqual([ordered.id]);
+      const [row] = await db.select().from(hold).where(eq(hold.id, ordered.id));
+      expect(row?.status).toBe("voided");
+      expect(double.authorizations.get(row!.authorizationId!)?.status).toBe("VOIDED");
+      expect((await pruneJudgeSessions(scope)).voided).toEqual([]);
+    });
+
+    it("takes an order PayPal no longer has as holding nothing, so it does not keep the session", async () => {
+      const now = new Date();
+      const old = await judgeSession(now, 8);
+      await approvedOrder(old.practiceId, "Otis");
+      double.inject({
+        method: "GET",
+        path: /\/v2\/checkout\/orders\//,
+        status: 404,
+        body: {
+          name: "RESOURCE_NOT_FOUND",
+          message: "The specified resource does not exist.",
+          debug_id: "f",
+          details: [{ issue: "INVALID_RESOURCE_ID" }],
+        },
+      });
+
+      const report = await pruneJudgeSessions({
+        db,
+        paypal: double.client(),
+        now,
+        practiceIds: [old.practiceId],
+      });
+
+      expect(report.pruned).toEqual([old.sessionId]);
+      expect(report.waiting).toEqual([]);
+    });
+
+    it("leaves a hold whose bill is signed off to its discharge, and keeps the session until then", async () => {
+      const now = new Date();
+      const old = await judgeSession(now, 8);
+      const otis = await judgeAuthorises(old.practiceId, "Otis");
+      const version = (await caseEstimateVersions(db, old.practiceId, otis.caseId)).at(-1)!;
+      await signOffBill(db, {
+        practiceId: old.practiceId,
+        caseId: otis.caseId,
+        actor: "vet",
+        lines: [{ estimateLineId: version.lines[0]!.id, quantity: 1 }],
+      });
+
+      const report = await pruneJudgeSessions({
+        db,
+        paypal: double.client(),
+        now,
+        practiceIds: [old.practiceId],
+      });
+
+      expect(report).toEqual({ pruned: [], voided: [], waiting: [old.practiceId] });
+      expect(double.posts(/\/void$/)).toEqual([]);
     });
   },
 );

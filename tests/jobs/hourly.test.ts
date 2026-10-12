@@ -28,8 +28,9 @@ const NOTHING_SWEPT: SweepReport = {
 // files'; the last test runs the real sweep on a practice of its own.
 const quietSchedule = async (): Promise<SweepReport> => NOTHING_SWEPT;
 
-// The judge-session clean-up prunes any practice's ended sessions; a run at
-// the real clock is given a part that prunes nothing of the other files'.
+// The judge-session clean-up prunes any practice's ended sessions, whatever
+// the clock: every run here is given a part that prunes nothing of the other
+// files'; tests/judge/cleanup.test.ts runs the real one on practices of its own.
 const quietSessions = async (): Promise<CleanupReport> => ({ pruned: [], voided: [], waiting: [] });
 
 describe("the hourly job (plan 7.3: the reauthorisation rule; U3's webhook sweep; U8a's schedule agent)", () => {
@@ -38,7 +39,7 @@ describe("the hourly job (plan 7.3: the reauthorisation rule; U3's webhook sweep
       db: database.db,
       paypal: paypal.client(),
       now: BEFORE_EVERYTHING,
-      parts: { schedule: quietSchedule },
+      parts: { schedule: quietSchedule, sessions: quietSessions },
     });
 
     expect(report).toEqual({
@@ -61,6 +62,7 @@ describe("the hourly job (plan 7.3: the reauthorisation rule; U3's webhook sweep
       parts: {
         reauthorisation: () => Promise.reject(new Error("the rule broke")),
         schedule: quietSchedule,
+        sessions: quietSessions,
       },
     });
 
@@ -76,7 +78,10 @@ describe("the hourly job (plan 7.3: the reauthorisation rule; U3's webhook sweep
       db: database.db,
       paypal: paypal.client(),
       now: BEFORE_EVERYTHING,
-      parts: { schedule: () => Promise.reject(new Error("the sweep broke")) },
+      parts: {
+        schedule: () => Promise.reject(new Error("the sweep broke")),
+        sessions: quietSessions,
+      },
     });
 
     expect(report.schedule).toBeNull();
@@ -90,7 +95,7 @@ describe("the hourly job (plan 7.3: the reauthorisation rule; U3's webhook sweep
       db: database.db,
       paypal: null,
       now: BEFORE_EVERYTHING,
-      parts: { schedule: quietSchedule },
+      parts: { schedule: quietSchedule, sessions: quietSessions },
     });
 
     expect(report.reauthorisation).toBeNull();
