@@ -145,7 +145,7 @@ export default async function DayPage({
           id={SCROLLER_ID}
           className={styles.scroller}
           role="region"
-          aria-labelledby="bookings-heading"
+          aria-label="The day's bookings, by room and time"
           tabIndex={0}
         >
           <div
