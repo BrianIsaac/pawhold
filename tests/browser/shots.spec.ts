@@ -43,6 +43,32 @@ for (const width of Object.keys(WIDTHS) as Width[]) {
         fullPage: true,
       });
     });
+    test("the seeded case's bill, a line above its approval and work off the estimate", async ({
+      page,
+    }) => {
+      const px = WIDTHS[width].width;
+      await signInAsPractice(page);
+      await page.goto("/today");
+      await page.getByRole("link", { name: "Bramble" }).click();
+      await page.getByRole("link", { name: "Discharge" }).click();
+      await expect(page.getByRole("heading", { level: 1, name: "Itemised bill" })).toBeVisible();
+      await page.screenshot({
+        path: join(directory!, `discharge-seeded-${px}.png`),
+        fullPage: true,
+      });
+      await page.getByRole("textbox", { name: "Done: Tooth extraction, surgical" }).fill("3");
+      const extra = page.getByRole("region", { name: "Work not on an approved estimate" });
+      await extra.getByLabel("Item").selectOption({ index: 1 });
+      await extra.getByRole("button", { name: "Note the work" }).click();
+      await expect(extra.getByText(/not charged$/)).toBeVisible();
+      await expect(
+        page.getByText("3 done, 2 approved. Send an update to charge the rest."),
+      ).toBeVisible();
+      await page.screenshot({
+        path: join(directory!, `discharge-refused-${px}.png`),
+        fullPage: true,
+      });
+    });
     test("a case drafted from its notes, then sent", async ({ page }) => {
       const px = WIDTHS[width].width;
       await signInAsPractice(page);

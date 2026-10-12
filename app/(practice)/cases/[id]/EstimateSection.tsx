@@ -24,7 +24,7 @@ import { NotesWithSpans } from "./NotesWithSpans";
 import { VersionLines } from "./VersionLines";
 
 /** A category's name as a heading reads it. */
-const CATEGORY_NAMES: Record<ListGroup["category"], string> = {
+export const CATEGORY_NAMES: Record<ListGroup["category"], string> = {
   consultation: "Consultation",
   anaesthesia: "Anaesthesia",
   procedure: "Procedure",
