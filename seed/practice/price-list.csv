@@ -1,0 +1,88 @@
+code,name,category,unit,unit_price_pence
+CON-STD,"Consultation, 15 minutes",consultation,consultation,5200
+CON-REP,Repeat consultation for the same condition,consultation,consultation,3200
+CON-SEC,"Second opinion consultation, 30 minutes",consultation,consultation,9800
+CON-OOH,Out-of-hours consultation,consultation,consultation,18500
+CON-NURSE,Nurse consultation,consultation,consultation,2400
+CON-TEL,Telephone or video consultation,consultation,consultation,3500
+CON-PRE,Pre-operative assessment,consultation,consultation,2800
+CON-POST,Post-operative check,consultation,consultation,1800
+CON-DENT,Dental assessment,consultation,consultation,4200
+GA-SED,"Sedation, short procedure",anaesthesia,procedure,9500
+GA-S,"General anaesthetic, first 30 minutes, under 10 kg",anaesthesia,procedure,24000
+GA-M,"General anaesthetic, first 30 minutes, 10 to 25 kg",anaesthesia,procedure,28500
+GA-L,"General anaesthetic, first 30 minutes, over 25 kg",anaesthesia,procedure,33500
+GA-EXTRA,"General anaesthetic, each further 15 minutes",anaesthesia,15 minutes,4500
+GA-DENT,"General anaesthetic for dental work, first hour",anaesthesia,procedure,32000
+GA-MON,Anaesthetic monitoring by a registered veterinary nurse,anaesthesia,hour,6000
+GA-LOCAL,Local anaesthetic nerve block,anaesthesia,block,3800
+DEN-CHART,Dental charting,procedure,procedure,2500
+DEN-SP,Dental scale and polish,procedure,procedure,18500
+DEN-EXT-S,"Tooth extraction, simple",procedure,tooth,4500
+DEN-EXT-SG,"Tooth extraction, surgical",procedure,tooth,9800
+NEU-CAT-M,"Castration, cat",procedure,procedure,9500
+NEU-CAT-F,"Spay, cat",procedure,procedure,13500
+NEU-DOG-M,"Castration, dog under 20 kg",procedure,procedure,24000
+NEU-DOG-M-L,"Castration, dog 20 kg and over",procedure,procedure,29500
+NEU-DOG-F,"Spay, dog under 20 kg",procedure,procedure,34000
+NEU-DOG-F-L,"Spay, dog 20 kg and over",procedure,procedure,42000
+SURG-LUMP,"Lump removal, simple",procedure,lump,18000
+SURG-LUMP-C,"Lump removal, with skin reconstruction",procedure,lump,45000
+SURG-WOUND,Wound repair under anaesthetic,procedure,procedure,22000
+SURG-FB,Exploratory laparotomy and foreign body removal,procedure,procedure,145000
+SURG-CYST,"Cystotomy, bladder stone removal",procedure,procedure,110000
+SURG-ENUC,Eye removal (enucleation),procedure,procedure,85000
+SURG-AURAL,Aural haematoma repair,procedure,procedure,42000
+PROC-EAR,Ear flush under sedation,procedure,procedure,12000
+PROC-ANAL,Anal gland expression,procedure,procedure,2800
+PROC-NAIL,Nail clip,procedure,procedure,1500
+PROC-MICRO,Microchip implantation,procedure,microchip,2500
+PROC-BAND,Bandage or dressing change,procedure,dressing,3200
+IMG-XR,"Radiograph, first view",imaging,view,16500
+IMG-XR-ADD,"Radiograph, each further view",imaging,view,4500
+IMG-XR-DENT,Dental radiographs,imaging,study,9500
+IMG-US-ABD,Abdominal ultrasound scan,imaging,scan,28000
+IMG-US-FAST,"Focused ultrasound scan, chest or abdomen",imaging,scan,9500
+IMG-ECHO,Echocardiogram,imaging,scan,38000
+IMG-ECG,Electrocardiogram,imaging,trace,8500
+IMG-CT,"CT scan, one region",imaging,scan,120000
+LAB-PRE,Pre-anaesthetic blood screen,laboratory,test,7200
+LAB-BIO,Biochemistry and haematology profile,laboratory,test,13500
+LAB-HAEM,Haematology,laboratory,test,6500
+LAB-BG,Blood glucose,laboratory,test,1800
+LAB-COAG,Clotting profile,laboratory,test,8200
+LAB-T4,Total thyroxine (T4),laboratory,test,6800
+LAB-URINE,Urinalysis,laboratory,test,4200
+LAB-UCULT,"Urine culture and sensitivity, external laboratory",laboratory,test,9800
+LAB-FAEC,Faecal analysis,laboratory,test,5500
+LAB-CYTO,"Cytology of a needle sample, external laboratory",laboratory,sample,11000
+LAB-HIST,"Histopathology, one sample, external laboratory",laboratory,sample,16500
+MED-PREMED,Premedication,medication,injection,4200
+MED-OPIOID,Opioid pain relief,medication,injection,3600
+MED-NSAID-INJ,Anti-inflammatory pain relief,medication,injection,2600
+MED-NSAID-ORAL,"Anti-inflammatory oral liquid, 7 days",medication,bottle,3400
+MED-ANTIB-INJ,Antibiotic,medication,injection,2800
+MED-ANTIB-TAB,"Antibiotic tablets, 7-day course",medication,course,3200
+MED-ANTIEM,Anti-sickness medicine,medication,injection,3200
+MED-EYE,Eye drops,medication,bottle,2200
+MED-EAR,Ear drops,medication,bottle,2400
+MED-FLEA,"Flea and worm treatment, one month",medication,dose,1800
+MED-VACC,Annual booster vaccination,medication,vaccination,6200
+MED-DISP,Dispensing fee,medication,prescription,1400
+MED-RX,Written prescription,medication,prescription,2000
+HOSP-DAY,"Hospitalisation, day ward",hospitalisation,day,8500
+HOSP-NIGHT,Overnight hospitalisation with nursing checks,hospitalisation,night,12500
+HOSP-ICU,Intensive care,hospitalisation,day,32000
+HOSP-ISO,Isolation ward,hospitalisation,day,16000
+HOSP-FLUID,Intravenous fluid therapy,hospitalisation,day,6500
+HOSP-CATH,Intravenous catheter placement,hospitalisation,catheter,3800
+HOSP-OXY,Oxygen therapy,hospitalisation,hour,3000
+HOSP-FEED,Assisted feeding,hospitalisation,day,2500
+CONS-CLIP,Clip and surgical scrub,consumable,site,1500
+CONS-KIT,"Surgical kit, sterile",consumable,kit,2500
+CONS-SUTURE,Suture material,consumable,pack,1800
+CONS-DRESS,Surgical dressing,consumable,dressing,1200
+CONS-COLLAR,Buster collar,consumable,collar,1500
+CONS-SUIT,Post-operative body suit,consumable,suit,2800
+CONS-DIET,"Recovery diet, tin",consumable,tin,450
+CONS-SYR,Oral dosing syringe,consumable,syringe,150

@@ -14,6 +14,8 @@ import { createPayPalClient, type PayPalClient } from "@/paypal/client";
 import { createWebhookHandler } from "@/paypal/webhook-handler";
 import { createCertificateCache } from "@/paypal/webhooks";
 
+import { seedFictionalPractice } from "../../seed/practice";
+
 /**
  * The server's long-lived pieces, built on first use from the environment and
  * kept on `globalThis` so development reloads do not open a pool per edit.
@@ -93,7 +95,8 @@ export function sessionSecret(): string {
 }
 
 /**
- * The judge-mode session endpoints.
+ * The judge-mode session endpoints, each new practice seeded as the
+ * fictional practice with its price list (D2).
  *
  * @returns The handlers.
  * @throws EnvironmentError when `DATABASE_URL` or `SESSION_SECRET` is missing.
@@ -102,6 +105,7 @@ export function judgeSessionHandlers(): ReturnType<typeof createJudgeSessionHand
   runtime.judgeSessions ??= createJudgeSessionHandlers({
     db: database().db,
     secret: sessionSecret(),
+    seed: seedFictionalPractice,
     secureCookie: process.env.NODE_ENV === "production",
   });
   return runtime.judgeSessions;
