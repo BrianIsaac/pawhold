@@ -1,7 +1,7 @@
 import { and, eq } from "drizzle-orm";
 import { beforeAll, describe, expect, it } from "vitest";
 
-import { auditEvent, patientCase, practice } from "@/db/schema";
+import { auditEvent, patientCase, practice, vet } from "@/db/schema";
 import { importPriceList } from "@/estimate/price-list";
 import { makeEstimateVersion } from "@/estimate/version";
 import { firstName } from "@/practice/chips";
@@ -52,6 +52,30 @@ describe("opening a case", () => {
       moneyStateAfter: "estimate_draft",
       detail: CASE,
     });
+  });
+
+  it("ties the case to the practice's vet of that name, adding the vet when the practice has none (U11)", async () => {
+    await openCase(db, { practiceId, ...CASE, vetName: "Asha Verma" });
+    await openCase(db, { practiceId, ...CASE, vetName: "Asha Verma" });
+
+    const vets = await db
+      .select({ name: vet.name })
+      .from(vet)
+      .where(and(eq(vet.practiceId, practiceId), eq(vet.name, "Asha Verma")));
+    expect(vets).toEqual([{ name: "Asha Verma" }]);
+  });
+
+  it("refuses a case naming a vet the practice does not have (U11)", async () => {
+    const refused = await db
+      .insert(patientCase)
+      .values({ practiceId, ...CASE, vetName: "Nobody At All" })
+      .then(
+        () => null,
+        (error: unknown) => error,
+      );
+    expect((refused as { cause?: { constraint_name?: string } }).cause?.constraint_name).toBe(
+      "patient_case_vet_fk",
+    );
   });
 
   it("trims what was typed", async () => {

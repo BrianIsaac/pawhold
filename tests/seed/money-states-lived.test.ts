@@ -2,7 +2,7 @@ import { and, asc, eq } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
 
 import type { AuditEventRecord } from "@/audit/writer";
-import { auditEvent, capture, hold, patientCase, practice } from "@/db/schema";
+import { auditEvent, capture, hold, patientCase, practice, vet } from "@/db/schema";
 import { importPriceList } from "@/estimate/price-list";
 import { caseEstimateVersions, makeEstimateVersion } from "@/estimate/version";
 import { reauthoriseHolds } from "@/jobs/reauthorise";
@@ -85,6 +85,8 @@ async function live(kase: MoneyStateCase): Promise<string> {
     sourceName: "seed/practice/price-list.csv",
     csv: readSeedPriceList(),
   });
+  // A case's vet is one of its practice's vets (migration 0014).
+  await db.insert(vet).values({ practiceId, name: kase.vetName });
   const [opened] = await db
     .insert(patientCase)
     .values({

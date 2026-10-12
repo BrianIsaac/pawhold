@@ -120,7 +120,10 @@ export const patientCase = pgTable(
     /**
      * The vet the case is under (U5): the name the vet's approval of an
      * estimate is recorded with (plan 3.4) and the owner's page names. Null
-     * on cases opened before the practice's screens.
+     * on cases opened before the practice's screens. One of the practice's
+     * vets (U11): `(practice_id, vet_name)` references `vet (practice_id,
+     * name)`, checked at commit (migration 0014, custom SQL, as drizzle
+     * cannot declare a deferred key).
      */
     vetName: text("vet_name"),
     moneyState: moneyState("money_state").notNull().default("estimate_draft"),
