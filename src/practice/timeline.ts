@@ -5,10 +5,11 @@ import type { Executor } from "@/db/client";
 import { auditEvent, capture, hold, patientCase, refund, room } from "@/db/schema";
 import { currencyCode } from "@/money/currency";
 import { formatMoney } from "@/money/format";
+import { scheduleSettings } from "@/schedule/settings";
 
 import { firstName } from "./chips";
 import { PracticeError } from "./errors";
-import { practiceDay, practiceMinute, practiceSecond } from "./time";
+import { type PracticeClock, practiceClock } from "./time";
 
 /** One fact of the raw event, behind "Show PayPal and model details". */
 export interface TimelineFact {
@@ -43,6 +44,8 @@ export interface DescribeContext {
    * `capture:{PayPal capture id}` and `refund:{PayPal refund id}`.
    */
   readonly confirmations: ReadonlyMap<string, Date>;
+  /** The practice's clock, in its own zone (`practice.time_zone`). */
+  readonly clock: PracticeClock;
   /**
    * Who signed the case's bill off, and the event that did: the discharge's
    * captures and voids after it were the vet's confirming (U11, D11 flag).
@@ -100,7 +103,7 @@ const WORDS: Record<string, (event: Described) => string> = {
   "hold.authorised": ({ detail, amount, context }) => {
     const kind = detail.paymentKind === "card" ? "card" : "PayPal";
     const confirmed = context.confirmations.get(`hold:${text(detail.holdId)}`);
-    return `authorised a hold of ${amount} (${kind}${confirmed ? `, confirmed ${practiceSecond(confirmed)}` : ""})`;
+    return `authorised a hold of ${amount} (${kind}${confirmed ? `, confirmed ${context.clock.second(confirmed)}` : ""})`;
   },
   "hold.authorise_refused": () => "approved, but PayPal refused the authorisation",
   "hold.voided": ({ amount }) => `released ${amount}: the hold was voided`,
@@ -110,7 +113,7 @@ const WORDS: Record<string, (event: Described) => string> = {
     const confirmed = event.paypalCaptureId
       ? context.confirmations.get(`capture:${event.paypalCaptureId}`)
       : undefined;
-    return `captured ${amount}${released > 0 ? `, ${money(released)} released` : ""}${confirmed ? ` (confirmed ${practiceSecond(confirmed)})` : ""}`;
+    return `captured ${amount}${released > 0 ? `, ${money(released)} released` : ""}${confirmed ? ` (confirmed ${context.clock.second(confirmed)})` : ""}`;
   },
   "hold.capture_declined": ({ amount }) => `PayPal declined the capture of ${amount}`,
   "hold.capture_refused": () => "asked PayPal to capture the hold; PayPal refused",
@@ -129,21 +132,21 @@ const WORDS: Record<string, (event: Described) => string> = {
     const confirmed = event.paypalRefundId
       ? context.confirmations.get(`refund:${event.paypalRefundId}`)
       : undefined;
-    return `refunded ${amount}${confirmed ? ` (confirmed ${practiceSecond(confirmed)})` : ""}`;
+    return `refunded ${amount}${confirmed ? ` (confirmed ${context.clock.second(confirmed)})` : ""}`;
   },
   "capture.refund_failed": ({ amount }) => `PayPal answered that the refund of ${amount} failed`,
   // The schedule's events (U8a), worded as U8a's handover suggests (U11, D11 flag).
   "schedule.slot_held": ({ detail, context }) =>
-    `held ${roomOf(detail, context)} at ${minuteOf(detail.startsAt)}.${text(detail.reason) ? ` ${text(detail.reason)}` : ""}`,
+    `held ${roomOf(detail, context)} at ${minuteOf(detail.startsAt, context)}.${text(detail.reason) ? ` ${text(detail.reason)}` : ""}`,
   "schedule.move_proposed": ({ detail, context }) =>
-    `proposed moving ${patientOf(detail.moveCaseId, context)}'s procedure to ${minuteOf(detail.moveTo)}`,
+    `proposed moving ${patientOf(detail.moveCaseId, context)}'s procedure to ${minuteOf(detail.moveTo, context)}`,
   "schedule.move_applied": ({ detail, context }) => {
     const moved = (detail.moved ?? {}) as Detail;
     const held = (detail.heldMoved ?? {}) as Detail;
-    return `moved ${patientOf(detail.moveCaseId, context)}'s procedure to ${minuteOf(moved.to)}; ${context.patientName}'s now starts at ${minuteOf(held.to)}`;
+    return `moved ${patientOf(detail.moveCaseId, context)}'s procedure to ${minuteOf(moved.to, context)}; ${context.patientName}'s now starts at ${minuteOf(held.to, context)}`;
   },
   "schedule.booking_moved": ({ detail, context }) =>
-    `moved ${context.patientName}'s procedure to ${minuteOf(detail.to)}, into the slot held for ${patientOf(detail.heldCaseId, context)}`,
+    `moved ${context.patientName}'s procedure to ${minuteOf(detail.to, context)}, into the slot held for ${patientOf(detail.heldCaseId, context)}`,
   "schedule.proposal_dismissed": () => "dismissed the proposed move",
   "schedule.slot_released": ({ detail, context }) =>
     `released the hold on ${roomOf(detail, context)}${detail.by === "agent" ? ": the update was answered" : ""}`,
@@ -221,11 +224,12 @@ function patientOf(caseId: unknown, context: DescribeContext): string {
  * An instant a schedule event keeps, at the minute on the practice's clock.
  *
  * @param at - The ISO instant.
+ * @param context - The case and the practice's clock.
  * @returns "16:40", or "a time" when it is not one.
  */
-function minuteOf(at: unknown): string {
+function minuteOf(at: unknown, context: DescribeContext): string {
   const when = typeof at === "string" ? new Date(at) : null;
-  return when && !Number.isNaN(when.getTime()) ? practiceMinute(when) : "a time";
+  return when && !Number.isNaN(when.getTime()) ? context.clock.minute(when) : "a time";
 }
 
 /**
@@ -382,8 +386,8 @@ export function describeEvent(event: AuditEventRecord, context: DescribeContext)
     id: event.id,
     action: event.action,
     at: event.occurredAt.toISOString(),
-    day: practiceDay(event.occurredAt),
-    time: practiceMinute(event.occurredAt),
+    day: context.clock.day(event.occurredAt),
+    time: context.clock.minute(event.occurredAt),
     who: dischargedBy(event, context) ?? who(event, detail, context),
     what,
     ...(detail.seeded === true ? { note: "Seeded for the demo" } : {}),
@@ -455,7 +459,9 @@ export async function caseTimeline(
       .filter((one) => one.id !== null)
       .map((one) => [`refund:${one.id}`, one.at!] as const),
   ]);
+  const { timeZone } = await scheduleSettings(executor, practiceId);
   const base: DescribeContext = {
+    clock: practiceClock(timeZone),
     vetName: kase.vetName,
     ownerFirstName: firstName(kase.ownerName),
     patientName: kase.patientName,

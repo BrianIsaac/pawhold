@@ -4,7 +4,7 @@ import { linesAdded } from "@/estimate/added";
 import { formatMoney } from "@/money/format";
 import type { CaseView } from "@/practice/estimate";
 import { reviewedOf, type VersionPanel } from "@/practice/panels";
-import { practiceDay } from "@/practice/time";
+import { practiceClock } from "@/practice/time";
 import { askToApprove, updateDeclined } from "@/practice/wording";
 
 import {
@@ -137,7 +137,7 @@ export function UpdateSection({ view, ownerPath }: { view: CaseView; ownerPath: 
             <p className={styles.notice}>
               {updateDeclined(
                 first,
-                practiceDay(update.declined.declinedAt),
+                practiceClock(view.timeZone).day(update.declined.declinedAt),
                 view.money.heldPence,
                 view.currency,
               )}

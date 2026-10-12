@@ -15,6 +15,7 @@ import { reconcileWebhookEvent } from "@/money/reconcile";
 import { openCase } from "@/practice/cases";
 import { approveAndSend } from "@/practice/estimate";
 import type { AuditEventRecord } from "@/audit/writer";
+import { practiceClock } from "@/practice/time";
 import { caseTimeline, describeEvent, DESCRIBED_ACTIONS } from "@/practice/timeline";
 import { practice } from "@/db/schema";
 
@@ -214,6 +215,7 @@ describe("the case's timeline (plan 3.5, section 6)", () => {
         detail: { versionId: null, number: 1, draftedLines: 4, source: "model", failure: null },
       },
       {
+        clock: practiceClock("Europe/London"),
         vetName: "Rowan Hale",
         ownerFirstName: "Nadia",
         patientName: "Bramble",
@@ -298,6 +300,7 @@ describe("the timeline's words for a judge (U11)", () => {
   }
 
   const context = {
+    clock: practiceClock("Europe/London"),
     vetName: "Rowan Hale",
     ownerFirstName: "Ellis",
     patientName: "Juno",

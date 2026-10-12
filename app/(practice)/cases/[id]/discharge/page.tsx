@@ -9,7 +9,8 @@ import { BILL_HEADING, money, NOT_ON_ESTIMATE, NOTHING_HELD } from "@/discharge/
 import type { CurrencyCode } from "@/money/currency";
 import { moneyChips } from "@/practice/chips";
 import { PracticeError } from "@/practice/errors";
-import { practiceDay, practiceMinute } from "@/practice/time";
+import { type PracticeClock, practiceClock } from "@/practice/time";
+import { scheduleSettings } from "@/schedule/settings";
 import { currentPracticeSession } from "@/server/practice-session";
 import { database } from "@/server/runtime";
 
@@ -34,21 +35,24 @@ export const dynamic = "force-dynamic";
  * @param props.signed - The bill.
  * @param props.work - The work noted, not charged.
  * @param props.currency - The case's currency.
+ * @param props.clock - The practice's clock.
  * @returns The panel.
  */
 function SignedBillPanel({
   signed,
   work,
   currency,
+  clock,
 }: {
   signed: SignedBill;
   work: readonly NotedWork[];
   currency: CurrencyCode;
+  clock: PracticeClock;
 }) {
   return (
     <section className={caseStyles.panel} aria-labelledby="signed-bill-title">
       <h2 id="signed-bill-title" className={caseStyles.panelTitle}>
-        Signed off {practiceDay(signed.signedOffAt)} at {practiceMinute(signed.signedOffAt)}
+        Signed off {clock.day(signed.signedOffAt)} at {clock.minute(signed.signedOffAt)}
       </h2>
       <ul className={caseStyles.review}>
         {signed.lines.map((line) => (
@@ -112,6 +116,7 @@ export default async function DischargePage(props: PageProps<"/cases/[id]/discha
   if (!view) {
     notFound();
   }
+  const { timeZone } = await scheduleSettings(db, session.practiceId);
   const lines = view.groups.flatMap((group) => group.lines);
   const progress = view.signed ? await dischargeProgress(db, session.practiceId, id) : null;
   const initial =
@@ -185,10 +190,16 @@ export default async function DischargePage(props: PageProps<"/cases/[id]/discha
           <DischargeProgressPanel
             caseId={view.case.id}
             ownerFirstName={view.case.ownerFirstName}
+            timeZone={timeZone}
             initial={progressJson(progress)}
             resume={resumeDischargeAction.bind(null, view.case.id)}
           />
-          <SignedBillPanel signed={view.signed} work={progress.work} currency={view.currency} />
+          <SignedBillPanel
+            signed={view.signed}
+            work={progress.work}
+            currency={view.currency}
+            clock={practiceClock(timeZone)}
+          />
         </div>
       ) : (
         <p className={caseStyles.notice}>{NOTHING_HELD}</p>
