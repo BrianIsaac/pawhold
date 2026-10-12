@@ -2,8 +2,12 @@ import { join } from "node:path";
 
 import AxeBuilder from "@axe-core/playwright";
 import type { Page } from "@playwright/test";
+import { and, eq } from "drizzle-orm";
+
+import { booking, patientCase } from "@/db/schema";
 
 import { expect, signInAsPractice, test, WIDTHS, type Width } from "./fixtures";
+import { openBrowserDatabase } from "./owner/support/cases";
 
 /** The smallest a tap target may be, each way (plan 5, U5's acceptance). */
 const TARGET_PX = 44;
@@ -21,12 +25,57 @@ const shots = process.env.SHOTS_DIR;
  * @returns "2026-10-12".
  */
 function londonDay(minutes: number): string {
+  return londonDayOf(new Date(Date.now() + minutes * 60 * 1000));
+}
+
+/** The held day as a walk finds it. */
+interface HeldDay {
+  /** The held slot's start, as the proposal names it ("16:30"). */
+  readonly slot: string;
+  /**
+   * Whether the agent can offer to move Biscuit into the slot: the seed books
+   * Biscuit's procedure after Juno's, which falls on the next day in London
+   * when the session starts late in the evening, and the agent never moves a
+   * procedure across days (U8a's rule; U11's finding).
+   */
+  readonly moveOffered: boolean;
+}
+
+/**
+ * Whether a practice's seeded Juno and Biscuit are booked on the same day in London.
+ *
+ * @param practiceId - The practice.
+ * @returns True when they are.
+ */
+async function bookedOnOneDay(practiceId: string): Promise<boolean> {
+  const database = openBrowserDatabase();
+  try {
+    const rows = await database.db
+      .select({ patient: patientCase.patientName, startsAt: booking.startsAt })
+      .from(booking)
+      .innerJoin(patientCase, eq(patientCase.id, booking.caseId))
+      .where(and(eq(booking.practiceId, practiceId), eq(booking.kind, "procedure")));
+    const dayOf = (patient: string): string =>
+      londonDayOf(rows.find((one) => one.patient === patient)!.startsAt);
+    return dayOf("Juno") === dayOf("Biscuit");
+  } finally {
+    await database.close();
+  }
+}
+
+/**
+ * The calendar day in London of an instant.
+ *
+ * @param at - The instant.
+ * @returns "2026-10-12".
+ */
+function londonDayOf(at: Date): string {
   return new Intl.DateTimeFormat("en-CA", {
     timeZone: "Europe/London",
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
-  }).format(new Date(Date.now() + minutes * 60 * 1000));
+  }).format(at);
 }
 
 /**
@@ -34,17 +83,17 @@ function londonDay(minutes: number): string {
  * lead time falls on, once the agent's first check has held its slot.
  *
  * @param page - The page.
- * @returns The held slot's start, as the proposal names it ("16:30").
+ * @returns The held slot's start and whether a move is offered.
  */
-async function openHeldDay(page: Page): Promise<string> {
-  await signInAsPractice(page);
+async function openHeldDay(page: Page): Promise<HeldDay> {
+  const practiceId = await signInAsPractice(page);
   await page.goto(`/day?day=${londonDay(30)}`);
   const held = page.getByRole("region", { name: "Held by pawhold" });
   await expect(held).toBeVisible();
   const title = await held.getByRole("heading", { level: 3 }).first().textContent();
   const slot = /^Theatre 1, (\d\d:\d\d): Juno$/.exec(title ?? "")?.[1];
   expect(slot, title ?? "").toBeDefined();
-  return slot!;
+  return { slot: slot!, moveOffered: await bookedOnOneDay(practiceId) };
 }
 
 /**
@@ -130,9 +179,13 @@ for (const width of Object.keys(WIDTHS) as Width[]) {
     test("the agent holds the slot at once; Move it, the practice's click, moves the next procedure into it", async ({
       page,
     }) => {
-      const slot = await openHeldDay(page);
+      const { slot, moveOffered } = await openHeldDay(page);
       const held = page.getByRole("region", { name: "Held by pawhold" });
       await expect(held).toContainText("Held by pawhold at");
+      if (!moveOffered) {
+        await expect(held.getByRole("button", { name: "Move it" })).toHaveCount(0);
+        test.skip(true, "started late in London's evening: Biscuit's procedure is tomorrow");
+      }
       await expect(held).toContainText("Ellis hasn't approved the update for Juno.");
       await expect(held).toContainText(
         `Move Biscuit's procedure to ${slot}, after Juno's update is answered?`,
@@ -165,21 +218,24 @@ for (const width of Object.keys(WIDTHS) as Width[]) {
     });
 
     test("Undo releases the hold with one click, and its move with it", async ({ page }) => {
-      await openHeldDay(page);
+      const { moveOffered } = await openHeldDay(page);
       const held = page.getByRole("region", { name: "Held by pawhold" });
 
       await held.getByRole("button", { name: "Undo" }).click();
 
       await expect(held).toHaveCount(0);
       await expect(bookingOf(page, "Juno")).not.toContainText("Held by pawhold");
-      await expect(bookingOf(page, "Biscuit")).not.toContainText("proposed");
+      if (moveOffered) {
+        await expect(bookingOf(page, "Biscuit")).not.toContainText("proposed");
+      }
       await page.reload();
       await expect(page.getByText(/pawhold checked the day at/)).toBeVisible();
       await expect(page.getByRole("region", { name: "Held by pawhold" })).toHaveCount(0);
     });
 
     test("Dismiss keeps the hold and drops the move", async ({ page }) => {
-      await openHeldDay(page);
+      const { moveOffered } = await openHeldDay(page);
+      test.skip(!moveOffered, "started late in London's evening: Biscuit's procedure is tomorrow");
       const held = page.getByRole("region", { name: "Held by pawhold" });
 
       await held.getByRole("button", { name: "Dismiss" }).click();

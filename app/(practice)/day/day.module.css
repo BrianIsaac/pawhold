@@ -219,9 +219,14 @@
   container-type: inline-size;
 }
 
+/*
+ * A booking is never narrower than a target, even one the day's edge cuts
+ * short (a consult running past midnight); it overhangs its slot instead.
+ */
 .booking {
   display: flex;
   height: 100%;
+  min-width: var(--target-min);
   min-height: var(--target-min);
   padding: var(--space-1) var(--space-2);
   border-left: 4px solid currentColor;
