@@ -2,11 +2,12 @@ import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 
 import type { Page } from "@playwright/test";
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 
 import { hold, patientCase } from "@/db/schema";
 import { caseEstimateVersions } from "@/estimate/version";
 import { OWNER_LINK_LIFETIME_MS, ownerLink } from "@/owner/link";
+import { voidAuthorization } from "@/paypal/payments";
 
 import { WALK_FINDING, WALK_PHOTO_PATH } from "../support/update-walk-words";
 import {
@@ -19,10 +20,11 @@ import {
   type Width,
 } from "./fixtures";
 import { browserSecret, openBrowserDatabase } from "./owner/support/cases";
-import { untilPayPalDrawn } from "./owner/support/checks";
+import { checkScreen, untilPayPalDrawn } from "./support/checks";
 import {
   deliverDischargeWebhooks,
   dischargedCase,
+  doubleClient,
   DOUBLE_URL,
   twoHoldCase,
 } from "./support/discharge";
@@ -30,9 +32,10 @@ import { approveAtTheDouble } from "./support/double-approval";
 
 /*
  * The tour (U11): every screen and state a judge can reach, at 1440 and 390
- * px, each brought up in a practice seeded as a judge's is. With SHOTS_DIR
- * set, each stop is shot full page as `{stop}-{width}.png`, for reading the
- * pixels by eye (`SHOTS_DIR=... pnpm test:browser tour`).
+ * px, each brought up in a practice seeded as a judge's is, and checked: no
+ * serious or critical axe violation, every target at least 44 px. With
+ * SHOTS_DIR set, each stop is shot full page as `{stop}-{width}.png`, for
+ * reading the pixels by eye (`SHOTS_DIR=... pnpm test:browser tour`).
  */
 
 const shots = process.env.SHOTS_DIR;
@@ -216,6 +219,8 @@ interface Stop {
   readonly reach: (page: Page) => Promise<void>;
   /** A dialog's shot is of the screen as seen, not the page under it. */
   readonly viewportOnly?: boolean;
+  /** What axe leaves out: PayPal's own frames, which pawhold does not draw. */
+  readonly exclude?: readonly string[];
 }
 
 /** Every screen and state, by the shot's name. */
@@ -434,15 +439,24 @@ const STOPS: Record<string, Stop> = {
   "discharge-capture-refused": {
     reach: async (page) => {
       test.skip(!DOUBLE_URL, "the run talks to PayPal's sandbox: the double's walk is skipped");
+      test.setTimeout(120_000);
       const practiceId = await signInAsPractice(page);
       const database = openBrowserDatabase();
       try {
         const kase = await twoHoldCase(database.db, practiceId);
-        // Authorisations PayPal has never heard of: the capture is refused.
-        await database.db
-          .update(hold)
-          .set({ authorizationId: sql`'0NOSUCH' || left(${hold.id}::text, 12)` })
+        // The holds voided at PayPal behind pawhold's back: PayPal refuses
+        // their capture, as it would an authorisation the buyer's bank let go.
+        const held = await database.db
+          .select({ authorizationId: hold.authorizationId })
+          .from(hold)
           .where(eq(hold.caseId, kase.caseId));
+        for (const one of held) {
+          await voidAuthorization(
+            doubleClient(),
+            one.authorizationId!,
+            `tour-void-${one.authorizationId}`,
+          );
+        }
         await page.goto(`/cases/${kase.caseId}/discharge`);
       } finally {
         await database.close();
@@ -452,7 +466,14 @@ const STOPS: Record<string, Stop> = {
         .getByRole("dialog", { name: "Confirm the bill?" })
         .getByRole("button", { name: /^Confirm and charge/ })
         .click();
-      await expect(page.getByText(/^PayPal refused a step/)).toBeVisible({ timeout: 30_000 });
+      // PayPal's refusal shows on its hold at once, or, when the page has not
+      // seen it, as the stall U7 shows 45 s after the last step (U11's finding).
+      await expect(
+        page
+          .getByText(/^PayPal refused a step/)
+          .or(page.getByText(/^The discharge stopped before it finished\./))
+          .first(),
+      ).toBeVisible({ timeout: 75_000 });
     },
   },
   "refund-dialog": {
@@ -572,8 +593,9 @@ for (const width of Object.keys(WIDTHS) as Width[]) {
   test.describe(`the tour at ${WIDTHS[width].width} px`, () => {
     test.use({ width });
     for (const [name, stop] of Object.entries(STOPS)) {
-      test(name, async ({ page }) => {
+      test(`${name}: no serious axe violation, every target at least 44 px`, async ({ page }) => {
         await stop.reach(page);
+        await checkScreen(page, stop.exclude ?? ["iframe"]);
         if (shots) {
           mkdirSync(shots, { recursive: true });
           await page.screenshot({

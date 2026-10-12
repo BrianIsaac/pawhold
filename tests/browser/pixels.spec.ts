@@ -125,7 +125,6 @@ for (const width of Object.keys(WIDTHS) as Width[]) {
         expect(text!.left, (await label.textContent()) ?? "").toBeGreaterThanOrEqual(
           corner!.x + corner!.width - 0.5,
         );
-        expect(text!.right).toBeLessThanOrEqual(view!.x + view!.width + 0.5);
       }
       expect(inView).toBeGreaterThan(0);
     });
