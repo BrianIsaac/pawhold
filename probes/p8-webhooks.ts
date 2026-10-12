@@ -218,13 +218,15 @@ export function createP8(setup: P8Setup): Probe {
         setup.storeUrl ? null : "P8_DATABASE_URL (the deployed database, reachable from here)",
       ].filter((m): m is string => m !== null);
       if (missing.length > 0 || !setup.webhookId || !setup.storeUrl) {
-        return owed(`there is no deployed listener to read yet: missing ${missing.join(", ")}`);
+        return owed(
+          `Owed to the day U1's listener is deployed: there is no deployed listener to read yet: missing ${missing.join(", ")}`,
+        );
       }
       const store = setup.openStore(setup.storeUrl);
       try {
         if (!(await store.keepsSignatures())) {
           return owed(
-            "the listener's webhook_event keeps no transmission_sig, so a stored delivery cannot be verified again by either method",
+            "Owed to the day U3's migration 0005 is deployed: the deployed listener's webhook_event keeps no transmission_sig, so a stored delivery cannot be verified again by either method",
           );
         }
         const expected: Expectation[] = [];
@@ -332,15 +334,15 @@ async function judge(context: ProbeContext, webhookId: string, arrivals: readonl
 }
 
 /**
- * P8's answer while its listener does not exist yet.
+ * P8's answer while the listener it reads cannot answer it yet.
  *
- * @param reason - What is missing.
+ * @param reason - What it is owed to, and what is missing.
  * @returns The owed outcome.
  */
 function owed(reason: string) {
   return {
     verdict: "owed" as const,
-    summary: `Owed to the day U1's listener is deployed: ${reason}. No PayPal call was made.`,
+    summary: `${reason}. No PayPal call was made.`,
     observations: {
       command:
         "env $(grep -E '^PAYPAL_' ~/.config/briain/secrets.env | xargs) PAYPAL_WEBHOOK_ID=<id> P8_DATABASE_URL=<url> pnpm probes P8 --record",

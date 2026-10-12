@@ -25,7 +25,7 @@ export type ProbeEnvironment = z.infer<typeof probeEnvironment>;
 /**
  * The values that must never reach the report, a recording or a log: the
  * credentials, the logins, P8's webhook id, and the database URL whole and
- * by its parts (a driver's error names the host or the user alone).
+ * by its host and password (a driver's error names the host alone).
  *
  * @param env - The probes' environment.
  * @returns The values.
@@ -43,17 +43,15 @@ export function secretsOf(env: ProbeEnvironment): string[] {
 }
 
 /**
- * A database URL and the parts of it that identify the database.
+ * A database URL and the parts of it that reach the database: the URL whole,
+ * its host and its password. Not its user: Render's is the one `render.yaml`
+ * names in the repository (`pawhold`), no secret, and guarding it refused
+ * every write of a report whose every line names the project.
  *
  * @param value - The URL.
- * @returns The URL, its host, its user and its password.
+ * @returns The URL, its host and its password.
  */
 function databaseUrlParts(value: string): string[] {
   const url = new URL(value);
-  return [
-    value,
-    url.hostname,
-    decodeURIComponent(url.username),
-    decodeURIComponent(url.password),
-  ].filter((part) => part.length > 0);
+  return [value, url.hostname, decodeURIComponent(url.password)].filter((part) => part.length > 0);
 }

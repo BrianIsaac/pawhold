@@ -137,6 +137,8 @@ describe("P8 before the listener is deployed", () => {
     expect(run.exchanges).toEqual([]);
     expect(run.outcome?.verdict).toBe("owed");
     expect(run.outcome?.summary).toContain("keeps no transmission_sig");
+    expect(run.outcome?.summary).toContain("migration 0005");
+    expect(run.outcome?.summary).not.toContain("Owed to the day U1's listener is deployed");
     expect(closed).toBe(true);
   });
 });

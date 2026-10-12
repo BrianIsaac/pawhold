@@ -91,7 +91,7 @@ describe("scrubbing text read off a page", () => {
 });
 
 describe("the probes' secrets", () => {
-  it("guard the webhook id and the database URL whole and by its host, user and password", () => {
+  it("guard the webhook id and the database URL whole and by its host and password", () => {
     const secrets = secretsOf({
       PAYPAL_CLIENT_ID: "cid",
       PAYPAL_CLIENT_SECRET: "csecret",
@@ -104,12 +104,21 @@ describe("the probes' secrets", () => {
     });
 
     expect(secrets).toEqual(
-      expect.arrayContaining([
-        "WH123",
-        "dpg-abc.frankfurt-postgres.render.com",
-        "pawhold_user",
-        "p@ss",
-      ]),
+      expect.arrayContaining(["WH123", "dpg-abc.frankfurt-postgres.render.com", "p@ss"]),
     );
+  });
+
+  it("leave the database user alone: render.yaml names it, and as pawhold it is in every line", () => {
+    const secrets = secretsOf({
+      PAYPAL_CLIENT_ID: "cid",
+      PAYPAL_CLIENT_SECRET: "csecret",
+      PAYPAL_SANDBOX_BUSINESS_EMAIL: "biz@example.com",
+      PAYPAL_SANDBOX_BUYER_EMAIL: "buyer@example.com",
+      PAYPAL_SANDBOX_BUYER_PASSWORD: "pw",
+      P8_DATABASE_URL: "postgresql://pawhold:s3cret@dpg-abc.frankfurt-postgres.render.com/pawhold",
+    });
+
+    expect(secrets).not.toContain("pawhold");
+    expect(secrets).toContain("s3cret");
   });
 });
