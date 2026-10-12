@@ -1,6 +1,8 @@
+import { join } from "node:path";
+
 import type { Browser, BrowserContextOptions } from "@playwright/test";
 
-import { expect, test, WIDTHS } from "./fixtures";
+import { expect, test, WIDTHS, type Width } from "./fixtures";
 
 /*
  * Judge mode from the landing page (U9): the two doors, each a plain link,
@@ -140,3 +142,49 @@ test.describe("judge mode's doors", () => {
     );
   });
 });
+
+test.describe("the landing page", () => {
+  test("declares an icon that the server serves, so no browser asks for a missing favicon", async ({
+    page,
+  }) => {
+    await page.goto("/");
+    const href = await page.locator("head link[rel~='icon']").first().getAttribute("href");
+
+    expect(href).not.toBeNull();
+    const icon = await page.request.get(href!);
+    expect(icon.status()).toBe(200);
+    expect((await page.request.get("/favicon.ico")).status()).toBe(200);
+  });
+});
+
+/**
+ * The landing page and each door's first screen, full page at both widths,
+ * for the handover: run with SHOTS_DIR set (`SHOTS_DIR=... pnpm test:browser
+ * judge`); skipped otherwise.
+ */
+const directory = process.env.SHOTS_DIR;
+
+for (const width of Object.keys(WIDTHS) as Width[]) {
+  test.describe(`judge mode's shots at ${WIDTHS[width].width} px`, () => {
+    test.use({ width });
+    test.skip(!directory, "SHOTS_DIR is not set");
+
+    test("the landing page and both doors' first screens", async ({ page }) => {
+      const px = WIDTHS[width].width;
+      const shoot = (name: string) =>
+        page.screenshot({ path: join(directory!, `${name}-${px}.png`), fullPage: true });
+
+      await page.goto("/");
+      await shoot("landing");
+      await page.getByRole("link", { name: "Try it as the owner" }).click();
+      await expect(
+        page.getByRole("complementary", { name: "Testing in PayPal's sandbox" }),
+      ).toBeVisible();
+      await shoot("owner-door");
+      await page.goto("/");
+      await page.getByRole("link", { name: "Try it as the practice" }).click();
+      await expect(page.getByRole("link", { name: "Otis" })).toBeVisible();
+      await shoot("practice-door");
+    });
+  });
+}

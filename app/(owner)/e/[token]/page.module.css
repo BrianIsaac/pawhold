@@ -220,13 +220,17 @@
 
 .sandbox dl {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--owner-space-3);
   margin: 0;
 }
 
 .sandbox dl > div {
   min-width: 0;
+}
+
+.sandbox .wide {
+  grid-column: 1 / -1;
 }
 
 .sandbox dt {
@@ -241,6 +245,6 @@
 
 .sandbox code {
   font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
-  font-size: 0.9375rem;
+  font-size: 0.875rem;
   user-select: all;
 }

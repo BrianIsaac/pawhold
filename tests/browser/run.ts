@@ -22,10 +22,14 @@ import { createPayPalDouble } from "../support/paypal-double-server";
  * Arguments are passed to `playwright test`.
  */
 
-/** The stand-in buyer login of a run without PayPal's sandbox: never a real account's. */
+/**
+ * The stand-in buyer login of a run without PayPal's sandbox: never a real
+ * account's, but of a sandbox login's shape and length, so the owner's page
+ * is laid out as a judge will see it.
+ */
 const STAND_IN_BUYER = {
-  PAYPAL_SANDBOX_BUYER_EMAIL: "sandbox-buyer@example.com",
-  PAYPAL_SANDBOX_BUYER_PASSWORD: "stand-in-not-a-password",
+  PAYPAL_SANDBOX_BUYER_EMAIL: "sb-standin4buyer@personal.example.com",
+  PAYPAL_SANDBOX_BUYER_PASSWORD: "Xx0@{*Yy",
 } as const;
 
 /**

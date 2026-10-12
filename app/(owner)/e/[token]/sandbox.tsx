@@ -23,13 +23,13 @@ export function SandboxDetails({ login }: { readonly login: SandboxBuyerLogin | 
       <dl>
         {login ? (
           <>
-            <div>
+            <div className={styles.wide}>
               <dt>PayPal email</dt>
               <dd>
                 <code>{login.email}</code>
               </dd>
             </div>
-            <div>
+            <div className={styles.wide}>
               <dt>PayPal password</dt>
               <dd>
                 <code>{login.password}</code>
@@ -38,13 +38,13 @@ export function SandboxDetails({ login }: { readonly login: SandboxBuyerLogin | 
           </>
         ) : (
           <>
-            <div>
+            <div className={styles.wide}>
               <dt>PayPal login</dt>
               <dd>In the Testing instructions of pawhold&apos;s README.</dd>
             </div>
           </>
         )}
-        <div>
+        <div className={styles.wide}>
           <dt>Card number</dt>
           <dd>
             <code>{groupedCardNumber(SANDBOX_TEST_CARD.number)}</code>
