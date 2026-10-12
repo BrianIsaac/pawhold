@@ -1,0 +1,10 @@
+{
+  "hash": "2aaf7b494f7b575f2a19a98df974716a965f3631cfc8017d58d0f55851d14157",
+  "job": "update",
+  "promptVersion": "update.v1",
+  "model": "gpt-6.1-sol",
+  "reasoningEffort": "medium",
+  "servedModel": "hand-written for the browser walk",
+  "text": "{\n  \"lines\": [\n    {\n      \"code\": \"DEN-EXT-SG\",\n      \"quantityLow\": 1,\n      \"quantityHigh\": 1,\n      \"dependsOn\": null,\n      \"notesSpan\": \"surgical extraction of the carnassial\",\n      \"ownerWording\": \"Removing the infected back tooth\"\n    },\n    {\n      \"code\": \"MED-ANTIB-TAB\",\n      \"quantityLow\": 1,\n      \"quantityHigh\": 1,\n      \"dependsOn\": null,\n      \"notesSpan\": \"Antibiotics to go home\",\n      \"ownerWording\": \"Antibiotic tablets to take home\"\n    }\n  ],\n  \"explanation\": \"Rowan found an infection at the root of one of Bramble's upper back teeth on the X-ray. Rowan recommends removing that tooth surgically, and antibiotic tablets to take home.\"\n}",
+  "recordedAt": "2026-10-12T12:00:00.000Z"
+}

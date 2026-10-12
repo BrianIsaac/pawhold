@@ -2,7 +2,7 @@ import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 
 import { draftEstimate, type DraftedEstimate } from "@/agent/draft";
-import { checkOwnerWording, findSpan } from "@/agent/guardrails";
+import { checkOwnerWording } from "@/agent/guardrails";
 import type { AgentDependencies } from "@/agent/jobs";
 import { appendAuditEvent } from "@/audit/writer";
 import type { Database, Executor, Transaction } from "@/db/client";
@@ -21,21 +21,16 @@ import {
 import type { CurrencyCode } from "@/money/currency";
 import { sendEstimate, type SentEstimate, withdrawEstimate } from "@/money/holds";
 import type { MoneyState } from "@/money/state";
-import { type CaseMoney, caseMoney, type HoldView } from "@/money/view";
+import { type CaseMoney, caseMoney } from "@/money/view";
 
 import { firstName, type MoneyChip, moneyChips } from "./chips";
 import { PracticeError } from "./errors";
-import type { LineSpan } from "./highlight";
-import { caseSources, keepSource, type SourceView } from "./sources";
-import { parsePracticeRequest } from "./cases";
+import { approvedVersions, type VersionPanel, versionPanel } from "./panels";
 
-/** A version as a panel of the case page shows it: its lines, its words, and where each line came from. */
-export interface VersionPanel {
-  readonly version: EstimateVersionView;
-  readonly source: SourceView | null;
-  /** Where each line's span sits in the source's words; lines with none found are left out. */
-  readonly spans: readonly LineSpan[];
-}
+export type { VersionPanel } from "./panels";
+import { caseSources, keepSource } from "./sources";
+import { loadUpdateView, type UpdateView } from "./update";
+import { parsePracticeRequest } from "./cases";
 
 /** A price list item the vet can add by hand. */
 export interface ListItem {
@@ -79,6 +74,8 @@ export interface CaseView {
   readonly approved: readonly VersionPanel[];
   /** Whether an update may be drafted and sent now: the case held and its bill not signed off. */
   readonly canUpdate: boolean;
+  /** The update half: the update drafted, with the owner, declined, approved. */
+  readonly update: UpdateView;
   readonly priceList: readonly ListGroup[];
 }
 
@@ -128,6 +125,17 @@ export async function loadCaseView(
   const sent = versions.filter((version) => version.sentAt !== null);
   const approved = approvedVersions(sent, money.holds);
   const inEstimatePhase = ESTIMATE_PHASE.includes(money.state);
+  const canUpdate = UPDATE_OPEN.includes(money.state) && signed.length === 0;
+  const update = await loadUpdateView(executor, {
+    practiceId,
+    caseId,
+    ownerFirstName: firstName(kase.ownerName),
+    money,
+    versions,
+    sources,
+    approved,
+    canUpdate,
+  });
 
   return {
     case: {
@@ -154,7 +162,8 @@ export async function loadCaseView(
     approved: approved.map((version, at) =>
       panel(version, at === 0 ? 0 : approved[at - 1]!.lines.length),
     ),
-    canUpdate: UPDATE_OPEN.includes(money.state) && signed.length === 0,
+    canUpdate,
+    update,
     priceList: list
       ? CATEGORY_ORDER.map((category) => ({
           category,
@@ -164,51 +173,6 @@ export async function loadCaseView(
         })).filter((group) => group.items.length > 0)
       : [],
   };
-}
-
-/**
- * The sent versions the owner approved: each one a hold was authorised for
- * (still held, captured, released or expired), in order.
- *
- * @param sent - The case's sent versions, in order.
- * @param holds - The case's holds.
- * @returns The approved versions.
- */
-function approvedVersions(
-  sent: readonly EstimateVersionView[],
-  holds: readonly HoldView[],
-): EstimateVersionView[] {
-  const authorised = new Set(
-    holds.filter((hold) => hold.authorisedAt !== null).map((hold) => hold.id),
-  );
-  return sent.filter((version) => authorised.has(version.id));
-}
-
-/**
- * A version's panel: its lines' spans found in its source's words. An
- * update's source is the vet's finding, so only the lines it added (from
- * `from`, the count of lines before it) are looked for in it.
- *
- * @param version - The version.
- * @param source - The words it was drafted from, if any.
- * @param from - How many of its first lines came from an earlier version.
- * @returns The panel.
- */
-export function versionPanel(
-  version: EstimateVersionView,
-  source: SourceView | null,
-  from = 0,
-): VersionPanel {
-  const spans: LineSpan[] = [];
-  if (source) {
-    for (const line of version.lines.slice(from)) {
-      const found = line.notesSpan === null ? null : findSpan(source.text, line.notesSpan);
-      if (found) {
-        spans.push({ position: line.position, start: found.start, end: found.end });
-      }
-    }
-  }
-  return { version, source, spans };
 }
 
 const draftForCaseRequest = z.strictObject({

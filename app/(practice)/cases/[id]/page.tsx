@@ -5,7 +5,7 @@ import { z } from "zod";
 
 import { PracticeError } from "@/practice/errors";
 import { loadCaseView } from "@/practice/estimate";
-import { sentConfirmation } from "@/practice/wording";
+import { sentConfirmation, updateSentConfirmation } from "@/practice/wording";
 import { currentPracticeSession } from "@/server/practice-session";
 import { database } from "@/server/runtime";
 
@@ -15,6 +15,7 @@ import practice from "../../practice.module.css";
 import { SignedOut } from "../../SignedOut";
 import styles from "./case.module.css";
 import { EstimateSection } from "./EstimateSection";
+import { UpdateSection } from "./UpdateSection";
 
 export const metadata: Metadata = { title: "Case" };
 
@@ -50,7 +51,12 @@ export default async function CasePage(props: PageProps<"/cases/[id]">) {
     notFound();
   }
   const first = view.case.ownerFirstName;
-  const sent = search.sent === "estimate" && view.money.state === "awaiting_owner";
+  const confirmation =
+    search.sent === "estimate" && view.money.state === "awaiting_owner"
+      ? sentConfirmation(first)
+      : search.sent === "update" && view.money.state === "update_awaiting_owner"
+        ? updateSentConfirmation(first)
+        : null;
 
   return (
     <>
@@ -90,9 +96,9 @@ export default async function CasePage(props: PageProps<"/cases/[id]">) {
           ))}
         </span>
       </div>
-      {sent ? (
+      {confirmation ? (
         <p role="status" className={styles.status}>
-          {sentConfirmation(first)}
+          {confirmation}
         </p>
       ) : null}
       <section id="estimate" className={styles.section} aria-labelledby="estimate-title">
@@ -101,6 +107,14 @@ export default async function CasePage(props: PageProps<"/cases/[id]">) {
         </h2>
         <EstimateSection view={view} />
       </section>
+      {view.approved.length > 0 ? (
+        <section id="update" className={styles.section} aria-labelledby="update-title">
+          <h2 id="update-title" className={styles.sectionTitle}>
+            Update
+          </h2>
+          <UpdateSection view={view} />
+        </section>
+      ) : null}
     </>
   );
 }

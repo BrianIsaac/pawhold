@@ -1,0 +1,288 @@
+import type { ReactNode } from "react";
+
+import { formatMoney } from "@/money/format";
+import type { CaseView } from "@/practice/estimate";
+import type { VersionPanel } from "@/practice/panels";
+import { practiceDay } from "@/practice/time";
+import { askToApprove, updateDeclined } from "@/practice/wording";
+
+import {
+  addLineAction,
+  draftUpdateAction,
+  editLineAction,
+  removeLineAction,
+  sendAction,
+  withdrawAction,
+} from "./actions";
+import { ActionDialog } from "./ActionDialog";
+import { AddItemForm } from "./AddItemForm";
+import styles from "./case.module.css";
+import { DraftOutcome } from "./DraftOutcome";
+import { itemOptions } from "./EstimateSection";
+import { NotesWithSpans } from "./NotesWithSpans";
+import { UpdateForm } from "./UpdateForm";
+import { VersionLines } from "./VersionLines";
+
+/**
+ * The vet's finding with each added line's span marked, the photo, and what
+ * the owner will read.
+ *
+ * @param props - The case and the update's panel.
+ * @param props.view - The case.
+ * @param props.panel - The update.
+ * @param props.children - What follows (the form to draft again).
+ * @returns The finding panel.
+ */
+function FindingPanel({
+  view,
+  panel,
+  children,
+}: {
+  view: CaseView;
+  panel: VersionPanel;
+  children?: ReactNode;
+}) {
+  const source = panel.source;
+  const first = view.case.ownerFirstName;
+  const titleId = `finding-${panel.version.number}-title`;
+  return (
+    <section className={styles.panel} aria-labelledby={titleId}>
+      <h3 id={titleId} className={styles.panelTitle}>
+        The finding
+      </h3>
+      {source ? (
+        <NotesWithSpans text={source.text} spans={panel.spans} />
+      ) : (
+        <p className={styles.muted}>This update was made by hand, with no finding drafted from.</p>
+      )}
+      {source?.photo ? (
+        <figure className={styles.photo}>
+          {/* The practice's own photo, served by the case's photo route; not a next/image source. */}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={`/cases/${view.case.id}/photo/${panel.version.id}`}
+            alt={`The photo added to the update for ${view.case.patientName}`}
+          />
+          <figcaption className={styles.muted}>
+            {source.photo.shared
+              ? `${first} sees this photo.`
+              : "Only the practice sees this photo."}
+          </figcaption>
+        </figure>
+      ) : null}
+      {source ? (
+        <div className={styles.explanation}>
+          <h4 className={styles.subTitle}>What {first} will read</h4>
+          {source.explanation ? (
+            <p>{source.explanation}</p>
+          ) : (
+            <p className={styles.muted}>
+              The draft&apos;s explanation was held back, so {first} reads your own words.
+            </p>
+          )}
+          <p className={styles.muted}>Beside it, {first} can always read what you wrote.</p>
+        </div>
+      ) : null}
+      {children}
+    </section>
+  );
+}
+
+/**
+ * The case's update (section 6, "an update"): the finding and its photo, the
+ * drafted delta, the Order's trigger sentence, and "Ask {owner} to approve
+ * {delta}"; the update with the owner; the one they declined; those they approved.
+ *
+ * @param props - The case.
+ * @param props.view - The case.
+ * @returns The section's body, or nothing before the estimate is held.
+ */
+export function UpdateSection({ view }: { view: CaseView }) {
+  const { update } = view;
+  const caseId = view.case.id;
+  const first = view.case.ownerFirstName;
+  const draftAction = draftUpdateAction.bind(null, caseId);
+  const money = (pence: number) => formatMoney({ pence, currency: view.currency });
+
+  return (
+    <div className={styles.stack}>
+      {update.approved.map((panel) => (
+        <section
+          key={panel.version.id}
+          className={styles.panel}
+          aria-label={`Update ${first} approved, version ${panel.version.number}`}
+        >
+          <h3 className={styles.panelTitle}>
+            Update {first} approved, version {panel.version.number}
+          </h3>
+          <VersionLines
+            panel={panel}
+            currency={view.currency}
+            from={panel.version.lines.length - countAdded(view, panel)}
+          />
+        </section>
+      ))}
+
+      {update.declined ? (
+        <div className={styles.columns}>
+          <FindingPanel view={view} panel={update.declined.panel} />
+          <section className={styles.panel} aria-labelledby="declined-title">
+            <h3 id="declined-title" className={styles.panelTitle}>
+              Update declined, version {update.declined.panel.version.number}
+            </h3>
+            <p className={styles.notice}>
+              {updateDeclined(
+                first,
+                practiceDay(update.declined.declinedAt),
+                view.money.heldPence,
+                view.currency,
+              )}
+            </p>
+            <VersionLines
+              panel={update.declined.panel}
+              currency={view.currency}
+              from={
+                update.declined.panel.version.lines.length - countAdded(view, update.declined.panel)
+              }
+            />
+          </section>
+        </div>
+      ) : null}
+
+      {update.awaiting ? (
+        <div className={styles.columns}>
+          <FindingPanel view={view} panel={update.awaiting.panel} />
+          <section className={styles.panel} aria-labelledby="awaiting-title">
+            <h3 id="awaiting-title" className={styles.panelTitle}>
+              Update sent to {first}, version {update.awaiting.panel.version.number}
+            </h3>
+            <VersionLines
+              panel={update.awaiting.panel}
+              currency={view.currency}
+              from={
+                update.awaiting.panel.version.lines.length - countAdded(view, update.awaiting.panel)
+              }
+            />
+            <p className={styles.muted}>
+              Waiting for {first} to approve {money(update.awaiting.increasePence)}.
+            </p>
+            <div className={styles.actions}>
+              <ActionDialog
+                id="withdraw-update"
+                trigger="Withdraw the update"
+                triggerVariant="danger"
+                title="Withdraw the update?"
+                actionLabel="Withdraw it"
+                actionVariant="danger"
+                action={withdrawAction.bind(null, caseId)}
+              >
+                <p className={styles.muted}>
+                  {first} won&apos;t be able to approve it. What {first} approved before stays held.
+                </p>
+              </ActionDialog>
+            </div>
+          </section>
+        </div>
+      ) : null}
+
+      {update.draft ? (
+        <div className={styles.columns}>
+          <FindingPanel view={view} panel={update.draft.panel}>
+            {update.canDraft ? (
+              <details>
+                <summary className={styles.editorSummary}>
+                  Change the finding and draft again
+                </summary>
+                <UpdateForm
+                  action={draftAction}
+                  defaultFinding={update.draft.panel.source?.text ?? ""}
+                  redraft
+                />
+              </details>
+            ) : null}
+          </FindingPanel>
+          <section className={styles.panel} aria-labelledby="update-draft-title">
+            <h3 id="update-draft-title" className={styles.panelTitle}>
+              Update, version {update.draft.panel.version.number}
+            </h3>
+            <DraftOutcome source={update.draft.panel.source} />
+            {update.draft.panel.version.lines.length === update.draft.basedOn.lines.length ? (
+              <p className={styles.muted}>Nothing added yet.</p>
+            ) : (
+              <VersionLines
+                panel={update.draft.panel}
+                currency={view.currency}
+                from={update.draft.basedOn.lines.length}
+                actions={(lineId) => ({
+                  save: editLineAction.bind(null, {
+                    caseId,
+                    versionId: update.draft!.panel.version.id,
+                    lineId,
+                  }),
+                  remove: removeLineAction.bind(null, {
+                    caseId,
+                    versionId: update.draft!.panel.version.id,
+                    lineId,
+                  }),
+                })}
+              />
+            )}
+            <AddItemForm action={addLineAction.bind(null, caseId)} groups={itemOptions(view)} />
+            <p className={styles.trigger}>{update.draft.triggerSentence}</p>
+            <div className={styles.actions}>
+              <ActionDialog
+                id="send-update"
+                trigger={askToApprove(first, update.draft.increasePence, view.currency)}
+                title={`Ask ${first} to approve the update?`}
+                actionLabel={askToApprove(first, update.draft.increasePence, view.currency)}
+                action={sendAction.bind(null, {
+                  caseId,
+                  versionId: update.draft.panel.version.id,
+                  sent: "update",
+                })}
+                disabled={update.draft.increasePence <= 0}
+              >
+                <ul className={styles.review} aria-label={`What the update adds for ${first}`}>
+                  {update.draft.panel.version.lines
+                    .slice(update.draft.basedOn.lines.length)
+                    .map((line) => (
+                      <li key={line.id} className={styles.reviewLine}>
+                        <span>{line.ownerWording ?? line.name}</span>
+                        <span>{money(line.highPence)}</span>
+                      </li>
+                    ))}
+                </ul>
+                <p className={styles.total}>
+                  {first} is asked to approve {money(update.draft.increasePence)} more.
+                </p>
+                <p className={styles.muted}>
+                  Sending records your approval of the update as{" "}
+                  {view.case.vetName ?? "the case's vet"}.
+                </p>
+              </ActionDialog>
+            </div>
+          </section>
+        </div>
+      ) : update.canDraft && !update.awaiting ? (
+        <section className={styles.panel} aria-labelledby="new-update-title">
+          <h3 id="new-update-title" className={styles.panelTitle}>
+            Add an update
+          </h3>
+          <UpdateForm action={draftAction} defaultFinding="" redraft={false} />
+        </section>
+      ) : null}
+    </div>
+  );
+}
+
+/**
+ * How many lines an update added over the version the owner approved before it.
+ *
+ * @param view - The case.
+ * @param panel - The update.
+ * @returns The count.
+ */
+function countAdded(view: CaseView, panel: VersionPanel): number {
+  const base = view.approved.filter((one) => one.version.number < panel.version.number).at(-1);
+  return panel.version.lines.length - (base?.version.lines.length ?? 0);
+}

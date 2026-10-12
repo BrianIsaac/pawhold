@@ -162,7 +162,9 @@
 }
 
 .code {
+  display: inline-block;
   margin-left: var(--space-2);
+  white-space: nowrap;
   color: var(--colour-ink-muted);
   font-family: var(--font-mono);
   font-size: var(--font-size-0);
@@ -181,6 +183,17 @@
   font-weight: var(--font-weight-medium);
   text-align: right;
   white-space: nowrap;
+}
+
+@media (max-width: 35.99rem) {
+  .lineHead {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .linePrice {
+    grid-column: 2;
+    text-align: left;
+  }
 }
 
 .lineNote {
@@ -286,4 +299,46 @@
 .reviewLine span:last-child {
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
+}
+
+.stack {
+  display: grid;
+  gap: var(--space-5);
+}
+
+.photo {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+}
+
+.photo img {
+  display: block;
+  width: 100%;
+  max-width: 24rem;
+  height: auto;
+  border-radius: var(--radius-2);
+  border: 1px solid var(--colour-line-soft);
+  image-rendering: auto;
+}
+
+.explanation {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-4);
+  border-left: 4px solid var(--colour-accent);
+  border-radius: var(--radius-2);
+  background: var(--colour-accent-soft);
+}
+
+.explanation p {
+  margin: 0;
+}
+
+.trigger {
+  margin: 0;
+  padding: var(--space-4);
+  border-radius: var(--radius-2);
+  background: var(--colour-canvas);
+  border: 1px solid var(--colour-line);
 }

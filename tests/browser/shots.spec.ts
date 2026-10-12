@@ -1,5 +1,6 @@
 import { join } from "node:path";
 
+import { WALK_FINDING, WALK_PHOTO_PATH } from "../support/update-walk-words";
 import {
   expect,
   openNewCase,
@@ -59,6 +60,32 @@ for (const width of Object.keys(WIDTHS) as Width[]) {
         .click();
       await expect(page.getByRole("status")).toBeVisible();
       await page.screenshot({ path: join(directory!, `case-sent-${px}.png`), fullPage: true });
+    });
+    test("an update drafted with its photo, then sent", async ({ page }) => {
+      const px = WIDTHS[width].width;
+      await signInAsPractice(page);
+      await page.goto("/today");
+      await page.getByRole("link", { name: "Bramble" }).click();
+      const form = page.getByRole("region", { name: "Add an update" });
+      await form.getByLabel("What did you find, and what do you recommend?").fill(WALK_FINDING);
+      await form.getByLabel("Add a photo").setInputFiles(WALK_PHOTO_PATH);
+      await form.getByLabel("Show the photo to the owner").check();
+      await form.getByRole("button", { name: "Draft the update" }).click();
+      await expect(page.getByRole("region", { name: "Update, version 3" })).toBeVisible();
+      await page.screenshot({
+        path: join(directory!, `case-update-draft-${px}.png`),
+        fullPage: true,
+      });
+      await page.getByRole("button", { name: "Ask Nadia to approve £130.00" }).click();
+      await page
+        .getByRole("dialog", { name: "Ask Nadia to approve the update?" })
+        .getByRole("button", { name: "Ask Nadia to approve £130.00" })
+        .click();
+      await expect(page.getByRole("status")).toBeVisible();
+      await page.screenshot({
+        path: join(directory!, `case-update-sent-${px}.png`),
+        fullPage: true,
+      });
     });
   });
 }

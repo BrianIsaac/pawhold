@@ -14,6 +14,7 @@ import {
   withdrawCaseEstimate,
 } from "@/practice/estimate";
 import { refusalMessage } from "@/practice/messages";
+import { draftUpdateForCase } from "@/practice/update";
 import { currentPracticeSession } from "@/server/practice-session";
 import { database, estimateAgent } from "@/server/runtime";
 
@@ -209,5 +210,36 @@ export async function withdrawAction(caseId: string): Promise<FormState> {
 export async function draftAgainAction(caseId: string): Promise<FormState> {
   return onCase(caseId, {}, (practiceId) =>
     draftAgainFromWithdrawn(database().db, { practiceId, caseId }),
+  );
+}
+
+/**
+ * Drafts an update (section 6): the vet's finding, an optional photo and
+ * whether the owner sees it.
+ *
+ * @param caseId - The case.
+ * @param _previous - The form's last state.
+ * @param form - The finding, the photo and the checkbox.
+ * @returns The form's state.
+ */
+export async function draftUpdateAction(
+  caseId: string,
+  _previous: FormState,
+  form: FormData,
+): Promise<FormState> {
+  const values = formValues(form, ["finding", "sharePhoto"]);
+  const file = form.get("photo");
+  const photo =
+    file instanceof File && file.size > 0
+      ? { mediaType: file.type, bytes: Buffer.from(await file.arrayBuffer()) }
+      : null;
+  return onCase(caseId, values, (practiceId) =>
+    draftUpdateForCase(estimateAgent(), {
+      practiceId,
+      caseId,
+      finding: values.finding!,
+      photo,
+      sharePhoto: values.sharePhoto === "on",
+    }),
   );
 }

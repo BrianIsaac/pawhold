@@ -1,5 +1,6 @@
+import type { UpdateTriggerCheck } from "@/estimate/trigger";
 import type { CurrencyCode } from "@/money/currency";
-import { formatMoney } from "@/money/format";
+import { formatMoney, formatPercent } from "@/money/format";
 
 /**
  * The practice's screens' words. Those section 6 drafts are built as drafted
@@ -98,4 +99,101 @@ export function linePrice(
   return line.lowPence === line.highPence
     ? high
     : `${formatMoney({ pence: line.lowPence, currency })} to ${high}`;
+}
+
+/** Section 6: the update's label. */
+export const FINDING_LABEL = "What did you find, and what do you recommend?";
+
+/** Section 6: the update's photo control. */
+export const PHOTO_LABEL = "Add a photo";
+
+/** Section 6: whether the owner sees the photo. */
+export const SHARE_PHOTO_LABEL = "Show the photo to the owner";
+
+/** This unit's: the update's draft button (section 6 names none). */
+export const DRAFT_UPDATE_BUTTON = "Draft the update";
+
+/** What the trigger sentence is made from. */
+export interface TriggerSentenceInput {
+  /** What the update asks for over what is held (U3's `updateIncrease`). */
+  readonly increasePence: number;
+  /** What the case's holds hold. */
+  readonly heldPence: number;
+  /** The Order's check against the original written estimate (U2's `checkEstimateTrigger`). */
+  readonly check: UpdateTriggerCheck | null;
+  readonly currency: CurrencyCode;
+  readonly ownerFirstName: string;
+}
+
+/**
+ * Section 6's trigger sentence, by code. When the original written estimate
+ * is what is held (a first update, or one after a declined update) it is
+ * section 6's sentence as drafted. After an approved update, what is held
+ * and the Order's base part, and the sentence names both (this unit's form
+ * of words, flagged). An update that adds nothing over the hold says so.
+ *
+ * @param input - The increase, what is held, the Order's check, the currency and the owner.
+ * @returns The sentence.
+ */
+export function triggerSentence(input: TriggerSentenceInput): string {
+  const money = (pence: number): string => formatMoney({ pence, currency: input.currency });
+  if (input.increasePence <= 0) {
+    return `This update adds nothing over what is held, so there is nothing to ask ${input.ownerFirstName} for.`;
+  }
+  const delta = money(input.increasePence);
+  const check = input.check;
+  if (!check) {
+    return `This adds ${delta}.`;
+  }
+  const order = `The CMA's Order asks for an updated written estimate at 20% or ${money(check.thresholdPence)}, whichever is lower: this one ${check.met ? "meets" : "does not meet"} it. pawhold asks the owner either way, because nothing over the hold is charged without their yes.`;
+  const percent =
+    check.increaseBasisPoints === null ? null : formatPercent(check.increaseBasisPoints);
+  if (check.originalPence === input.heldPence) {
+    return `This adds ${delta}${percent === null ? "" : `, ${percent}% over the held estimate`}. ${order}`;
+  }
+  return `This adds ${delta} to what is held${percent === null ? "" : `; with the updates approved before it, the estimate is ${percent}% over the original written estimate of ${money(check.originalPence)}`}. ${order}`;
+}
+
+/**
+ * Section 6: the update's send button.
+ *
+ * @param ownerFirstName - The owner's first name.
+ * @param increasePence - What the update asks for over what is held.
+ * @param currency - The currency.
+ * @returns The label.
+ */
+export function askToApprove(
+  ownerFirstName: string,
+  increasePence: number,
+  currency: CurrencyCode,
+): string {
+  return `Ask ${ownerFirstName} to approve ${formatMoney({ pence: increasePence, currency })}`;
+}
+
+/**
+ * This unit's: the confirmation once an update is sent.
+ *
+ * @param ownerFirstName - The owner's first name.
+ * @returns The sentence.
+ */
+export function updateSentConfirmation(ownerFirstName: string): string {
+  return `Sent. ${ownerFirstName} can approve the update from the link on their phone.`;
+}
+
+/**
+ * This unit's: the decline shown on the case.
+ *
+ * @param ownerFirstName - The owner's first name.
+ * @param day - The day it was declined, as the practice reads it.
+ * @param heldPence - What stays held.
+ * @param currency - The currency.
+ * @returns The sentence.
+ */
+export function updateDeclined(
+  ownerFirstName: string,
+  day: string,
+  heldPence: number,
+  currency: CurrencyCode,
+): string {
+  return `${ownerFirstName} declined this update on ${day}. The case stays held at ${formatMoney({ pence: heldPence, currency })}: only what ${ownerFirstName} approved is done.`;
 }
