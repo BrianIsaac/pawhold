@@ -219,7 +219,9 @@ export const priceList = pgTable(
       .references(() => practice.id, { onDelete: "restrict" }),
     currencyCode: char("currency_code", { length: 3 }).notNull().default("GBP"),
     sourceName: text("source_name").notNull(),
-    importedAt: timestamp("imported_at", { withTimezone: true }).notNull().defaultNow(),
+    importedAt: timestamp("imported_at", { withTimezone: true })
+      .notNull()
+      .default(sql`clock_timestamp()`),
   },
   (table) => [
     check("price_list_currency_code", sql`${table.currencyCode} in ('GBP', 'USD')`),

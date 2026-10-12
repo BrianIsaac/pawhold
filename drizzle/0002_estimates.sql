@@ -41,7 +41,7 @@ CREATE TABLE "price_list" (
 	"practice_id" uuid NOT NULL,
 	"currency_code" char(3) DEFAULT 'GBP' NOT NULL,
 	"source_name" text NOT NULL,
-	"imported_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"imported_at" timestamp with time zone DEFAULT clock_timestamp() NOT NULL,
 	CONSTRAINT "price_list_id_practice_id_key" UNIQUE("id","practice_id"),
 	CONSTRAINT "price_list_currency_code" CHECK ("price_list"."currency_code" in ('GBP', 'USD'))
 );

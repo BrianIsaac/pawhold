@@ -1,5 +1,5 @@
 {
-  "id": "8197339a-def2-41cb-bef6-06d49f0b62b2",
+  "id": "f4d82893-e63d-41dd-9a3d-94f2c99f8642",
   "prevId": "a5dd8b21-65ed-416f-8524-554a4dae6dfc",
   "version": "7",
   "dialect": "postgresql",
@@ -779,7 +779,7 @@
           "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": true,
-          "default": "now()"
+          "default": "clock_timestamp()"
         }
       },
       "indexes": {
