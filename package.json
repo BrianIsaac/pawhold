@@ -18,6 +18,7 @@
     "test": "vitest run --project unit",
     "test:integration": "vitest run --project integration",
     "test:browser": "tsx tests/browser/run.ts",
+    "test:live": "playwright test --config playwright.live.config.ts",
     "test:watch": "vitest --project unit",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx scripts/migrate.ts",

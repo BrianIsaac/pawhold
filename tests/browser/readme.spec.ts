@@ -1,8 +1,8 @@
-import type { Locator, Page } from "@playwright/test";
+import type { Page } from "@playwright/test";
 
 import { approveInWindow } from "../../probes/buyer";
 
-import { expect, PLAN_NOTES, test, WIDTHS } from "./fixtures";
+import { expect, test, WIDTHS } from "./fixtures";
 import { openBrowserDatabase } from "./owner/support/cases";
 import {
   buyerLogin,
@@ -10,8 +10,8 @@ import {
   sandboxSecrets,
   voidWhatTheWalksHeld,
 } from "./owner/support/sandbox";
-import { readmeSteps, type ReadmeStep, type StepAction } from "./support/readme";
 import { DOUBLE_URL } from "./support/discharge";
+import { type ReadmeWalk, walkReadme } from "./support/readme-walk";
 
 /*
  * The README's testing instructions, walked as written (U9's acceptance): a
@@ -24,14 +24,8 @@ import { DOUBLE_URL } from "./support/discharge";
  * (which capture at the double) are walked too.
  */
 
-/** The deployment's address, which the walk reads as the run's own server. */
-const ADDRESS = "https://pawhold.onrender.com";
-
 /** The acceptance's bound: a stranger reaches a held case in under two minutes. */
 const TWO_MINUTES_MS = 2 * 60 * 1000;
-
-/** What the new case's form is filled with. */
-const NEW_CASE = { Patient: "Pepper", Owner: "Sam Patel", Procedure: "Dental" } as const;
 
 const database = openBrowserDatabase();
 const practices: string[] = [];
@@ -43,24 +37,6 @@ test.afterAll(async () => {
   }
   await database.close();
 });
-
-/**
- * What a step names: the link or button by that name, or else the text, in
- * the open dialog when the step says so or one is open.
- *
- * @param page - The page.
- * @param name - The name.
- * @param inDialog - Whether the step names it in the dialog.
- * @returns The first such element.
- */
-function named(page: Page, name: string, inDialog: boolean): Locator {
-  const scope = inDialog ? page.getByRole("dialog") : page;
-  return scope
-    .getByRole("link", { name, exact: true })
-    .or(scope.getByRole("button", { name, exact: true }))
-    .or(scope.getByText(name, { exact: true }))
-    .first();
-}
 
 /**
  * PayPal's step: the sandbox buyer approves in PayPal's window when the run
@@ -96,57 +72,8 @@ async function approveWithPayPal(page: Page): Promise<void> {
   await page.reload();
 }
 
-/**
- * Does one thing a README step asks.
- *
- * @param page - The page.
- * @param step - The step.
- * @param action - The action.
- */
-async function act(page: Page, step: ReadmeStep, action: StepAction): Promise<void> {
-  const where = `step ${step.number}: ${step.text}`;
-  switch (action.kind) {
-    case "open":
-      expect(action.url, where).toBe(ADDRESS);
-      await page.goto("/");
-      return;
-    case "click":
-      await named(page, action.name, action.inDialog).click();
-      return;
-    case "type":
-      await page.getByRole("textbox", { name: action.field, exact: true }).fill(PLAN_NOTES);
-      return;
-    case "see":
-      await expect(page.getByText(action.text).first(), where).toBeVisible({ timeout: 20_000 });
-      return;
-    case "new_case": {
-      const dialog = page.getByRole("dialog", { name: "Open a case" });
-      for (const [label, value] of Object.entries(NEW_CASE)) {
-        await dialog.getByLabel(label, { exact: true }).fill(value);
-      }
-      return;
-    }
-    case "paypal":
-      await approveWithPayPal(page);
-      return;
-  }
-}
-
-/**
- * Walks a README section's steps in order.
- *
- * @param page - The page.
- * @param heading - The section.
- */
-async function walk(page: Page, heading: string): Promise<void> {
-  for (const step of readmeSteps(heading)) {
-    await test.step(`${heading}, step ${step.number}`, async () => {
-      for (const action of step.actions) {
-        await act(page, step, action);
-      }
-    });
-  }
-}
+/** How the browser suite walks the README: PayPal's step as {@link approveWithPayPal} has it. */
+const WALK: ReadmeWalk = { approve: approveWithPayPal };
 
 test.describe("the README's testing instructions, walked as written", () => {
   test.describe.configure({ timeout: 300_000 });
@@ -167,7 +94,7 @@ test.describe("the README's testing instructions, walked as written", () => {
 
       const started = Date.now();
       try {
-        await walk(page, "Two minutes as the owner");
+        await walkReadme(page, "Two minutes as the owner", WALK);
       } finally {
         // Registered whatever became of the walk, so whatever it held is voided.
         const session = await page.request.get("/api/judge/session");
@@ -186,7 +113,7 @@ test.describe("the README's testing instructions, walked as written", () => {
         });
         return;
       }
-      await walk(page, "As the practice");
+      await walkReadme(page, "As the practice", WALK);
     } finally {
       await browser.close();
     }
