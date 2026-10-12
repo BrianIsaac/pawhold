@@ -1,23 +1,15 @@
-import { randomBytes } from "node:crypto";
-
 import { and, eq } from "drizzle-orm";
 
 import { appendAuditEvent, type AuditEventInput } from "@/audit/writer";
 import type { Transaction } from "@/db/client";
-import {
-  estimateLine,
-  estimateSource,
-  estimateVersion,
-  hold,
-  patientCase,
-  room,
-  vet,
-} from "@/db/schema";
+import { hold, patientCase, room, vet } from "@/db/schema";
 import { currentPriceList, type PriceListWithItems } from "@/estimate/price-list";
-import { estimateLineInput, type EstimateLineInput } from "@/estimate/version";
+import type { EstimateLineInput } from "@/estimate/version";
 import type { MoneyState } from "@/money/state";
+import { seededPayPalId } from "@/paypal/seeded";
 import { bookSlot } from "@/schedule/bookings";
 
+import { approved, sent, versionMade, writeSentVersion } from "../versions";
 import { SHOWCASE_CASE } from "./showcase";
 
 /** The practice's rooms, in the order its day lists them (U8a's brief: two theatres, one consult room). */
@@ -494,7 +486,7 @@ async function seedDayCase(
     throw new Error(`${kase.patientName}'s estimate needs its notes and its lines`);
   }
 
-  const estimate = await seedSentVersion(tx, {
+  const estimate = await writeSentVersion(tx, {
     practiceId,
     caseId,
     list,
@@ -512,7 +504,7 @@ async function seedDayCase(
     return caseId;
   }
 
-  const ids = { order: seededId(), authorisation: seededId() };
+  const ids = { order: seededPayPalId(), authorisation: seededPayPalId() };
   const authorisedAt = story(42);
   const expiresAt = new Date(authorisedAt.getTime() + 29 * DAY_MS);
   await tx.insert(hold).values({
@@ -570,7 +562,7 @@ async function seedDayCase(
     throw new Error(`${kase.patientName}'s update needs its finding and its lines`);
   }
 
-  const update = await seedSentVersion(tx, {
+  const update = await writeSentVersion(tx, {
     practiceId,
     caseId,
     list,
@@ -597,197 +589,4 @@ async function seedDayCase(
  */
 async function settle(tx: Transaction, caseId: string, at: Date): Promise<void> {
   await tx.update(patientCase).set({ updatedAt: at }).where(eq(patientCase.id, caseId));
-}
-
-/** A version the seed wrote, as its events name it. */
-interface SeededVersion {
-  readonly id: string;
-  readonly number: number;
-  readonly currency: PriceListWithItems["currencyCode"];
-  readonly lineCount: number;
-  readonly priceListId: string;
-  readonly lowPence: number;
-  readonly highPence: number;
-}
-
-/**
- * Writes one version as a draft with its lines and its source, then sends it,
- * as U2 does: the database checks the sent totals against the lines.
- *
- * @param tx - The transaction.
- * @param write - The version's practice, case, list, number, lines, source and times.
- * @param write.practiceId - The practice.
- * @param write.caseId - The case.
- * @param write.list - The price list it is priced from.
- * @param write.number - Its number.
- * @param write.lines - Its lines.
- * @param write.source - The words it was drafted from.
- * @param write.source.kind - Notes or a finding.
- * @param write.source.text - The words.
- * @param write.source.explanation - The owner's explanation of an update.
- * @param write.madeAt - When it was made.
- * @param write.sentAt - When it was sent.
- * @returns The version.
- * @throws Error when a line's item is not on the list.
- */
-async function seedSentVersion(
-  tx: Transaction,
-  write: {
-    practiceId: string;
-    caseId: string;
-    list: PriceListWithItems;
-    number: number;
-    lines: readonly EstimateLineInput[];
-    source: { kind: "notes" | "finding"; text: string; explanation: string | null };
-    madeAt: Date;
-    sentAt: Date;
-  },
-): Promise<SeededVersion> {
-  const priced = write.lines.map((given) => {
-    const line = estimateLineInput.parse(given);
-    const item = write.list.items.get(line.code);
-    if (!item) {
-      throw new Error(`the seeded day's ${line.code} is not on the practice's price list`);
-    }
-    return { line, item };
-  });
-  const [version] = await tx
-    .insert(estimateVersion)
-    .values({
-      practiceId: write.practiceId,
-      caseId: write.caseId,
-      priceListId: write.list.id,
-      number: write.number,
-      createdAt: write.madeAt,
-    })
-    .returning({ id: estimateVersion.id });
-  const versionId = version!.id;
-  await tx.insert(estimateLine).values(
-    priced.map(({ line, item }, at) => ({
-      versionId,
-      priceListId: write.list.id,
-      position: at + 1,
-      priceListItemId: item.id,
-      unitPricePence: item.unitPricePence,
-      quantityLow: line.quantityLow,
-      quantityHigh: line.quantityHigh,
-      dependsOn: line.dependsOn ?? null,
-      notesSpan: line.notesSpan ?? null,
-      ownerWording: line.ownerWording ?? null,
-    })),
-  );
-  await tx.insert(estimateSource).values({
-    versionId,
-    practiceId: write.practiceId,
-    caseId: write.caseId,
-    kind: write.source.kind,
-    text: write.source.text,
-    explanation: write.source.explanation,
-    createdAt: write.madeAt,
-    updatedAt: write.madeAt,
-  });
-  const lowPence = priced.reduce(
-    (sum, { line, item }) => sum + item.unitPricePence * line.quantityLow,
-    0,
-  );
-  const highPence = priced.reduce(
-    (sum, { line, item }) => sum + item.unitPricePence * line.quantityHigh,
-    0,
-  );
-  await tx
-    .update(estimateVersion)
-    .set({ sentAt: write.sentAt, totalLowPence: lowPence, totalHighPence: highPence })
-    .where(eq(estimateVersion.id, versionId));
-  return {
-    id: versionId,
-    number: write.number,
-    currency: write.list.currencyCode,
-    lineCount: priced.length,
-    priceListId: write.list.id,
-    lowPence,
-    highPence,
-  };
-}
-
-/**
- * `estimate.version_made`, as U2 writes it.
- *
- * @param version - The version.
- * @returns The event.
- */
-function versionMade(version: SeededVersion): Omit<AuditEventInput, "practiceId" | "caseId"> {
-  return {
-    actor: "vet",
-    action: "estimate.version_made",
-    detail: {
-      versionId: version.id,
-      number: version.number,
-      priceListId: version.priceListId,
-      lineCount: version.lineCount,
-      lowPence: version.lowPence,
-      highPence: version.highPence,
-    },
-  };
-}
-
-/**
- * `estimate.approved`, the vet's approval with the vet's name, as U5 writes it.
- *
- * @param version - The version.
- * @param vetName - The vet.
- * @returns The event.
- */
-function approved(
-  version: SeededVersion,
-  vetName: string,
-): Omit<AuditEventInput, "practiceId" | "caseId"> {
-  return {
-    actor: "vet",
-    action: "estimate.approved",
-    detail: {
-      versionId: version.id,
-      number: version.number,
-      vetName,
-      lowPence: version.lowPence,
-      highPence: version.highPence,
-      lineCount: version.lineCount,
-    },
-  };
-}
-
-/**
- * `estimate.sent` with the states before and after, as U3 writes it.
- *
- * @param version - The version.
- * @param before - The case's state before.
- * @param after - The case's state after.
- * @returns The event.
- */
-function sent(
-  version: SeededVersion,
-  before: "estimate_draft" | "held",
-  after: "awaiting_owner" | "update_awaiting_owner",
-): Omit<AuditEventInput, "practiceId" | "caseId"> {
-  return {
-    actor: "vet",
-    action: "estimate.sent",
-    moneyStateBefore: before,
-    moneyStateAfter: after,
-    amount: { pence: version.highPence, currency: version.currency },
-    detail: {
-      versionId: version.id,
-      number: version.number,
-      lowPence: version.lowPence,
-      highPence: version.highPence,
-    },
-  };
-}
-
-/**
- * A PayPal-shaped id that says it is seeded: `SEEDED` and ten upper-case hex digits.
- *
- * @returns The id.
- */
-function seededId(): string {
-  return `SEEDED${randomBytes(5).toString("hex").toUpperCase()}`;
 }
