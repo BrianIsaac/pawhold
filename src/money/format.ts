@@ -7,6 +7,28 @@ const formatters = new Map<CurrencyCode, Intl.NumberFormat>();
 const signedMoney = z.strictObject({ pence: z.int(), currency: currencyCode });
 
 /**
+ * A range of money as the screens show it: one figure when its ends are the
+ * same ("£95.00"), never a range from a figure to itself; otherwise both
+ * ("£731.00 to £927.00"). U11.
+ *
+ * @param range - The range's ends in whole pence, and the currency.
+ * @param range.lowPence - The bottom.
+ * @param range.highPence - The top.
+ * @param range.currency - Its currency.
+ * @returns The range in words.
+ */
+export function formatMoneyRange(range: {
+  lowPence: number;
+  highPence: number;
+  currency: CurrencyCode;
+}): string {
+  const high = formatMoney({ pence: range.highPence, currency: range.currency });
+  return range.lowPence === range.highPence
+    ? high
+    : `${formatMoney({ pence: range.lowPence, currency: range.currency })} to ${high}`;
+}
+
+/**
  * Money as the screens show it: integer pence as pounds and pence, in British
  * English ("£1,147.00"; "US$500.00" on the USD branch), signed when negative.
  * Every amount a screen shows is computed by code and formatted here; none is

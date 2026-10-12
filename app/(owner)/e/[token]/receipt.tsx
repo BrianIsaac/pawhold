@@ -77,7 +77,9 @@ export function Receipt({ page }: { readonly page: OwnerReceiptPage }) {
       ) : null}
 
       <p className={styles.explanation}>
-        {paidFromApprovals(page.approvals.map((one) => money(one.capturedPence)))}
+        {paidFromApprovals(
+          page.approvals.map((one) => (one.capturedPence > 0 ? money(one.capturedPence) : null)),
+        )}
       </p>
 
       {page.releasedPence > 0 ? <p className={styles.askFirst}>{RELEASE_TIMING}</p> : null}

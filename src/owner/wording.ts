@@ -79,7 +79,7 @@ export function estimateIntro(vet: string, patient: string, high: string): strin
 }
 
 /**
- * The estimate's range (section 6).
+ * The estimate's range (section 6); one figure when it has no range (U11, flagged).
  *
  * @param vet - Who the vet is, as the page names them.
  * @param low - The bottom of the range, shown.
@@ -87,7 +87,7 @@ export function estimateIntro(vet: string, patient: string, high: string): strin
  * @returns The sentence.
  */
 export function rangeLine(vet: string, low: string, high: string): string {
-  return `Likely ${low} to ${high}, depending on what ${vet} finds.`;
+  return `Likely ${low === high ? high : `${low} to ${high}`}, depending on what ${vet} finds.`;
 }
 
 /**
@@ -279,19 +279,25 @@ const ORDINALS = ["first", "second", "third", "fourth", "fifth", "sixth", "seven
 /**
  * What each approval paid (section 6: "Paid from your first approval: {a}.
  * Paid from your second approval: {b}."); one approval is "your approval",
- * this unit's wording.
+ * and an approval nothing was taken from was released, never "paid from"
+ * at nothing: this unit's wording (U6, U11), flagged.
  *
- * @param amounts - What each approval paid, shown, in the order they were given.
+ * @param amounts - What each approval paid, shown, in the order they were given; null for nothing.
  * @returns The sentences.
  */
-export function paidFromApprovals(amounts: readonly string[]): string {
+export function paidFromApprovals(amounts: readonly (string | null)[]): string {
   if (amounts.length === 1) {
-    return `Paid from your approval: ${amounts[0]}.`;
+    return amounts[0] === null
+      ? "Nothing was taken from your approval: it was released."
+      : `Paid from your approval: ${amounts[0]}.`;
   }
   return amounts
-    .map(
-      (amount, at) => `Paid from your ${ORDINALS[at] ?? `number ${at + 1}`} approval: ${amount}.`,
-    )
+    .map((amount, at) => {
+      const which = `your ${ORDINALS[at] ?? `number ${at + 1}`} approval`;
+      return amount === null
+        ? `Nothing was taken from ${which}: it was released.`
+        : `Paid from ${which}: ${amount}.`;
+    })
     .join(" ");
 }
 
