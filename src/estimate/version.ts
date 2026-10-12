@@ -7,6 +7,7 @@ import {
   auditActor,
   estimateLine,
   estimateVersion,
+  moneyState,
   patientCase,
   priceList,
   priceListItem,
@@ -109,6 +110,12 @@ const versionRequest = z.strictObject({
   actor,
 });
 
+const moneyStateName = z.enum(moneyState.enumValues);
+
+const sendRequest = versionRequest.extend({
+  moneyState: z.strictObject({ before: moneyStateName, after: moneyStateName }).optional(),
+});
+
 const replaceRequest = versionRequest.extend({
   lines: z.array(z.unknown()).max(MAX_VERSION_LINES),
 });
@@ -121,15 +128,28 @@ export interface MakeEstimateVersionRequest {
   readonly lines: readonly EstimateLineInput[];
 }
 
-/** What {@link sendEstimateVersion} takes. */
-export interface SendEstimateVersionRequest {
+/** A version by id, and who acts on it. */
+export interface VersionRequest {
   readonly practiceId: string;
   readonly versionId: string;
   readonly actor: z.input<typeof actor>;
 }
 
+/** What {@link sendEstimateVersion} takes. */
+export interface SendEstimateVersionRequest extends VersionRequest {
+  /**
+   * The case's money states before and after the send, when the money
+   * lifecycle (U3) moves the case in the same transaction: carried on the one
+   * `estimate.sent` event, so the transition writes one audit event.
+   */
+  readonly moneyState?: {
+    readonly before: z.input<typeof moneyStateName>;
+    readonly after: z.input<typeof moneyStateName>;
+  };
+}
+
 /** What {@link replaceDraftLines} takes. */
-export interface ReplaceDraftLinesRequest extends SendEstimateVersionRequest {
+export interface ReplaceDraftLinesRequest extends VersionRequest {
   readonly lines: readonly EstimateLineInput[];
 }
 
@@ -272,7 +292,12 @@ export async function sendEstimateVersion(
   executor: Executor,
   request: SendEstimateVersionRequest,
 ): Promise<EstimateVersionView> {
-  const { practiceId, versionId, actor: by } = parseRequest(versionRequest, request);
+  const {
+    practiceId,
+    versionId,
+    actor: by,
+    moneyState: moved,
+  } = parseRequest(sendRequest, request);
   return executor.transaction(async (tx) => {
     const locked = await lockVersion(tx, practiceId, versionId);
     const draft = await mustLoad(tx, practiceId, versionId);
@@ -296,6 +321,7 @@ export async function sendEstimateVersion(
       caseId: locked.caseId,
       actor: by,
       action: "estimate.sent",
+      ...(moved ? { moneyStateBefore: moved.before, moneyStateAfter: moved.after } : {}),
       amount: { pence: highPence, currency: draft.currency },
       detail: { versionId, number: draft.number, lowPence, highPence },
     });

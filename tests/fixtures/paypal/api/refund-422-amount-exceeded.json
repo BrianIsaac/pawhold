@@ -1,0 +1,11 @@
+{
+  "name": "UNPROCCESSABLE_ENTITY",
+  "message": "The requested action could not be completed, is semantically incorrect, or failed business validation.",
+  "debug_id": "90bff07028f7f",
+  "details": [
+    {
+      "issue": "REFUND_AMOUNT_EXCEEDED",
+      "description": "The refund amount must be less than or equal to the capture amount that has not yet been refunded."
+    }
+  ]
+}

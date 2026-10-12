@@ -79,6 +79,43 @@ describe("POST /api/paypal/webhook", () => {
     });
   });
 
+  it("keeps the delivery's transmission signature, so a stored delivery can be verified again (U0's P8)", async () => {
+    const { body, eventId } = sample("payment-authorization-created.json", "signature-kept");
+    const headers = signer.headersFor(body, { webhookId: WEBHOOK_ID });
+
+    await handler(delivery(body, headers));
+
+    const [row] = await storedRows(eventId);
+    expect(row!.transmissionSig).toBe(headers["paypal-transmission-sig"]);
+    expect(row!.transmissionTime).toBe(headers["paypal-transmission-time"]);
+    expect(row!.certUrl).toBe(headers["paypal-cert-url"]);
+    expect(row!.authAlgo).toBe(headers["paypal-auth-algo"]);
+  });
+
+  it("hands each new event to reconciliation once stored, and answers 200 even when reconciliation fails", async () => {
+    const handed: string[] = [];
+    const reconciling = createWebhookHandler({
+      db,
+      webhookId: WEBHOOK_ID,
+      certificates,
+      onStored: async (stored) => {
+        handed.push(stored);
+        throw new Error("reconciliation is down");
+      },
+    });
+    const { body, eventId } = sample("payment-capture-completed.json", "handed-on");
+
+    const first = await reconciling(
+      delivery(body, signer.headersFor(body, { webhookId: WEBHOOK_ID })),
+    );
+    const again = await reconciling(
+      delivery(body, signer.headersFor(body, { webhookId: WEBHOOK_ID })),
+    );
+
+    expect([first.status, again.status]).toEqual([200, 200]);
+    expect(handed).toEqual([eventId]);
+  });
+
   it("stores a replayed event id once and answers 200 to each delivery", async () => {
     const { body, eventId } = sample("payment-capture-completed.json", "replayed");
 

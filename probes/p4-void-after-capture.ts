@@ -4,7 +4,7 @@ import {
   getCapture,
   pence,
   voidAuthorization,
-} from "./paypal";
+} from "@/paypal/payments";
 import { attempt, gbp, issues, makeWalletHold, type Probe } from "./probe";
 
 const BRANCH =

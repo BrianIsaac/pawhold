@@ -18,6 +18,25 @@ const row = z.looseObject({
   transmission_sig: z.string().nullable().optional(),
 });
 
+const LOOPBACK = new Set(["localhost", "127.0.0.1", "::1", "[::1]"]);
+
+/**
+ * How P8 connects to the listener's database: one read-only connection, with
+ * TLS anywhere but this machine (Render's external connections refuse a
+ * connection without it: "SSL/TLS required", 12 October 2026).
+ *
+ * @param url - The database's connection URL.
+ * @returns The driver's options.
+ */
+export function storeConnectionOptions(url: string) {
+  return {
+    max: 1,
+    onnotice: () => {},
+    ssl: LOOPBACK.has(new URL(url).hostname) ? (false as const) : ("require" as const),
+    connection: { application_name: "pawhold-probes", default_transaction_read_only: true },
+  };
+}
+
 /**
  * Reads the listener's `webhook_event` rows from its database, read only.
  *
@@ -25,11 +44,7 @@ const row = z.looseObject({
  * @returns The store.
  */
 export function postgresWebhookStore(url: string): WebhookStore {
-  const sql = postgres(url, {
-    max: 1,
-    onnotice: () => {},
-    connection: { application_name: "pawhold-probes", default_transaction_read_only: true },
-  });
+  const sql = postgres(url, storeConnectionOptions(url));
   return {
     keepsSignatures: async () => {
       const found = await sql`

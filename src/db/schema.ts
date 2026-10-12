@@ -129,6 +129,12 @@ export const webhookEvent = pgTable(
     transmissionTime: text("transmission_time").notNull(),
     certUrl: text("cert_url"),
     authAlgo: text("auth_algo").notNull(),
+    /**
+     * The delivery's signature, kept so a stored delivery can be verified
+     * again by either method (U0's P8 finding); null on rows stored before
+     * migration 0005.
+     */
+    transmissionSig: text("transmission_sig"),
     verification: webhookVerification("verification").notNull(),
     isMock: boolean("is_mock").notNull().default(false),
     rawBody: text("raw_body").notNull(),
@@ -308,6 +314,13 @@ export const estimateVersion = pgTable(
     ),
     unique("estimate_version_case_number_key").on(table.caseId, table.number),
     unique("estimate_version_id_price_list_id_key").on(table.id, table.priceListId),
+    /** What a hold names of its version (U3): the case, the number and the top of the range. */
+    unique("estimate_version_hold_key").on(
+      table.id,
+      table.caseId,
+      table.number,
+      table.totalHighPence,
+    ),
     uniqueIndex("estimate_version_one_draft_per_case_idx")
       .on(table.caseId)
       .where(sql`${table.sentAt} is null`),
@@ -357,6 +370,8 @@ export const estimateLine = pgTable(
       sql`${table.quantityLow} >= 0 and ${table.quantityHigh} >= ${table.quantityLow} and ${table.quantityHigh} >= 1`,
     ),
     unique("estimate_line_position_key").on(table.versionId, table.position),
+    /** What a bill line names of the estimate line it fulfils (U3): its unit price. */
+    unique("estimate_line_priced_key").on(table.id, table.unitPricePence),
     index("estimate_line_item_idx").on(table.priceListItemId),
   ],
 );
@@ -384,5 +399,306 @@ export const agentAnswer = pgTable(
     primaryKey({ name: "agent_answer_pkey", columns: [table.practiceId, table.inputSha256] }),
     check("agent_answer_input_sha256", sql`${table.inputSha256} ~ '^[0-9a-f]{64}$'`),
     check("agent_answer_job", sql`${table.job} in ('draft', 'update')`),
+  ],
+);
+
+/**
+ * Where a hold stands (plan 3.2, U3). `ordered`: the PayPal order exists and
+ * waits for the owner; `authorised`: the money is held; `captured`: closed by
+ * a final capture (any rest released by PayPal with no void); `voided`:
+ * closed by a void, after any non-final captures; `expired`: PayPal says the
+ * authorisation can no longer be captured; `withdrawn` and `declined`: the
+ * order was never authorised (the estimate withdrawn, the update declined),
+ * so nothing was held and nothing is voided.
+ */
+export const holdStatus = pgEnum("hold_status", [
+  "ordered",
+  "authorised",
+  "captured",
+  "voided",
+  "expired",
+  "withdrawn",
+  "declined",
+]);
+
+/** How the owner paid for a hold, from the authorised order's payment source. */
+export const paymentKind = pgEnum("payment_kind", ["paypal", "card"]);
+
+/** A capture's status, as PayPal's `capture_status` enum names it, lower-cased. */
+export const captureStatus = pgEnum("capture_status", [
+  "completed",
+  "pending",
+  "declined",
+  "partially_refunded",
+  "refunded",
+  "failed",
+]);
+
+/**
+ * A refund's status: `requested` until PayPal has answered, then PayPal's
+ * `refund_status` lower-cased.
+ */
+export const refundStatus = pgEnum("refund_status", [
+  "requested",
+  "pending",
+  "completed",
+  "failed",
+  "cancelled",
+]);
+
+/**
+ * One hold: a PayPal order authorised for one approved estimate version (plan
+ * 3.2). Its id is its version's, so the `PayPal-Request-Id` of every step
+ * against it can be derived before the row exists. It holds the top of the
+ * version's range less what the case already holds (D3): the first hold is
+ * the estimate's top, an update's hold the increase, and together a case's
+ * authorised holds are the top of its latest approved version.
+ */
+export const hold = pgTable(
+  "hold",
+  {
+    id: uuid("id").primaryKey(),
+    practiceId: uuid("practice_id").notNull(),
+    caseId: uuid("case_id").notNull(),
+    versionNumber: integer("version_number").notNull(),
+    versionHighPence: integer("version_high_pence").notNull(),
+    heldBeforePence: integer("held_before_pence").notNull(),
+    amountPence: integer("amount_pence").notNull(),
+    currencyCode: char("currency_code", { length: 3 }).notNull(),
+    status: holdStatus("status").notNull().default("ordered"),
+    paypalOrderId: text("paypal_order_id").notNull(),
+    /** The authorisation captures and voids go against: the reauthorised one after a reauthorisation. */
+    authorizationId: text("authorization_id"),
+    /** The order's own authorisation; the honour period and the 29 days count from it. */
+    originalAuthorizationId: text("original_authorization_id"),
+    paymentKind: paymentKind("payment_kind"),
+    /** PayPal's `create_time` of the original authorisation. */
+    authorisedAt: timestamp("authorised_at", { withTimezone: true }),
+    /** PayPal's `expiration_time` of the authorisation captures go against. */
+    expiresAt: timestamp("expires_at", { withTimezone: true }),
+    reauthorisedAt: timestamp("reauthorised_at", { withTimezone: true }),
+    /** When PayPal refused this wallet hold's reauthorisation for good. */
+    reauthoriseRefusedAt: timestamp("reauthorise_refused_at", { withTimezone: true }),
+    /** When the practice was told the hold is past its honour period. */
+    honourPeriodFlaggedAt: timestamp("honour_period_flagged_at", { withTimezone: true }),
+    /** When PayPal's `PAYMENT.AUTHORIZATION.CREATED` was reconciled against it. */
+    confirmedAt: timestamp("confirmed_at", { withTimezone: true }),
+    closedAt: timestamp("closed_at", { withTimezone: true }),
+    createdAt: createdAt(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    foreignKey({
+      name: "hold_case_in_practice_fk",
+      columns: [table.caseId, table.practiceId],
+      foreignColumns: [patientCase.id, patientCase.practiceId],
+    }).onDelete("restrict"),
+    foreignKey({
+      name: "hold_version_fk",
+      columns: [table.id, table.caseId, table.versionNumber, table.versionHighPence],
+      foreignColumns: [
+        estimateVersion.id,
+        estimateVersion.caseId,
+        estimateVersion.number,
+        estimateVersion.totalHighPence,
+      ],
+    }).onDelete("restrict"),
+    unique("hold_paypal_order_id_key").on(table.paypalOrderId),
+    unique("hold_authorization_id_key").on(table.authorizationId),
+    unique("hold_original_authorization_id_key").on(table.originalAuthorizationId),
+    check("hold_currency_code", sql`${table.currencyCode} in ('GBP', 'USD')`),
+    check("hold_held_before_non_negative", sql`${table.heldBeforePence} >= 0`),
+    check(
+      "hold_amount_is_increase",
+      sql`${table.amountPence} > 0 and ${table.amountPence} = ${table.versionHighPence} - ${table.heldBeforePence}`,
+    ),
+    check(
+      "hold_authorisation_with_status",
+      sql`(${table.status} in ('ordered', 'withdrawn', 'declined')) = (${table.authorizationId} is null)`,
+    ),
+    check(
+      "hold_authorisation_complete",
+      sql`(${table.authorizationId} is null) = (${table.originalAuthorizationId} is null)
+        and (${table.authorizationId} is null) = (${table.paymentKind} is null)
+        and (${table.authorizationId} is null) = (${table.authorisedAt} is null)`,
+    ),
+    check(
+      "hold_reauthorised_wallet_only",
+      sql`${table.reauthorisedAt} is null
+        or (${table.paymentKind} = 'paypal' and ${table.authorizationId} <> ${table.originalAuthorizationId})`,
+    ),
+    check(
+      "hold_closed_with_status",
+      sql`(${table.status} in ('ordered', 'authorised')) = (${table.closedAt} is null)`,
+    ),
+    index("hold_case_id_idx").on(table.caseId, table.versionNumber),
+  ],
+);
+
+/**
+ * One capture against a hold (plan 3.2). D17: captures are made at discharge,
+ * the last against each hold final. The database refuses captures that sum
+ * above their hold (migration 0006).
+ */
+export const capture = pgTable(
+  "capture",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    holdId: uuid("hold_id")
+      .notNull()
+      .references(() => hold.id, { onDelete: "restrict" }),
+    /** The capture's ordinal against its hold, in its `PayPal-Request-Id` step (`capture.1`). */
+    sequence: integer("sequence").notNull(),
+    paypalCaptureId: text("paypal_capture_id").notNull(),
+    /** The authorisation it was captured against. */
+    authorizationId: text("authorization_id").notNull(),
+    amountPence: integer("amount_pence").notNull(),
+    currencyCode: char("currency_code", { length: 3 }).notNull(),
+    finalCapture: boolean("final_capture").notNull(),
+    status: captureStatus("status").notNull(),
+    paypalFeePence: integer("paypal_fee_pence"),
+    netPence: integer("net_pence"),
+    /** PayPal's `create_time` of the capture. */
+    capturedAt: timestamp("captured_at", { withTimezone: true }).notNull(),
+    /** When PayPal's `PAYMENT.CAPTURE.COMPLETED` was reconciled against it. */
+    confirmedAt: timestamp("confirmed_at", { withTimezone: true }),
+    createdAt: createdAt(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    unique("capture_paypal_capture_id_key").on(table.paypalCaptureId),
+    unique("capture_sequence_key").on(table.holdId, table.sequence),
+    check("capture_sequence_positive", sql`${table.sequence} >= 1`),
+    check("capture_amount_positive", sql`${table.amountPence} > 0`),
+    check("capture_currency_code", sql`${table.currencyCode} in ('GBP', 'USD')`),
+    check(
+      "capture_fee_non_negative",
+      sql`${table.paypalFeePence} is null or ${table.paypalFeePence} >= 0`,
+    ),
+  ],
+);
+
+/**
+ * One refund of a capture, part or whole (plan 3.2: "goodwill or
+ * correction"). The row is written before PayPal is asked, so a retry sends
+ * the same amount under the same `PayPal-Request-Id`; the database refuses
+ * refunds that sum above their capture (migration 0006).
+ */
+export const refund = pgTable(
+  "refund",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    captureId: uuid("capture_id")
+      .notNull()
+      .references(() => capture.id, { onDelete: "restrict" }),
+    /** The refund's ordinal against its capture, in its `PayPal-Request-Id` step. */
+    sequence: integer("sequence").notNull(),
+    amountPence: integer("amount_pence").notNull(),
+    currencyCode: char("currency_code", { length: 3 }).notNull(),
+    reason: text("reason").notNull(),
+    requestedBy: auditActor("requested_by").notNull(),
+    status: refundStatus("status").notNull().default("requested"),
+    paypalRefundId: text("paypal_refund_id"),
+    /** PayPal's `create_time` of the refund. */
+    refundedAt: timestamp("refunded_at", { withTimezone: true }),
+    /** When PayPal's `PAYMENT.CAPTURE.REFUNDED` was reconciled against it. */
+    confirmedAt: timestamp("confirmed_at", { withTimezone: true }),
+    createdAt: createdAt(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    unique("refund_paypal_refund_id_key").on(table.paypalRefundId),
+    unique("refund_sequence_key").on(table.captureId, table.sequence),
+    check("refund_sequence_positive", sql`${table.sequence} >= 1`),
+    check("refund_amount_positive", sql`${table.amountPence} > 0`),
+    check("refund_currency_code", sql`${table.currencyCode} in ('GBP', 'USD')`),
+    check("refund_reason_length", sql`char_length(${table.reason}) between 1 and 500`),
+    check(
+      "refund_answered_with_id",
+      sql`(${table.status} <> 'requested' or ${table.paypalRefundId} is null)
+        and (${table.status} not in ('pending', 'completed') or ${table.paypalRefundId} is not null)`,
+    ),
+  ],
+);
+
+/**
+ * The itemised bill a vet signs off at discharge (plan 3.3): each line
+ * fulfils a line of the case's latest approved estimate, priced as that line
+ * is. Signed off, it never changes (migration 0006).
+ */
+export const bill = pgTable(
+  "bill",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    practiceId: uuid("practice_id").notNull(),
+    caseId: uuid("case_id").notNull(),
+    currencyCode: char("currency_code", { length: 3 }).notNull(),
+    totalPence: integer("total_pence").notNull(),
+    signedOffBy: auditActor("signed_off_by").notNull(),
+    signedOffAt: timestamp("signed_off_at", { withTimezone: true })
+      .notNull()
+      .default(sql`clock_timestamp()`),
+  },
+  (table) => [
+    foreignKey({
+      name: "bill_case_in_practice_fk",
+      columns: [table.caseId, table.practiceId],
+      foreignColumns: [patientCase.id, patientCase.practiceId],
+    }).onDelete("restrict"),
+    unique("bill_case_id_key").on(table.caseId),
+    check("bill_currency_code", sql`${table.currencyCode} in ('GBP', 'USD')`),
+    check("bill_total_non_negative", sql`${table.totalPence} >= 0`),
+  ],
+);
+
+/** One line of a bill: the estimate line it fulfils and the quantity done. */
+export const billLine = pgTable(
+  "bill_line",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    billId: uuid("bill_id")
+      .notNull()
+      .references(() => bill.id, { onDelete: "restrict" }),
+    position: integer("position").notNull(),
+    estimateLineId: uuid("estimate_line_id").notNull(),
+    quantity: integer("quantity").notNull(),
+    unitPricePence: integer("unit_price_pence").notNull(),
+    amountPence: integer("amount_pence")
+      .notNull()
+      .generatedAlwaysAs(sql`unit_price_pence * quantity`),
+  },
+  (table) => [
+    foreignKey({
+      name: "bill_line_priced_from_estimate_fk",
+      columns: [table.estimateLineId, table.unitPricePence],
+      foreignColumns: [estimateLine.id, estimateLine.unitPricePence],
+    }).onDelete("restrict"),
+    unique("bill_line_position_key").on(table.billId, table.position),
+    unique("bill_line_estimate_line_key").on(table.billId, table.estimateLineId),
+    check("bill_line_position_positive", sql`${table.position} >= 1`),
+    check("bill_line_quantity_positive", sql`${table.quantity} >= 1`),
+  ],
+);
+
+/**
+ * The part of a bill line one hold pays (plan 3.2, rule 2). A line's
+ * allocations sum to the line, and a hold's to at most the hold (migration
+ * 0006).
+ */
+export const allocation = pgTable(
+  "allocation",
+  {
+    billLineId: uuid("bill_line_id")
+      .notNull()
+      .references(() => billLine.id, { onDelete: "restrict" }),
+    holdId: uuid("hold_id")
+      .notNull()
+      .references(() => hold.id, { onDelete: "restrict" }),
+    amountPence: integer("amount_pence").notNull(),
+  },
+  (table) => [
+    primaryKey({ name: "allocation_pkey", columns: [table.billLineId, table.holdId] }),
+    check("allocation_amount_positive", sql`${table.amountPence} > 0`),
+    index("allocation_hold_id_idx").on(table.holdId),
   ],
 );

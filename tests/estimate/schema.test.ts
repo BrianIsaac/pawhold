@@ -340,7 +340,10 @@ describe("the estimate schema as migrated (plan 3.3)", () => {
       order by c.relname
     `);
 
-    expect(code).toBe(RESTRICT_VIOLATION);
+    // Since U3's bill lines name the estimate lines they fulfil (migration
+    // 0005), Postgres refuses the truncate for that foreign key (0A000)
+    // before the trigger is reached; either way the table is kept.
+    expect([RESTRICT_VIOLATION, "0A000"]).toContain(code);
     expect(guarded.map((row) => row.table_name)).toEqual([
       "estimate_line",
       "estimate_version",

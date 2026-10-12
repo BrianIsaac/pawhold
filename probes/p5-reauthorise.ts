@@ -1,6 +1,11 @@
 import type { PayPalError } from "@/paypal/client";
 
-import { captureAuthorization, getAuthorization, pence, reauthorizeAuthorization } from "./paypal";
+import {
+  captureAuthorization,
+  getAuthorization,
+  pence,
+  reauthorizeAuthorization,
+} from "@/paypal/payments";
 import {
   attempt,
   gbp,

@@ -41,3 +41,10 @@ used and no PayPal host is called.
 | `void-422-previously-captured.json` | Payments v2 schema, example `authorizations_void_422_already_captured` |
 | `reauthorize-422-too-soon.json` | Payments v2 schema, example `authorizations_reauthorize_422_inside_honor_period` (its `name` is spelt `UNPROCCESSABLE_ENTITY` in PayPal's own document) |
 | `capture-409-previous-request-in-progress.json` | Payments v2 schema, example `authorizations_capture_409_conflict` |
+| `reauthorize-201.json` | Payments v2 schema, example `authorizations_reauthorize` (read 12 Oct 2026 by U3): the new authorisation's id, `CREATED`, and links only; no amount or times |
+| `refund-201.json` | Payments v2 schema, example `captures_refund_with_prefer_header` (read 12 Oct 2026 by U3) |
+| `refund-422-amount-exceeded.json` | Payments v2 schema, example `captures_refund_422_amount_exceeded` (read 12 Oct 2026 by U3) |
+
+The sandbox's own answers (authorise, capture, void, reauthorise refused,
+negative testing) are U0's recordings under `probes/recorded/`, which U3's
+unit tests read as their PayPal doubles.

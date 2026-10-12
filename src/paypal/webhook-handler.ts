@@ -48,6 +48,13 @@ export interface WebhookHandlerDependencies {
   readonly postback?: PayPalClient;
   /** Accept the simulator's mock events (never in the judged deployment). */
   readonly acceptMockEvents?: boolean;
+  /**
+   * Called with the event id once a new event is stored and committed: the
+   * money lifecycle reconciles it against the case's state (U3). A failure
+   * here is logged and never fails the delivery: the event is stored, and
+   * the hourly job reconciles what is left.
+   */
+  readonly onStored?: (eventId: string) => Promise<void>;
 }
 
 /**
@@ -113,6 +120,16 @@ export function createWebhookHandler(
         method: verification.method,
         isMock: verification.isMock,
       });
+      if (stored && dependencies.onStored) {
+        try {
+          await dependencies.onStored(envelope.id);
+        } catch (error) {
+          console.error("pawhold: webhook stored but not reconciled", {
+            eventId: envelope.id,
+            error,
+          });
+        }
+      }
       return answer(200, { status: stored ? "stored" : "duplicate" });
     } catch (error) {
       console.error("pawhold: webhook store failed", { eventId: envelope.id, error });
@@ -166,6 +183,7 @@ async function storeEvent(
         transmissionTime: transmission.transmissionTime,
         certUrl: transmission.certUrl,
         authAlgo: transmission.authAlgo,
+        transmissionSig: transmission.transmissionSig,
         verification: event.method,
         isMock: event.isMock,
         rawBody: event.text,

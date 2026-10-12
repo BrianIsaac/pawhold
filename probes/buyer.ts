@@ -1,7 +1,7 @@
 import { type Browser, chromium, type Page } from "playwright";
 
 import { serveCardPage } from "./card-page";
-import { RETURN_URL } from "./paypal";
+import { RETURN_URL } from "./orders";
 import { scrub } from "./redact";
 
 /*
