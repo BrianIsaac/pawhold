@@ -1,6 +1,5 @@
 import { join } from "node:path";
 
-import AxeBuilder from "@axe-core/playwright";
 import type { Page } from "@playwright/test";
 import { and, eq } from "drizzle-orm";
 
@@ -8,9 +7,7 @@ import { booking, patientCase } from "@/db/schema";
 
 import { expect, signInAsPractice, test, WIDTHS, type Width } from "./fixtures";
 import { openBrowserDatabase } from "./owner/support/cases";
-
-/** The smallest a tap target may be, each way (plan 5, U5's acceptance). */
-const TARGET_PX = 44;
+import { checkScreen } from "./support/checks";
 
 /** The seeded day's patients: the showcase case's check and the day's seven cases. */
 const SEEDED_PATIENTS = ["Archie", "Biscuit", "Bramble", "Clover", "Juno", "Moss", "Pip", "Willow"];
@@ -107,40 +104,6 @@ function bookingOf(page: Page, patient: string) {
   return page
     .getByRole("region", { name: "Bookings by room" })
     .getByRole("link", { name: new RegExp(`\\b${patient}\\b`) });
-}
-
-/**
- * Every visible interactive element smaller than 44 px either way (as U5's
- * accessibility walk measures it).
- *
- * @param page - The page.
- * @returns The targets too small.
- */
-async function smallTargets(page: Page) {
-  return page.evaluate((min) => {
-    const selector =
-      "a[href],button,input:not([type=hidden]),select,textarea,summary,[tabindex]:not([tabindex='-1'])";
-    const small: { element: string; width: number; height: number }[] = [];
-    for (const element of document.querySelectorAll<HTMLElement>(selector)) {
-      const style = getComputedStyle(element);
-      if (
-        style.visibility === "hidden" ||
-        style.display === "none" ||
-        element.getClientRects().length === 0
-      ) {
-        continue;
-      }
-      const box = element.getBoundingClientRect();
-      if (box.width < min - 0.5 || box.height < min - 0.5) {
-        small.push({
-          element: `${element.tagName.toLowerCase()} "${(element.textContent ?? "").trim().slice(0, 40)}"`,
-          width: Math.round(box.width),
-          height: Math.round(box.height),
-        });
-      }
-    }
-    return small;
-  }, TARGET_PX);
 }
 
 for (const width of Object.keys(WIDTHS) as Width[]) {
@@ -251,15 +214,7 @@ for (const width of Object.keys(WIDTHS) as Width[]) {
     }) => {
       await openHeldDay(page);
 
-      const results = await new AxeBuilder({ page }).analyze();
-      const serious = results.violations
-        .filter((violation) => violation.impact === "serious" || violation.impact === "critical")
-        .map((violation) => ({
-          id: violation.id,
-          targets: violation.nodes.map((node) => node.target.join(" ")),
-        }));
-      expect(serious).toEqual([]);
-      expect(await smallTargets(page)).toEqual([]);
+      await checkScreen(page);
     });
   });
 }
