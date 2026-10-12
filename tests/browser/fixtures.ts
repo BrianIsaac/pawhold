@@ -47,3 +47,31 @@ export async function signInAsPractice(page: Page): Promise<string> {
   const body = (await response.json()) as { practiceId: string };
   return body.practiceId;
 }
+
+/** Plan 3.4's own notes: eval set 01, whose recorded answer the walks' double gives. */
+export const PLAN_NOTES =
+  "GA, dental scale and polish, probable two extractions upper PM, pre-op bloods";
+
+/**
+ * Opens a case from today's "New case" and lands on it.
+ *
+ * @param page - The page, signed in as the practice.
+ * @param kase - The patient, the owner and the procedure.
+ * @param kase.patient - The patient.
+ * @param kase.owner - The owner.
+ * @param kase.procedure - The procedure.
+ * @returns Resolves on the case's page.
+ */
+export async function openNewCase(
+  page: Page,
+  kase: { patient: string; owner: string; procedure: string },
+): Promise<void> {
+  await page.goto("/today");
+  await page.getByRole("button", { name: "New case" }).click();
+  const dialog = page.getByRole("dialog", { name: "Open a case" });
+  await dialog.getByLabel("Patient").fill(kase.patient);
+  await dialog.getByLabel("Owner").fill(kase.owner);
+  await dialog.getByLabel("Procedure").fill(kase.procedure);
+  await dialog.getByRole("button", { name: "Open the case" }).click();
+  await expect(page.getByRole("heading", { level: 1, name: kase.patient })).toBeVisible();
+}

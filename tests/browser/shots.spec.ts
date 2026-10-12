@@ -1,6 +1,14 @@
 import { join } from "node:path";
 
-import { expect, signInAsPractice, test, WIDTHS, type Width } from "./fixtures";
+import {
+  expect,
+  openNewCase,
+  PLAN_NOTES,
+  signInAsPractice,
+  test,
+  WIDTHS,
+  type Width,
+} from "./fixtures";
 
 /**
  * Full-page shots of each practice screen at both widths, for the handover
@@ -33,6 +41,24 @@ for (const width of Object.keys(WIDTHS) as Width[]) {
         path: join(directory!, `case-seeded-${WIDTHS[width].width}.png`),
         fullPage: true,
       });
+    });
+    test("a case drafted from its notes, then sent", async ({ page }) => {
+      const px = WIDTHS[width].width;
+      await signInAsPractice(page);
+      await openNewCase(page, { patient: "Pepper", owner: "Sam Patel", procedure: "Dental" });
+      await page.screenshot({ path: join(directory!, `case-new-${px}.png`), fullPage: true });
+      await page.getByRole("textbox", { name: "Clinical notes" }).fill(PLAN_NOTES);
+      await page.getByRole("button", { name: "Draft estimate" }).click();
+      await expect(page.getByRole("region", { name: "Draft estimate, version 1" })).toBeVisible();
+      await page.screenshot({ path: join(directory!, `case-draft-${px}.png`), fullPage: true });
+      await page.getByRole("button", { name: "Send to Sam" }).click();
+      await page.screenshot({ path: join(directory!, `case-review-${px}.png`) });
+      await page
+        .getByRole("dialog", { name: "Send this estimate to Sam?" })
+        .getByRole("button", { name: "Send to Sam" })
+        .click();
+      await expect(page.getByRole("status")).toBeVisible();
+      await page.screenshot({ path: join(directory!, `case-sent-${px}.png`), fullPage: true });
     });
   });
 }
