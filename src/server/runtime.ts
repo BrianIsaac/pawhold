@@ -10,6 +10,7 @@ import {
   webhookEnvironment,
 } from "@/env";
 import { createHealthHandler } from "@/health/handler";
+import { createJudgeDoors } from "@/judge/doors";
 import { createJudgeSessionHandlers } from "@/judge/session";
 import { reconcileWebhookEvent } from "@/money/reconcile";
 import { createOwnerHandlers } from "@/owner/handlers";
@@ -28,6 +29,7 @@ interface Runtime {
   paypal?: PayPalClient | null;
   webhookHandler?: (request: Request) => Promise<Response>;
   judgeSessions?: ReturnType<typeof createJudgeSessionHandlers>;
+  judgeDoors?: ReturnType<typeof createJudgeDoors>;
   health?: () => Promise<Response>;
   agent?: ServerAgent;
   owner?: ReturnType<typeof createOwnerHandlers>;
@@ -119,6 +121,23 @@ export function judgeSessionHandlers(): ReturnType<typeof createJudgeSessionHand
     secureCookie: process.env.NODE_ENV === "production",
   });
   return runtime.judgeSessions;
+}
+
+/**
+ * The landing page's two doors (U9), each new practice seeded as
+ * {@link judgeSessionHandlers} seeds it.
+ *
+ * @returns The handler.
+ * @throws EnvironmentError when `DATABASE_URL` or `SESSION_SECRET` is missing.
+ */
+export function judgeDoors(): ReturnType<typeof createJudgeDoors> {
+  runtime.judgeDoors ??= createJudgeDoors({
+    db: database().db,
+    secret: sessionSecret(),
+    seed: seedFictionalPractice,
+    secureCookie: process.env.NODE_ENV === "production",
+  });
+  return runtime.judgeDoors;
 }
 
 /**

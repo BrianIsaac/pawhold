@@ -63,7 +63,7 @@ describe("judge-mode sessions (plan 7.4)", () => {
     expect(started.status).toBe(201);
     const body = (await started.json()) as { practiceId: string; door: string; expiresAt: string };
     expect(body.door).toBe("practice");
-    expect(seed).toHaveBeenCalledWith(expect.anything(), body.practiceId);
+    expect(seed).toHaveBeenCalledWith(expect.anything(), body.practiceId, expect.any(Date));
     const [created] = await db.select().from(practice).where(eq(practice.id, body.practiceId));
     expect(created!.kind).toBe("judge");
     const setCookie = started.headers.get("set-cookie")!;

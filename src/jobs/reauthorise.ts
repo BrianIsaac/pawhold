@@ -9,6 +9,7 @@ import { lockCase } from "@/money/state";
 import { currencyCode } from "@/money/currency";
 import type { PayPalClient } from "@/paypal/client";
 import { parsePayPalTime, reauthorizeAuthorization } from "@/paypal/payments";
+import { isSeededPayPalId } from "@/paypal/seeded";
 
 /** PayPal's honour period: "the first 3 days of an authorization" (/payment-methods/auth-honor). */
 export const HONOUR_PERIOD_MS = 3 * 24 * 60 * 60 * 1000;
@@ -153,8 +154,9 @@ async function reviewHold(
 }
 
 /**
- * Whether the rule may still reauthorise a hold: a wallet hold, never
- * reauthorised nor refused, inside its 29 days.
+ * Whether the rule may still reauthorise a hold: a wallet hold PayPal made
+ * (never a seeded one, whose ids PayPal never issued), never reauthorised nor
+ * refused, inside its 29 days.
  *
  * @param row - The hold.
  * @param now - The clock.
@@ -163,6 +165,7 @@ async function reviewHold(
 function canReauthorise(row: HoldRow, now: Date): boolean {
   return (
     row.paymentKind === "paypal" &&
+    !isSeededPayPalId(row.paypalOrderId) &&
     row.reauthorisedAt === null &&
     row.reauthoriseRefusedAt === null &&
     now.getTime() - row.authorisedAt!.getTime() < AUTHORISATION_PERIOD_MS
@@ -313,9 +316,11 @@ async function flag(tx: Transaction, row: HoldRow, now: Date, billed: boolean): 
           ? "a card hold is never reauthorised: PayPal documents reauthorisation for PayPal accounts only"
           : row.reauthorisedAt
             ? "reauthorised once, which is all PayPal allows; its new honour period is over"
-            : row.reauthoriseRefusedAt
-              ? "PayPal refused to reauthorise it"
-              : "it is past its 29 days and was never reauthorised",
+            : isSeededPayPalId(row.paypalOrderId)
+              ? "a seeded hold is never sent to PayPal, so it is never reauthorised"
+              : row.reauthoriseRefusedAt
+                ? "PayPal refused to reauthorise it"
+                : "it is past its 29 days and was never reauthorised",
       honourPeriodFrom: (row.reauthorisedAt ?? row.authorisedAt!).toISOString(),
     },
   });

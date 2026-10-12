@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { runHourly } from "@/jobs/hourly";
+import type { CleanupReport } from "@/judge/cleanup";
 import { sweepSchedule, type SweepReport } from "@/schedule/agent";
 
 import { connectTestDatabase } from "../support/database";
@@ -27,13 +28,18 @@ const NOTHING_SWEPT: SweepReport = {
 // files'; the last test runs the real sweep on a practice of its own.
 const quietSchedule = async (): Promise<SweepReport> => NOTHING_SWEPT;
 
+// The judge-session clean-up prunes any practice's ended sessions, whatever
+// the clock: every run here is given a part that prunes nothing of the other
+// files'; tests/judge/cleanup.test.ts runs the real one on practices of its own.
+const quietSessions = async (): Promise<CleanupReport> => ({ pruned: [], voided: [], waiting: [] });
+
 describe("the hourly job (plan 7.3: the reauthorisation rule; U3's webhook sweep; U8a's schedule agent)", () => {
   it("runs the reauthorisation rule, the webhook sweep and the schedule agent, and reports what each did", async () => {
     const report = await runHourly({
       db: database.db,
       paypal: paypal.client(),
       now: BEFORE_EVERYTHING,
-      parts: { schedule: quietSchedule },
+      parts: { schedule: quietSchedule, sessions: quietSessions },
     });
 
     expect(report).toEqual({
@@ -42,6 +48,7 @@ describe("the hourly job (plan 7.3: the reauthorisation rule; U3's webhook sweep
       discharges: { resumed: [], failed: [] },
       webhooks: { reconciled: 0, flagged: 0, pending: 0, failed: 0 },
       schedule: NOTHING_SWEPT,
+      sessions: { pruned: [], voided: [], waiting: [] },
       sessionsPruned: 0,
       errors: [],
     });
@@ -55,6 +62,7 @@ describe("the hourly job (plan 7.3: the reauthorisation rule; U3's webhook sweep
       parts: {
         reauthorisation: () => Promise.reject(new Error("the rule broke")),
         schedule: quietSchedule,
+        sessions: quietSessions,
       },
     });
 
@@ -70,7 +78,10 @@ describe("the hourly job (plan 7.3: the reauthorisation rule; U3's webhook sweep
       db: database.db,
       paypal: paypal.client(),
       now: BEFORE_EVERYTHING,
-      parts: { schedule: () => Promise.reject(new Error("the sweep broke")) },
+      parts: {
+        schedule: () => Promise.reject(new Error("the sweep broke")),
+        sessions: quietSessions,
+      },
     });
 
     expect(report.schedule).toBeNull();
@@ -84,7 +95,7 @@ describe("the hourly job (plan 7.3: the reauthorisation rule; U3's webhook sweep
       db: database.db,
       paypal: null,
       now: BEFORE_EVERYTHING,
-      parts: { schedule: quietSchedule },
+      parts: { schedule: quietSchedule, sessions: quietSessions },
     });
 
     expect(report.reauthorisation).toBeNull();
@@ -106,6 +117,7 @@ describe("the hourly job (plan 7.3: the reauthorisation rule; U3's webhook sweep
           asked.push(clock);
           return sweepSchedule(db, { now: clock, practiceId: day.practiceId });
         },
+        sessions: quietSessions,
       },
     });
 

@@ -24,9 +24,10 @@ const SIGNATURE_DOMAIN = "pawhold.session.v1";
 
 /**
  * Fills a new judge practice with its price list and cases. U2 supplies the
- * content; U1 calls it inside the transaction that makes the practice.
+ * content; U1 calls it inside the transaction that makes the practice, with
+ * the session's start, which the seeded stories are told back from.
  */
-export type PracticeSeed = (tx: Transaction, practiceId: string) => Promise<void>;
+export type PracticeSeed = (tx: Transaction, practiceId: string, now?: Date) => Promise<void>;
 
 /** The seed until U2's lands: an empty practice. */
 export const seedNothing: PracticeSeed = async () => {};
@@ -154,6 +155,70 @@ export async function findJudgeSessionByCookie(
   return found ?? null;
 }
 
+/** A judge's session just started. */
+export interface StartedSession {
+  readonly sessionId: string;
+  readonly practiceId: string;
+  readonly expiresAt: Date;
+}
+
+/**
+ * Starts a judge's session through one of the landing page's doors: a new
+ * practice of the session's own, seeded inside the transaction that makes it,
+ * the session, and `judge.session.started`. No account (plan 7.4).
+ *
+ * @param dependencies - The database, the seed and the clock.
+ * @param door - The door the judge came in by.
+ * @returns The session.
+ */
+export async function startJudgeSession(
+  dependencies: Pick<JudgeSessionDependencies, "db" | "seed" | "now">,
+  door: JudgeSession["door"],
+): Promise<StartedSession> {
+  const createdAt = new Date((dependencies.now ?? Date.now)());
+  const expiresAt = new Date(createdAt.getTime() + SESSION_LIFETIME_MS);
+  const seed = dependencies.seed ?? seedNothing;
+  return dependencies.db.transaction(async (tx) => {
+    const [made] = await tx
+      .insert(practice)
+      .values({ name: JUDGE_PRACTICE_NAME, kind: "judge", createdAt })
+      .returning({ id: practice.id });
+    const practiceId = made!.id;
+    await seed(tx, practiceId, createdAt);
+    const [opened] = await tx
+      .insert(session)
+      .values({ practiceId, door, createdAt, expiresAt, lastSeenAt: createdAt })
+      .returning({ id: session.id });
+    await appendAuditEvent(tx, {
+      practiceId,
+      actor: "system",
+      action: "judge.session.started",
+      detail: { door },
+    });
+    return { sessionId: opened!.id, practiceId, expiresAt };
+  });
+}
+
+/**
+ * The Set-Cookie value that carries a session: signed, a week long,
+ * HttpOnly, SameSite=Lax, Secure in production.
+ *
+ * @param sessionId - The session.
+ * @param secret - The session secret.
+ * @param secure - Whether to mark it Secure.
+ * @returns The header's value.
+ */
+export function sessionCookie(sessionId: string, secret: string, secure: boolean): string {
+  return [
+    `${SESSION_COOKIE}=${signSessionId(sessionId, secret)}`,
+    "Path=/",
+    "HttpOnly",
+    "SameSite=Lax",
+    `Max-Age=${SESSION_LIFETIME_MS / 1000}`,
+    ...(secure ? ["Secure"] : []),
+  ].join("; ");
+}
+
 /**
  * Builds `POST /api/judge/session` (start a session through one of the
  * landing page's two doors: a new practice, seeded, and a signed cookie; no
@@ -167,7 +232,6 @@ export function createJudgeSessionHandlers(dependencies: JudgeSessionDependencie
   GET: (request: Request) => Promise<Response>;
 } {
   const now = dependencies.now ?? Date.now;
-  const seed = dependencies.seed ?? seedNothing;
 
   return {
     POST: async (request) => {
@@ -181,39 +245,15 @@ export function createJudgeSessionHandlers(dependencies: JudgeSessionDependencie
         return answer(400, { error: "door_invalid" });
       }
 
-      const createdAt = new Date(now());
-      const expiresAt = new Date(createdAt.getTime() + SESSION_LIFETIME_MS);
-      const started = await dependencies.db.transaction(async (tx) => {
-        const [made] = await tx
-          .insert(practice)
-          .values({ name: JUDGE_PRACTICE_NAME, kind: "judge", createdAt })
-          .returning({ id: practice.id });
-        const practiceId = made!.id;
-        await seed(tx, practiceId);
-        const [opened] = await tx
-          .insert(session)
-          .values({ practiceId, door, createdAt, expiresAt, lastSeenAt: createdAt })
-          .returning({ id: session.id });
-        await appendAuditEvent(tx, {
-          practiceId,
-          actor: "system",
-          action: "judge.session.started",
-          detail: { door },
-        });
-        return { sessionId: opened!.id, practiceId };
-      });
-
-      const cookie = [
-        `${SESSION_COOKIE}=${signSessionId(started.sessionId, dependencies.secret)}`,
-        "Path=/",
-        "HttpOnly",
-        "SameSite=Lax",
-        `Max-Age=${SESSION_LIFETIME_MS / 1000}`,
-        ...((dependencies.secureCookie ?? false) ? ["Secure"] : []),
-      ].join("; ");
+      const started = await startJudgeSession(dependencies, door);
+      const cookie = sessionCookie(
+        started.sessionId,
+        dependencies.secret,
+        dependencies.secureCookie ?? false,
+      );
       return answer(
         201,
-        { practiceId: started.practiceId, door, expiresAt: expiresAt.toISOString() },
+        { practiceId: started.practiceId, door, expiresAt: started.expiresAt.toISOString() },
         { "set-cookie": cookie },
       );
     },

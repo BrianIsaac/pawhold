@@ -124,6 +124,18 @@ const SCREENS: Record<string, (page: Page) => Promise<void>> = {
   "the landing page": async (page) => {
     await page.goto("/");
   },
+  "the practice's door, its first screen": async (page) => {
+    await page.goto("/");
+    await page.getByRole("link", { name: "Try it as the practice" }).click();
+    await expect(page.getByRole("link", { name: "Bramble" })).toBeVisible();
+  },
+  "the owner's door, its first screen with the sandbox login": async (page) => {
+    await page.goto("/");
+    await page.getByRole("link", { name: "Try it as the owner" }).click();
+    await expect(
+      page.getByRole("complementary", { name: "Testing in PayPal's sandbox" }),
+    ).toBeVisible();
+  },
   "today's cases, signed out": async (page) => {
     await page.goto("/today");
     await expect(page.getByRole("button", { name: "Try it as the practice" })).toBeVisible();

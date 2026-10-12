@@ -5,6 +5,7 @@ import { appendAuditEvent } from "@/audit/writer";
 import { auditActor, capture, hold, refund } from "@/db/schema";
 import { type CurrencyCode, currencyCode } from "@/money/currency";
 import { parsePayPalTime, refundCapture, type Refund } from "@/paypal/payments";
+import { isSeededPayPalId } from "@/paypal/seeded";
 
 import { askPayPal, MoneyError } from "./errors";
 import { asking, holdRequestId, type MoneyDependencies, parse, refusedEvent } from "./holds";
@@ -85,6 +86,12 @@ export async function refundCaptured(
       .for("update", { of: capture });
     if (!taken) {
       throw new MoneyError("capture_not_found", `the case has no capture ${captureId}`);
+    }
+    if (isSeededPayPalId(taken.paypalCaptureId) || isSeededPayPalId(taken.paypalOrderId)) {
+      throw new MoneyError(
+        "refund_refused",
+        `capture ${taken.paypalCaptureId} was seeded for the demo: PayPal never made it, so it is never refunded there`,
+      );
     }
     if (taken.status !== "completed" && taken.status !== "partially_refunded") {
       throw new MoneyError(

@@ -3,6 +3,8 @@ import { and, eq, isNotNull } from "drizzle-orm";
 import type { Executor } from "@/db/client";
 import { estimateVersion, patientCase, practice } from "@/db/schema";
 
+import { judgePracticeEnded } from "@/judge/cleanup";
+
 import { verifyOwnerToken } from "./link";
 
 /** What an owner's link opens. */
@@ -23,7 +25,8 @@ export type ResolvedOwnerLink =
 
 /**
  * Resolves an owner's link to the case and the sent version it opens, or to
- * the "ask the practice" page: an expired link names its practice; a changed
+ * the "ask the practice" page: an expired link, or one to a judge's practice
+ * the clean-up has ended (U9), names its practice; a changed
  * one, or one naming a case or a sent version the store does not hold, names
  * none.
  *
@@ -64,7 +67,10 @@ export async function resolveOwnerLink(
   if (!found) {
     return { kind: "ask_the_practice", practiceName: null };
   }
-  if (check.status === "expired") {
+  if (
+    check.status === "expired" ||
+    (await judgePracticeEnded(executor, found.practiceId, signing.now))
+  ) {
     return { kind: "ask_the_practice", practiceName: found.practiceName };
   }
   return {
