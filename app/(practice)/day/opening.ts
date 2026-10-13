@@ -1,6 +1,15 @@
 /** How many five-minute columns to keep in view before the line scrolled to: ten minutes. */
 export const LEAD_COLUMNS = 2;
 
+/** The five-minute columns of an hour. */
+const HOUR_COLUMNS = 12;
+
+/**
+ * How many five-minute columns of its first hour the view keeps at least:
+ * fifteen minutes, which is room for the hour's label beside the room names.
+ */
+export const LABEL_COLUMNS = 3;
+
 /** A booking's span on the grid, by its lines (the first is 1). */
 interface Span {
   readonly start: number;
@@ -10,7 +19,10 @@ interface Span {
 /**
  * Where the grid opens: the lead columns before the line to bring into view,
  * moved back to the start of any booking that would otherwise open cut
- * under the room names, so every booking in view is whole (U11).
+ * under the room names, so every booking in view is whole (U11); then, where
+ * that cuts no booking, moved back off the last ten minutes of an hour, so
+ * the first hour in view has room for its label (U8b). The grid's first line
+ * is an hour's start.
  *
  * @param line - The grid line to bring into view (the first is 1).
  * @param bookings - Every booking's span.
@@ -27,5 +39,7 @@ export function openingLine(line: number, bookings: readonly Span[]): number {
       }
     }
   }
-  return start;
+  const intoHour = (start - 1) % HOUR_COLUMNS;
+  const roomy = start - Math.max(0, intoHour - (HOUR_COLUMNS - LABEL_COLUMNS));
+  return bookings.some((one) => one.start < roomy && one.end > roomy) ? start : roomy;
 }
