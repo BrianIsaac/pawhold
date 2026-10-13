@@ -30,8 +30,9 @@ on:
     branches:
       - main
   schedule:
-    # The uptime check, every thirty minutes: off the quarter hours, when
-    # GitHub's scheduler is busiest, and apart from Render's probe at the top
+    # The uptime check, every thirty minutes: off the start of the hour,
+    # which GitHub names as its scheduler's high load, with the same margin
+    # from the other quarter hours, and apart from Render's probe at the top
     # of the hour.
     - cron: "22,52 * * * *"
     # The walk, once a day (13:37 Singapore).
