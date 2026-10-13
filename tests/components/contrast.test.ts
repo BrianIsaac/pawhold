@@ -146,6 +146,14 @@ const RESTYLE: readonly (readonly [string, string, string, number])[] = [
   ["the focus ring on sage", token("colour-focus"), token("colour-sage"), 3],
   ["the owner's focus ring on white", owner.get("--owner-focus")!, token("colour-surface"), 3],
   ["the owner's focus ring on mint", owner.get("--owner-focus")!, token("colour-mint"), 3],
+  // U18: the drawings, the owner's head panel, the thanks at "Held", the landing's band.
+  [
+    "a drawing's line on a mint disc or panel (a graphic)",
+    token("colour-saddle"),
+    token("colour-mint"),
+    3,
+  ],
+  ["a drawing's line on white (a graphic)", token("colour-saddle"), token("colour-surface"), 3],
 ];
 
 describe("contrast on every chip tone", () => {
