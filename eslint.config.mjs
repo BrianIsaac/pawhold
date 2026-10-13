@@ -14,5 +14,13 @@ export default defineConfig([
       "no-console": ["error", { allow: ["warn", "error", "info"] }],
     },
   },
-  globalIgnores([".next/**", "node_modules/**", "coverage/**", "next-env.d.ts", "drizzle/meta/**"]),
+  // docs/ is private context, untracked and copied into each worktree (.gitignore), as Prettier skips it.
+  globalIgnores([
+    ".next/**",
+    "node_modules/**",
+    "coverage/**",
+    "next-env.d.ts",
+    "drizzle/meta/**",
+    "docs/**",
+  ]),
 ]);
