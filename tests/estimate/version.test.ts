@@ -41,7 +41,13 @@ beforeEach(async () => {
   await importPriceList(db, { practiceId, actor: "system", sourceName: "prices.csv", csv: PRICES });
   const [kase] = await db
     .insert(patientCase)
-    .values({ practiceId, patientName: "Biscuit", ownerName: "A. Owner", procedure: "Dental" })
+    .values({
+      practiceId,
+      patientName: "Biscuit",
+      species: "dog",
+      ownerName: "A. Owner",
+      procedure: "Dental",
+    })
     .returning();
   caseId = kase!.id;
 });
@@ -308,7 +314,13 @@ describe("an estimate version (plan 3.3)", () => {
     const [bare] = await db.insert(practice).values({ name: "Bare", kind: "judge" }).returning();
     const [kase] = await db
       .insert(patientCase)
-      .values({ practiceId: bare!.id, patientName: "Tess", ownerName: "B. Owner", procedure: "X" })
+      .values({
+        practiceId: bare!.id,
+        patientName: "Tess",
+        species: "dog",
+        ownerName: "B. Owner",
+        procedure: "X",
+      })
       .returning();
 
     const refused = await refusal(
@@ -386,7 +398,13 @@ describe("the delta between versions (plan 3.3)", () => {
     const first = await makeEstimateVersion(db, { practiceId, caseId, actor: "vet", lines: [] });
     const [otherCase] = await db
       .insert(patientCase)
-      .values({ practiceId, patientName: "Tess", ownerName: "B. Owner", procedure: "Spay" })
+      .values({
+        practiceId,
+        patientName: "Tess",
+        species: "dog",
+        ownerName: "B. Owner",
+        procedure: "Spay",
+      })
       .returning();
     const other = await makeEstimateVersion(db, {
       practiceId,
@@ -439,6 +457,7 @@ describe("an estimate version, kept to its practice and its prices", () => {
       .values({
         practiceId,
         patientName: "Rex",
+        species: "dog",
         ownerName: "D. Owner",
         procedure: "Spay",
         currencyCode: "USD",

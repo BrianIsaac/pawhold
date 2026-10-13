@@ -15,8 +15,11 @@ import { readmeSteps, type ReadmeStep, type StepAction } from "./readme";
 /** The deployment's address, as the README gives it; a walk opens its own base URL for it. */
 export const README_ADDRESS = "https://pawhold.onrender.com";
 
-/** What the new case's form is filled with. */
+/** What the new case's text fields are filled with. */
 export const NEW_CASE = { Patient: "Pepper", Owner: "Sam Patel", Procedure: "Dental" } as const;
+
+/** The species the new case's form is given (U17), by the label its field offers. */
+export const NEW_CASE_SPECIES = "Dog";
 
 /** How one walk does what differs between its beds. */
 export interface ReadmeWalk {
@@ -87,6 +90,9 @@ async function act(
       for (const [label, value] of Object.entries(NEW_CASE)) {
         await dialog.getByLabel(label, { exact: true }).fill(value);
       }
+      await dialog
+        .getByRole("combobox", { name: "Species", exact: true })
+        .selectOption({ label: NEW_CASE_SPECIES });
       return;
     }
     case "paypal":

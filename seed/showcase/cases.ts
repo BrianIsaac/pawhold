@@ -1,4 +1,5 @@
 import type { EstimateLineInput } from "@/estimate/version";
+import type { Species } from "@/practice/species";
 
 import type { DAY_VETS } from "../practice/day";
 
@@ -44,6 +45,8 @@ export interface MoneyStory {
 /** A case the showcase adds to the practice's day, for a money state the day does not show. */
 export interface MoneyStateCase {
   readonly patientName: string;
+  /** The animal's species (U17), as its notes name it. */
+  readonly species: Species;
   readonly ownerName: string;
   readonly procedure: string;
   readonly vetName: ShowcaseVet;
@@ -65,6 +68,7 @@ const MINUTES_A_DAY = 24 * 60;
  */
 export const OWNER_DOOR_CASE: MoneyStateCase = {
   patientName: "Otis",
+  species: "dog",
   ownerName: "Priya Shah",
   procedure: "Ear haematoma repair",
   vetName: "Imogen Shaw",
@@ -137,6 +141,7 @@ export const MONEY_STATE_CASES: readonly MoneyStateCase[] = [
   OWNER_DOOR_CASE,
   {
     patientName: "Hazel",
+    species: "dog",
     ownerName: "Tom Ashworth",
     procedure: "Wound repair",
     vetName: "Rowan Hale",
@@ -184,6 +189,7 @@ export const MONEY_STATE_CASES: readonly MoneyStateCase[] = [
   },
   {
     patientName: "Rufus",
+    species: "dog",
     ownerName: "Carys Evans",
     procedure: "Bladder stone removal",
     vetName: "Rowan Hale",
@@ -243,6 +249,7 @@ export const MONEY_STATE_CASES: readonly MoneyStateCase[] = [
   },
   {
     patientName: "Poppy",
+    species: "cat",
     ownerName: "Lena Brooks",
     procedure: "Spay",
     vetName: "Imogen Shaw",
@@ -287,6 +294,7 @@ export const MONEY_STATE_CASES: readonly MoneyStateCase[] = [
   },
   {
     patientName: "Teddy",
+    species: "dog",
     ownerName: "Martin Cole",
     procedure: "Vomiting, admitted for tests",
     vetName: "Rowan Hale",
@@ -364,6 +372,7 @@ export const MONEY_STATE_CASES: readonly MoneyStateCase[] = [
   },
   {
     patientName: "Luna",
+    species: "dog",
     ownerName: "Sophie Turner",
     procedure: "Spay",
     vetName: "Imogen Shaw",
@@ -445,6 +454,7 @@ export const MONEY_STATE_CASES: readonly MoneyStateCase[] = [
   },
   {
     patientName: "Milo",
+    species: "cat",
     ownerName: "Rhys Morgan",
     procedure: "Castration",
     vetName: "Imogen Shaw",

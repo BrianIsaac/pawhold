@@ -17,11 +17,11 @@ const SESSION_ENDED = "Your session has ended. Reload the page to start a new on
  * Opens a case from today's "New case" form and goes to it.
  *
  * @param _previous - The form's last state.
- * @param form - The patient, the owner, the procedure and the vet.
+ * @param form - The patient and its species, the owner, the procedure and the vet.
  * @returns The form's state when a field is at fault; otherwise it redirects to the case.
  */
 export async function openCaseAction(_previous: FormState, form: FormData): Promise<FormState> {
-  const values = formValues(form, ["patientName", "ownerName", "procedure", "vetName"]);
+  const values = formValues(form, ["patientName", "species", "ownerName", "procedure", "vetName"]);
   const session = await currentPracticeSession();
   if (!session) {
     return { message: SESSION_ENDED, fields: {}, values };
@@ -31,6 +31,7 @@ export async function openCaseAction(_previous: FormState, form: FormData): Prom
     caseId = await openCase(database().db, {
       practiceId: session.practiceId,
       patientName: formText(form, "patientName"),
+      species: formText(form, "species"),
       ownerName: formText(form, "ownerName"),
       procedure: formText(form, "procedure"),
       vetName: formText(form, "vetName"),

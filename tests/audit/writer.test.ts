@@ -20,7 +20,13 @@ beforeAll(async () => {
   practiceId = created!.id;
   const [kase] = await db
     .insert(patientCase)
-    .values({ practiceId, patientName: "Biscuit", ownerName: "A. Owner", procedure: "Dental" })
+    .values({
+      practiceId,
+      patientName: "Biscuit",
+      species: "dog",
+      ownerName: "A. Owner",
+      procedure: "Dental",
+    })
     .returning();
   caseId = kase!.id;
 });

@@ -79,7 +79,13 @@ beforeEach(async () => {
   });
   const [kase] = await db
     .insert(patientCase)
-    .values({ practiceId, patientName: "Biscuit", ownerName: "Sam Owner", procedure: "Dental" })
+    .values({
+      practiceId,
+      patientName: "Biscuit",
+      species: "dog",
+      ownerName: "Sam Owner",
+      procedure: "Dental",
+    })
     .returning();
   caseId = kase!.id;
   list = (await currentPriceList(db, practiceId))!;
@@ -318,7 +324,13 @@ describe("what is refused before the model is asked", () => {
   it("refuses a case with no sent estimate", async () => {
     const [kase] = await db
       .insert(patientCase)
-      .values({ practiceId, patientName: "Rex", ownerName: "A. Owner", procedure: "Spay" })
+      .values({
+        practiceId,
+        patientName: "Rex",
+        species: "dog",
+        ownerName: "A. Owner",
+        procedure: "Spay",
+      })
       .returning();
     const counted = countingModel(createRecordedModel(store));
 

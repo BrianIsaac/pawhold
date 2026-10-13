@@ -6,6 +6,7 @@ import { hold, patientCase, room, vet } from "@/db/schema";
 import { currentPriceList, type PriceListWithItems } from "@/estimate/price-list";
 import type { EstimateLineInput } from "@/estimate/version";
 import type { MoneyState } from "@/money/state";
+import type { Species } from "@/practice/species";
 import { seededPayPalId } from "@/paypal/seeded";
 import { bookSlot } from "@/schedule/bookings";
 
@@ -36,6 +37,8 @@ interface DaySlot {
 /** One case of the seeded day: who, how far its money has gone, its words and its lines, and its slot. */
 export interface DayCase {
   readonly patientName: string;
+  /** The animal's species (U17), as its notes name it; a consult with none is the seed's choice. */
+  readonly species: Species;
   readonly ownerName: string;
   readonly procedure: string;
   readonly vetName: VetName;
@@ -62,6 +65,7 @@ export interface DayCase {
 export const DAY_CASES: readonly DayCase[] = [
   {
     patientName: "Willow",
+    species: "dog",
     ownerName: "Grace Okoro",
     procedure: "Spay",
     vetName: SHOWCASE_CASE.vetName,
@@ -102,6 +106,7 @@ export const DAY_CASES: readonly DayCase[] = [
   },
   {
     patientName: "Juno",
+    species: "dog",
     ownerName: "Ellis Moran",
     procedure: "Lump removal",
     vetName: SHOWCASE_CASE.vetName,
@@ -169,6 +174,7 @@ export const DAY_CASES: readonly DayCase[] = [
   },
   {
     patientName: "Biscuit",
+    species: "dog",
     ownerName: "Hana Kowalski",
     procedure: "Castration",
     vetName: SHOWCASE_CASE.vetName,
@@ -201,6 +207,7 @@ export const DAY_CASES: readonly DayCase[] = [
   },
   {
     patientName: "Clover",
+    species: "cat",
     ownerName: "Owen Pryce",
     procedure: "Dental under GA",
     vetName: "Imogen Shaw",
@@ -241,6 +248,7 @@ export const DAY_CASES: readonly DayCase[] = [
   },
   {
     patientName: "Archie",
+    species: "dog",
     ownerName: "Freya Lund",
     procedure: "Ear flush under sedation",
     vetName: "Imogen Shaw",
@@ -267,6 +275,7 @@ export const DAY_CASES: readonly DayCase[] = [
   },
   {
     patientName: "Pip",
+    species: "dog",
     ownerName: "Ada Fenwick",
     procedure: "Lame on the left hind leg",
     vetName: "Imogen Shaw",
@@ -275,6 +284,7 @@ export const DAY_CASES: readonly DayCase[] = [
   },
   {
     patientName: "Moss",
+    species: "other",
     ownerName: "Theo Grant",
     procedure: "Booster and health check",
     vetName: "Imogen Shaw",
@@ -449,6 +459,7 @@ async function seedDayCase(
     .values({
       practiceId,
       patientName: kase.patientName,
+      species: kase.species,
       ownerName: kase.ownerName,
       procedure: kase.procedure,
       vetName: kase.vetName,
@@ -472,6 +483,7 @@ async function seedDayCase(
       moneyStateAfter: "estimate_draft",
       detail: {
         patientName: kase.patientName,
+        species: kase.species,
         ownerName: kase.ownerName,
         procedure: kase.procedure,
         vetName: kase.vetName,

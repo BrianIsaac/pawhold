@@ -150,23 +150,40 @@ export interface SelectGroup {
   readonly options: readonly SelectOption[];
 }
 
-/** A select's props. */
-export interface SelectFieldProps
-  extends FieldBase, Omit<SelectHTMLAttributes<HTMLSelectElement>, "id" | "name" | "className"> {
-  readonly groups: readonly SelectGroup[];
-  /** A first option with no value, such as "Choose an item". */
-  readonly placeholder?: string;
+/** A select's props: its options in groups, or a short list of them without. */
+export type SelectFieldProps = FieldBase &
+  Omit<SelectHTMLAttributes<HTMLSelectElement>, "id" | "name" | "className"> & {
+    /** A first option with no value, such as "Choose an item". */
+    readonly placeholder?: string;
+  } & (
+    | { readonly groups: readonly SelectGroup[]; readonly options?: never }
+    | { readonly options: readonly SelectOption[]; readonly groups?: never }
+  );
+
+/**
+ * The options of a select.
+ *
+ * @param props - The options.
+ * @param props.options - The options, in order.
+ * @returns One option element each.
+ */
+function Options({ options }: { options: readonly SelectOption[] }) {
+  return options.map((option) => (
+    <option key={option.value} value={option.value}>
+      {option.label}
+    </option>
+  ));
 }
 
 /**
- * A labelled select, its options in groups.
+ * A labelled select, its options in groups or in one list.
  *
- * @param props - The field, its option groups and the native select's props.
+ * @param props - The field, its options and the native select's props.
  * @returns The field.
  */
 export function SelectField(props: SelectFieldProps) {
   const { field, wired, control } = split(props);
-  const { groups, placeholder, ...rest } = control;
+  const { groups, options, placeholder, ...rest } = control;
   return (
     <div className={styles.field}>
       <label htmlFor={wired.id} className={styles.label}>
@@ -174,15 +191,15 @@ export function SelectField(props: SelectFieldProps) {
       </label>
       <select name={field.name} className={styles.control} {...wired} {...rest}>
         {placeholder === undefined ? null : <option value="">{placeholder}</option>}
-        {groups.map((group) => (
-          <optgroup key={group.label} label={group.label}>
-            {group.options.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </optgroup>
-        ))}
+        {options === undefined ? (
+          groups?.map((group) => (
+            <optgroup key={group.label} label={group.label}>
+              <Options options={group.options} />
+            </optgroup>
+          ))
+        ) : (
+          <Options options={options} />
+        )}
       </select>
       <Help field={field} id={wired.id} />
     </div>

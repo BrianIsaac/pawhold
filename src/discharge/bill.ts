@@ -18,6 +18,7 @@ import { firstName } from "@/practice/chips";
 import { PracticeError } from "@/practice/errors";
 import { CATEGORY_ORDER, type ListGroup } from "@/practice/estimate";
 import { approvedVersions } from "@/practice/panels";
+import type { Species } from "@/practice/species";
 
 import {
   aboveApproved,
@@ -84,6 +85,7 @@ export interface DischargeView {
   readonly case: {
     readonly id: string;
     readonly patientName: string;
+    readonly species: Species;
     readonly ownerName: string;
     readonly ownerFirstName: string;
     readonly vetName: string | null;
@@ -144,6 +146,7 @@ export async function loadDischargeView(
     case: {
       id: kase.id,
       patientName: kase.patientName,
+      species: kase.species,
       ownerName: kase.ownerName,
       ownerFirstName: firstName(kase.ownerName),
       vetName: kase.vetName,

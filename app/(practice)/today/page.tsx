@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 import { todaysCases } from "@/practice/cases";
+import { speciesLabel } from "@/practice/species";
 import { currentPracticeSession } from "@/server/practice-session";
 import { database } from "@/server/runtime";
 
@@ -16,12 +17,13 @@ export const metadata: Metadata = { title: "Today's cases" };
 
 export const dynamic = "force-dynamic";
 
-/** Section 6's columns for today's cases. */
-const COLUMNS = ["Patient", "Owner", "Procedure", "Money", "Next"] as const;
+/** Section 6's columns for today's cases, with the patient's species (U17). */
+const COLUMNS = ["Patient", "Species", "Owner", "Procedure", "Money", "Next"] as const;
 
 /**
  * Today's cases (section 6): each case with its money chips in the board's
- * colours and the next thing to do; the patient's name opens the case.
+ * colours and the next thing to do; the patient's name opens the case, its
+ * species beside it (U17).
  *
  * @returns The page.
  */
@@ -41,7 +43,10 @@ export default async function TodayPage() {
       <List
         label="Today's cases"
         columns={COLUMNS}
-        template="minmax(7rem, 0.8fr) minmax(8rem, 1fr) minmax(9rem, 1.1fr) minmax(17rem, 1.6fr) minmax(12rem, 1.4fr)"
+        // The least widths add up to 43.5rem, what the list has at its breakpoint (56rem), so a
+        // row never runs off the page; each row is a grid of its own, so the species' column
+        // has one width for all.
+        template="minmax(5rem, 0.6fr) 7rem minmax(6rem, 0.9fr) minmax(7rem, 1.1fr) minmax(11rem, 1.7fr) minmax(7.5rem, 1.3fr)"
         empty="No cases yet. Open one to draft its estimate."
       >
         {cases.map((kase) => (
@@ -57,6 +62,7 @@ export default async function TodayPage() {
                   </Link>
                 ),
               },
+              { column: "Species", content: speciesLabel(kase.species) },
               { column: "Owner", content: kase.ownerName },
               { column: "Procedure", content: kase.procedure },
               {

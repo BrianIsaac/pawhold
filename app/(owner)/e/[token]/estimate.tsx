@@ -10,6 +10,7 @@ import {
   rangeLine,
   vetCalled,
 } from "@/owner/wording";
+import { withSpecies } from "@/practice/species";
 
 import { OwnerLines } from "./lines";
 import styles from "./page.module.css";
@@ -37,6 +38,9 @@ export function Estimate({
   return (
     <article className={styles.page} aria-labelledby="estimate-heading">
       <header className={styles.header}>
+        <p className={styles.eyebrow}>
+          {withSpecies(page.header.patientName, page.header.species)}
+        </p>
         <h1 id="estimate-heading">
           {estimateHeading(page.header.patientName, page.header.practiceName)}
         </h1>

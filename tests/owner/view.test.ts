@@ -30,6 +30,7 @@ describe("the owner's page for a link", () => {
     expect(page.header).toEqual({
       practiceName: "View practice",
       patientName: "Biscuit",
+      species: "dog",
       ownerName: "Ann Owner",
       vetName: null,
     });

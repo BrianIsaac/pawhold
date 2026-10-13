@@ -199,7 +199,13 @@ describe("the trigger on a case's versions", () => {
     await importPriceList(db, { practiceId, actor: "system", sourceName: "p.csv", csv: PRICES });
     const [kase] = await db
       .insert(patientCase)
-      .values({ practiceId, patientName: "Pip", ownerName: "C. Owner", procedure: "Laparotomy" })
+      .values({
+        practiceId,
+        patientName: "Pip",
+        species: "dog",
+        ownerName: "C. Owner",
+        procedure: "Laparotomy",
+      })
       .returning();
     caseId = kase!.id;
   });

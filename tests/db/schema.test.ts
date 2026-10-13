@@ -39,6 +39,7 @@ describe("the schema as migrated", () => {
       .values({
         practiceId: created!.id,
         patientName: "Biscuit",
+        species: "dog",
         ownerName: "A. Owner",
         procedure: "Dental under general anaesthetic",
       })
@@ -58,6 +59,7 @@ describe("the schema as migrated", () => {
       db.insert(patientCase).values({
         practiceId: created!.id,
         patientName: "Biscuit",
+        species: "dog",
         ownerName: "A. Owner",
         procedure: "Spay",
         currencyCode: "SGD",
@@ -65,6 +67,22 @@ describe("the schema as migrated", () => {
     );
 
     expect(code).toBe("23514");
+  });
+
+  it("refuses a species outside dog, cat and other (U17)", async () => {
+    const [created] = await db
+      .insert(practice)
+      .values({ name: "Test practice", kind: "judge" })
+      .returning();
+
+    const { code } = await refusalOf(
+      db.execute(sql`
+        insert into patient_case (practice_id, patient_name, owner_name, procedure, species)
+        values (${created!.id}, 'Biscuit', 'A. Owner', 'Spay', 'hamster')
+      `),
+    );
+
+    expect(code).toBe("22P02");
   });
 
   it("refuses a session that expires before it starts", async () => {

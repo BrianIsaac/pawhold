@@ -1,3 +1,5 @@
+import type { DayView } from "@/schedule/day";
+
 /** How many five-minute columns to keep in view before the line scrolled to: ten minutes. */
 export const LEAD_COLUMNS = 2;
 
@@ -11,9 +13,19 @@ const HOUR_COLUMNS = 12;
 export const LABEL_COLUMNS = 3;
 
 /** A booking's span on the grid, by its lines (the first is 1). */
-interface Span {
+export interface Span {
   readonly start: number;
   readonly end: number;
+}
+
+/**
+ * Every booking's span on the day's grid.
+ *
+ * @param view - The day.
+ * @returns The spans, room by room.
+ */
+export function bookingSpans(view: DayView): Span[] {
+  return view.rooms.flatMap((lane) => lane.bookings.map((one) => one.column));
 }
 
 /**
@@ -42,6 +54,46 @@ export function openingLine(line: number, bookings: readonly Span[]): number {
   const intoHour = (start - 1) % HOUR_COLUMNS;
   const roomy = start - Math.max(0, intoHour - (HOUR_COLUMNS - LABEL_COLUMNS));
   return bookings.some((one) => one.start < roomy && one.end > roomy) ? start : roomy;
+}
+
+/**
+ * The last grid line a scroller can bring to the room names: its scroll
+ * stops where the grid's end meets the view's.
+ *
+ * @param scroller - Its widths in pixels.
+ * @param scroller.scrollWidth - The whole grid's, with the room names.
+ * @param scroller.clientWidth - The view's.
+ * @param scroller.slotPx - A five-minute column's.
+ * @returns The grid line (the first is 1).
+ */
+export function lastStartLine(scroller: {
+  scrollWidth: number;
+  clientWidth: number;
+  slotPx: number;
+}): number {
+  const furthest = Math.max(0, scroller.scrollWidth - scroller.clientWidth);
+  // A part of a pixel is the browser's rounding, not a column.
+  return Math.floor(furthest / scroller.slotPx + 1e-6) + 1;
+}
+
+/**
+ * Where the grid opens in a view that cannot scroll as far as the opening
+ * asks: late in the day the grid ends within a view's width of it, the
+ * browser stops the scroll at the grid's end, and a booking would open cut
+ * under the room names. The opening is then worked out again, by the same
+ * rule, from the last line the view can start at.
+ *
+ * @param line - The opening line (`openingLine`'s).
+ * @param lastStart - The last line the view can start at (`lastStartLine`'s).
+ * @param bookings - Every booking's span.
+ * @returns The grid line the view starts at.
+ */
+export function reachableOpening(
+  line: number,
+  lastStart: number,
+  bookings: readonly Span[],
+): number {
+  return line <= lastStart ? line : openingLine(lastStart + LEAD_COLUMNS, bookings);
 }
 
 /**

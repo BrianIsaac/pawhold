@@ -145,6 +145,7 @@ export async function brambleCase(
       .values({
         practiceId: made!.id,
         patientName: "Bramble",
+        species: "dog",
         ownerName: "Sam Carter",
         procedure: "Dental under anaesthetic",
         vetName: "Rowan Hale",

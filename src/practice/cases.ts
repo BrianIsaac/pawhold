@@ -8,6 +8,7 @@ import { type CaseMoney, caseMoney } from "@/money/view";
 
 import { firstName, type MoneyChip, moneyChips, nextStep } from "./chips";
 import { PracticeError } from "./errors";
+import { CHOOSE_SPECIES, SPECIES, type Species } from "./species";
 
 /** The longest name or procedure a case keeps. */
 export const MAX_CASE_FIELD = 100;
@@ -21,12 +22,18 @@ const caseField = z
 /** A new case as the practice types it. */
 export const openCaseInput = z.strictObject({
   patientName: caseField,
+  species: z.enum(SPECIES, { error: CHOOSE_SPECIES }),
   ownerName: caseField,
   procedure: caseField,
   vetName: caseField,
 });
 
 const openCaseRequest = openCaseInput.extend({ practiceId: z.uuid() });
+
+/** A request to open a case: the species as the form sends it, checked against the list. */
+export type OpenCaseRequest = Omit<z.input<typeof openCaseRequest>, "species"> & {
+  readonly species: string;
+};
 
 /**
  * Parses a request, turning a malformed one into a refusal that names each
@@ -60,14 +67,11 @@ export function parsePracticeRequest<T extends z.ZodType>(
  * practice's vets, added if new), with `case.opened` written by the vet.
  *
  * @param executor - The pool or an open transaction.
- * @param request - The practice, the patient, the owner, the procedure and the vet.
+ * @param request - The practice, the patient and its species, the owner, the procedure and the vet.
  * @returns The new case's id.
  * @throws PracticeError `request_invalid` naming each field at fault.
  */
-export async function openCase(
-  executor: Executor,
-  request: z.input<typeof openCaseRequest>,
-): Promise<string> {
+export async function openCase(executor: Executor, request: OpenCaseRequest): Promise<string> {
   const { practiceId, ...kase } = parsePracticeRequest(openCaseRequest, request);
   return executor.transaction(async (tx) => {
     // The case's vet is one of the practice's vets (U11): a name the
@@ -96,6 +100,7 @@ export async function openCase(
 export interface TodayCase {
   readonly id: string;
   readonly patientName: string;
+  readonly species: Species;
   readonly ownerName: string;
   readonly procedure: string;
   readonly vetName: string | null;
@@ -131,6 +136,7 @@ export async function todaysCases(executor: Executor, practiceId: string): Promi
     .select({
       id: patientCase.id,
       patientName: patientCase.patientName,
+      species: patientCase.species,
       ownerName: patientCase.ownerName,
       procedure: patientCase.procedure,
       vetName: patientCase.vetName,

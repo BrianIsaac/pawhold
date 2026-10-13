@@ -83,6 +83,7 @@ export async function writeMoneyStateCase(
     .values({
       practiceId,
       patientName: kase.patientName,
+      species: kase.species,
       ownerName: kase.ownerName,
       procedure: kase.procedure,
       vetName: kase.vetName,
@@ -110,6 +111,7 @@ export async function writeMoneyStateCase(
       moneyStateAfter: "estimate_draft",
       detail: {
         patientName: kase.patientName,
+        species: kase.species,
         ownerName: kase.ownerName,
         procedure: kase.procedure,
         vetName: kase.vetName,

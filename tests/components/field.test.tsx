@@ -77,6 +77,25 @@ describe("the fields", () => {
     expect(html).toContain('<option value="DEN-SP">Dental scale and polish</option>');
   });
 
+  it("lists a short select's options without groups, after its empty first option (U17)", () => {
+    const html = renderToStaticMarkup(
+      <SelectField
+        name="species"
+        label="Species"
+        placeholder="Choose the species"
+        options={[
+          { value: "dog", label: "Dog" },
+          { value: "cat", label: "Cat" },
+        ]}
+      />,
+    );
+
+    expect(html).not.toContain("<optgroup");
+    expect(html).toContain(
+      '<option value="">Choose the species</option><option value="dog">Dog</option><option value="cat">Cat</option>',
+    );
+  });
+
   it("puts a checkbox before its label, the label wide enough to tap", () => {
     const html = renderToStaticMarkup(
       <CheckboxField name="sharePhoto" label="Show the photo to the owner" />,

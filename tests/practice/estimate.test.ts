@@ -100,6 +100,7 @@ beforeEach(async () => {
     ownerName: "Sam Owner",
     procedure: "Dental",
     vetName: "Rowan Hale",
+    species: "cat",
   });
   store = memoryRecordedStore();
   primeAnswer(store, draftRequest(list.items.values(), NOTES), ANSWER);
@@ -113,6 +114,14 @@ beforeEach(async () => {
 function agent() {
   return { db, model: createRecordedModel(store), draftsPerHour: null };
 }
+
+describe("the case's page", () => {
+  it("names the animal's species beside its name (U17)", async () => {
+    const view = await loadCaseView(db, practiceId, caseId);
+
+    expect(view.case).toMatchObject({ patientName: "Biscuit", species: "cat" });
+  });
+});
 
 describe("drafting from the notes", () => {
   it("keeps the notes and what the draft made of them beside the draft, each line's span found in them", async () => {

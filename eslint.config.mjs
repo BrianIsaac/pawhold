@@ -14,5 +14,13 @@ export default defineConfig([
       "no-console": ["error", { allow: ["warn", "error", "info"] }],
     },
   },
-  globalIgnores([".next/**", "node_modules/**", "coverage/**", "next-env.d.ts", "drizzle/meta/**"]),
+  // docs/ is gitignored and kept beside a checkout by hand (prettier skips it too).
+  globalIgnores([
+    ".next/**",
+    "node_modules/**",
+    "coverage/**",
+    "next-env.d.ts",
+    "drizzle/meta/**",
+    "docs/**",
+  ]),
 ]);

@@ -105,6 +105,7 @@ async function newCase(forPractice: string = practiceId): Promise<string> {
     .values({
       practiceId: forPractice,
       patientName: "Biscuit",
+      species: "dog",
       ownerName: "A. Owner",
       procedure: "Dental",
     })

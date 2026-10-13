@@ -78,6 +78,7 @@ async function freshCase(): Promise<{ practiceId: string; caseId: string }> {
   const caseId = await openCase(db, {
     practiceId,
     patientName: SHOWCASE_CASE.patientName,
+    species: SHOWCASE_CASE.species,
     ownerName: SHOWCASE_CASE.ownerName,
     procedure: SHOWCASE_CASE.procedure,
     vetName: SHOWCASE_CASE.vetName,

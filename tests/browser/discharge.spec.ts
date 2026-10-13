@@ -27,6 +27,9 @@ for (const width of Object.keys(WIDTHS) as Width[]) {
       await page.getByRole("link", { name: "Discharge" }).click();
 
       await expect(page.getByRole("heading", { level: 1, name: "Itemised bill" })).toBeVisible();
+      await expect(
+        page.getByRole("definition").getByText("Bramble, dog", { exact: true }),
+      ).toBeVisible();
       const approved = page.getByRole("region", { name: "Approved with the estimate" });
       await expect(approved.getByRole("listitem")).toHaveCount(7);
       await expect(

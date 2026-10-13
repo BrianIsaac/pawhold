@@ -6,10 +6,10 @@ import { readFileSync } from "node:fs";
  * step's actions come from its own text, in order: an address in angle
  * brackets is opened; "click **X**" or "go to **X**" clicks what is named X;
  * "into **X**" types into the field named X; any other **X** or "X" must be
- * on the page; "fill in a patient, an owner and a procedure" fills the new
- * case's form. Words in brackets are an aside and are not walked. A step
- * with nothing to act on fails the walk, so the README and the pages cannot
- * drift apart unnoticed.
+ * on the page; "fill in a patient, its species, an owner and a procedure"
+ * fills the new case's form. Words in brackets are an aside and are not
+ * walked. A step with nothing to act on fails the walk, so the README and
+ * the pages cannot drift apart unnoticed.
  */
 
 /** The README at the repository's root. */
@@ -32,7 +32,7 @@ export interface ReadmeStep {
 }
 
 const TOKEN =
-  /<(https?:\/\/[^>\s]+)>|(?:[Cc]lick|[Gg]o to)(?: the)? \*\*([^*]+)\*\*( button)?( again in the dialog)?|into \*\*([^*]+)\*\*|\*\*([^*]+)\*\*|"([^"]+)"|(fill in a patient, an owner and a procedure)/g;
+  /<(https?:\/\/[^>\s]+)>|(?:[Cc]lick|[Gg]o to)(?: the)? \*\*([^*]+)\*\*( button)?( again in the dialog)?|into \*\*([^*]+)\*\*|\*\*([^*]+)\*\*|"([^"]+)"|(fill in a patient, its species, an owner and a procedure)/g;
 
 /**
  * The numbered steps under a `###` heading of the README.

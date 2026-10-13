@@ -41,6 +41,22 @@ for (const width of Object.keys(WIDTHS) as Width[]) {
       });
     });
 
+    test("today's new case, its fields at fault", async ({ page }) => {
+      await signInAsPractice(page);
+      await page.goto("/today");
+      await page.getByRole("button", { name: "New case" }).click();
+      const dialog = page.getByRole("dialog", { name: "Open a case" });
+      await dialog.getByRole("button", { name: "Open the case" }).click();
+      await expect(dialog.getByRole("combobox", { name: "Species" })).toHaveAttribute(
+        "aria-invalid",
+        "true",
+      );
+      await page.screenshot({
+        path: join(directory!, `today-new-case-${WIDTHS[width].width}.png`),
+        fullPage: true,
+      });
+    });
+
     test("the seeded case", async ({ page }) => {
       await signInAsPractice(page);
       await page.goto("/today");

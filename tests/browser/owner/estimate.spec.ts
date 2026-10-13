@@ -24,6 +24,7 @@ test.describe("the estimate page", () => {
     await expect(page.getByRole("heading", { level: 1 })).toHaveText(
       "Bramble's estimate from Hollins Lane Veterinary Surgery",
     );
+    await expect(page.getByText("Bramble, dog", { exact: true })).toBeVisible();
     await expect(
       page.getByText(
         "This is what Rowan Hale expects Bramble's treatment to cost. Nothing is charged now: PayPal holds up to £927.00, and you'll only pay for what's done.",

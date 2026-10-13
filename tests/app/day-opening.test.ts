@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { openingLine, takeOverScroll } from "../../app/(practice)/day/opening";
+import {
+  lastStartLine,
+  openingLine,
+  reachableOpening,
+  takeOverScroll,
+} from "../../app/(practice)/day/opening";
 
 describe("where the day's grid opens (U11)", () => {
   it("keeps the lead columns before the line it brings into view", () => {
@@ -35,6 +40,34 @@ describe("where the day's grid opens (U11)", () => {
 
   it("never opens before the grid's first line", () => {
     expect(openingLine(2, [])).toBe(1);
+  });
+});
+
+describe("where the day's grid opens when the grid ends before the opening line can be reached", () => {
+  it("keeps the opening when the view can start there", () => {
+    expect(reachableOpening(40, 40, [{ start: 30, end: 48 }])).toBe(40);
+  });
+
+  it("works the opening out again from the last line the view can start at, cutting no booking", () => {
+    // Late in the day: the grid can start no later than line 50, which is inside a booking from 49.
+    expect(
+      reachableOpening(70, 50, [
+        { start: 49, end: 65 },
+        { start: 72, end: 80 },
+      ]),
+    ).toBe(49);
+    expect(reachableOpening(70, 50, [])).toBe(50);
+  });
+
+  it("opens at the grid's first line when the whole grid fits the view", () => {
+    expect(reachableOpening(20, 0, [])).toBe(1);
+  });
+
+  it("reads the last line the view can start at from the scroller's widths", () => {
+    // 120 columns of 10 px, 400 px of them in view: the view can start no later than line 81.
+    expect(lastStartLine({ scrollWidth: 1300, clientWidth: 500, slotPx: 10 })).toBe(81);
+    expect(lastStartLine({ scrollWidth: 1300.4, clientWidth: 500, slotPx: 10 })).toBe(81);
+    expect(lastStartLine({ scrollWidth: 500, clientWidth: 500, slotPx: 10 })).toBe(1);
   });
 });
 
