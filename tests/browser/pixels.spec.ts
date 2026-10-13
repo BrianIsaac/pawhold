@@ -12,6 +12,15 @@ import {
   WIDTHS,
   type Width,
 } from "./fixtures";
+import {
+  DAY_STATES,
+  GRID_NAME,
+  hourCells,
+  prepareDay,
+  roomNamesEdge,
+  shownAs,
+  STATE_WORDS,
+} from "./support/day";
 import { openBrowserDatabase } from "./owner/support/cases";
 import { WALK_FINDING, WALK_PHOTO_PATH } from "../support/update-walk-words";
 
@@ -104,45 +113,123 @@ for (const width of Object.keys(WIDTHS) as Width[]) {
   test.describe(`the pixels at ${WIDTHS[width].width} px`, () => {
     test.use({ width });
 
-    test("every hour the day's grid shows in view has its label in view, beside the rooms", async ({
-      page,
-    }) => {
-      await signInAsPractice(page);
-      await page.goto("/day");
-      const grid = page.getByRole("region", { name: "The day's bookings, by room and time" });
-      await expect(grid).toBeVisible();
-      const corner = await grid.locator("[data-room-label]").boundingBox();
-      const view = await grid.boundingBox();
-      const labels = grid.locator("ol[aria-hidden='true'] > li");
-      let inView = 0;
-      for (const label of await labels.all()) {
-        const span = (await label.boundingBox())!;
-        if (span.x + span.width <= corner!.x + corner!.width || span.x >= view!.x + view!.width) {
-          continue;
+    for (const state of DAY_STATES) {
+      test(`every hour the day's grid shows in view has its label in view, beside the rooms, ${STATE_WORDS[state]}`, async ({
+        page,
+      }) => {
+        await prepareDay(page, state);
+        await signInAsPractice(page);
+        await page.goto("/day");
+        await shownAs(page, state);
+        const grid = page.getByRole("region", { name: GRID_NAME });
+        const edge = await roomNamesEdge(page, state);
+        const view = (await grid.boundingBox())!;
+        const cells = await hourCells(page, state).all();
+        const hour = (await cells[1]!.boundingBox())!.x - (await cells[0]!.boundingBox())!.x;
+        // As the day opens, then scrolled to an hour's start, a quarter and a half into it.
+        for (const into of [null, 0, 0.25, 0.5]) {
+          if (into !== null) {
+            await grid.evaluate(
+              (element, left) => {
+                element.scrollLeft = left;
+              },
+              hour * (1 + into),
+            );
+          }
+          let inView = 0;
+          for (const label of cells) {
+            const span = (await label.boundingBox())!;
+            const [text] = await lineBoxes(label);
+            const words = (await label.textContent()) ?? "";
+            const shown =
+              Math.min(span.x + span.width, view.x + view.width) - Math.max(span.x, edge);
+            // A sliver of an hour too narrow for its label carries none: the label leaves with its hour.
+            if (shown < text!.right - text!.left + 16) {
+              continue;
+            }
+            inView += 1;
+            expect(text!.left, `${words}, ${into ?? "as opened"}`).toBeGreaterThanOrEqual(
+              edge - 0.5,
+            );
+            expect(words).toMatch(/^\d\d:00$/);
+          }
+          expect(inView, String(into ?? "as opened")).toBeGreaterThan(0);
         }
-        inView += 1;
-        const [text] = await lineBoxes(label);
-        expect(text!.left, (await label.textContent()) ?? "").toBeGreaterThanOrEqual(
-          corner!.x + corner!.width - 0.5,
-        );
-      }
-      expect(inView).toBeGreaterThan(0);
-    });
+      });
 
-    test("the day opens with no booking cut under the room names", async ({ page }) => {
-      await signInAsPractice(page);
-      await page.goto("/day");
-      const grid = page.getByRole("region", { name: "The day's bookings, by room and time" });
-      await expect(grid).toBeVisible();
-      const corner = (await grid.locator("[data-room-label]").boundingBox())!;
-      const edge = corner.x + corner.width;
-      for (const booking of await grid.getByRole("link").all()) {
-        const box = (await booking.boundingBox())!;
-        const whole = box.x >= edge - 0.5;
-        const away = box.x + box.width <= edge + 0.5;
-        expect(whole || away, (await booking.getAttribute("title")) ?? "").toBe(true);
-      }
-    });
+      test(`the day opens with no booking cut under the room names, ${STATE_WORDS[state]}`, async ({
+        page,
+      }) => {
+        await prepareDay(page, state);
+        await signInAsPractice(page);
+        await page.goto("/day");
+        await shownAs(page, state);
+        const grid = page.getByRole("region", { name: GRID_NAME });
+        const edge = await roomNamesEdge(page, state);
+        const bookings = await grid.getByRole("link").all();
+        expect(bookings.length).toBeGreaterThan(0);
+        for (const booking of bookings) {
+          const box = (await booking.boundingBox())!;
+          const whole = box.x >= edge - 0.5;
+          const away = box.x + box.width <= edge + 0.5;
+          expect(whole || away, (await booking.getAttribute("title")) ?? "").toBe(true);
+        }
+      });
+
+      test(`the day keeps its place when the window is resized across the width where the room names change, ${STATE_WORDS[state]}`, async ({
+        page,
+      }) => {
+        await prepareDay(page, state);
+        await signInAsPractice(page);
+        await page.goto("/day");
+        await shownAs(page, state);
+        const grid = page.getByRole("region", { name: GRID_NAME });
+        const place = () => grid.evaluate((element) => element.scrollLeft);
+        await grid.evaluate((element) => {
+          element.scrollLeft = 432;
+        });
+        expect(await place()).toBe(432);
+
+        for (const across of [1000, 700, 1000, 390, WIDTHS[width].width]) {
+          await page.setViewportSize({ width: across, height: WIDTHS[width].height });
+          await shownAs(page, state);
+          await expect(grid.getByRole("link").first()).toBeAttached();
+          await expect.poll(place, { message: `at ${across} px` }).toBe(432);
+        }
+      });
+
+      test(`no booking on the day is under 44 px either way, and the room names stay put as the day scrolls, ${STATE_WORDS[state]}`, async ({
+        page,
+      }) => {
+        await prepareDay(page, state);
+        await signInAsPractice(page);
+        await page.goto("/day");
+        await shownAs(page, state);
+        const grid = page.getByRole("region", { name: GRID_NAME });
+        for (const booking of await grid.getByRole("link").all()) {
+          const box = (await booking.boundingBox())!;
+          expect(box.width, (await booking.getAttribute("title")) ?? "").toBeGreaterThanOrEqual(
+            43.5,
+          );
+          expect(box.height, (await booking.getAttribute("title")) ?? "").toBeGreaterThanOrEqual(
+            43.5,
+          );
+        }
+        const room = grid.locator("[data-room]").first();
+        const before = (await room.boundingBox())!;
+        await grid.evaluate((element) => {
+          element.scrollLeft += 400;
+        });
+        const after = (await room.boundingBox())!;
+        expect(after.x).toBeCloseTo(before.x, 0);
+        expect(await grid.evaluate((element) => element.scrollLeft)).toBeGreaterThan(0);
+        const page_ = await page.evaluate(() => [
+          document.documentElement.scrollWidth,
+          window.innerWidth,
+        ]);
+        expect(page_[0]).toBeLessThanOrEqual(page_[1]!);
+      });
+    }
 
     test("a case's title stands at the same height with or without a button beside it", async ({
       page,

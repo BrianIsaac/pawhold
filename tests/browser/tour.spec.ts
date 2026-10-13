@@ -22,6 +22,14 @@ import {
 import { browserSecret, openBrowserDatabase } from "./owner/support/cases";
 import { checkScreen, untilPayPalDrawn } from "./support/checks";
 import {
+  bookingOf,
+  type DayState,
+  londonDay,
+  openHeldDay as openDayHeld,
+  prepareDay,
+  shownAs,
+} from "./support/day";
+import {
   deliverDischargeWebhooks,
   dischargedCase,
   doubleClient,
@@ -139,32 +147,18 @@ async function openOwnerPage(page: Page, patient: SeededPatient): Promise<void> 
 }
 
 /**
- * The calendar day in London some minutes from now.
- *
- * @param minutes - Minutes from now.
- * @returns "2026-10-12".
- */
-function londonDay(minutes: number): string {
-  return new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Europe/London",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(new Date(Date.now() + minutes * 60 * 1000));
-}
-
-/**
- * Opens the day the seeded Juno is held on, once the agent has held it.
+ * Opens the day the seeded Juno is held on, once the agent has held it and
+ * the day is drawn: on the board, or on the plain timeline with the
+ * Scheduler's module failing to load.
  *
  * @param page - The page.
+ * @param state - How the day is drawn.
  * @returns The region of the agent's holds.
  */
-async function openHeldDay(page: Page) {
-  await signInAsPractice(page);
-  await page.goto(`/day?day=${londonDay(30)}`);
-  const held = page.getByRole("region", { name: "Held by pawhold" });
-  await expect(held).toBeVisible();
-  return held;
+async function openHeldDay(page: Page, state: DayState = "board") {
+  await prepareDay(page, state);
+  await openDayHeld(page, state);
+  return page.getByRole("region", { name: "Held by pawhold" });
 }
 
 /**
@@ -571,6 +565,8 @@ const STOPS: Record<string, Stop> = {
       test.skip((await move.count()) === 0, "no move is offered late in London's evening");
       await move.click();
       await expect(held.getByRole("button", { name: "Move it" })).toHaveCount(0);
+      await expect(bookingOf(page, "Biscuit")).not.toContainText("proposed");
+      await shownAs(page, "board");
     },
   },
   "day-undone": {
@@ -578,6 +574,8 @@ const STOPS: Record<string, Stop> = {
       const held = await openHeldDay(page);
       await held.getByRole("button", { name: "Undo" }).click();
       await expect(held).toHaveCount(0);
+      await expect(bookingOf(page, "Juno")).not.toContainText("Held by pawhold");
+      await shownAs(page, "board");
     },
   },
   "day-empty": {
@@ -585,6 +583,29 @@ const STOPS: Record<string, Stop> = {
       await signInAsPractice(page);
       await page.goto(`/day?day=${londonDay(30 * 24 * 60)}`);
       await expect(page.getByText(/^Nothing is booked on/)).toBeVisible();
+      await shownAs(page, "board");
+    },
+  },
+  "day-held-plain": {
+    reach: async (page) => void (await openHeldDay(page, "plain")),
+  },
+  "day-moved-plain": {
+    reach: async (page) => {
+      const held = await openHeldDay(page, "plain");
+      const move = held.getByRole("button", { name: "Move it" });
+      test.skip((await move.count()) === 0, "no move is offered late in London's evening");
+      await move.click();
+      await expect(held.getByRole("button", { name: "Move it" })).toHaveCount(0);
+      await expect(bookingOf(page, "Biscuit")).not.toContainText("proposed");
+    },
+  },
+  "day-empty-plain": {
+    reach: async (page) => {
+      await prepareDay(page, "plain");
+      await signInAsPractice(page);
+      await page.goto(`/day?day=${londonDay(30 * 24 * 60)}`);
+      await expect(page.getByText(/^Nothing is booked on/)).toBeVisible();
+      await shownAs(page, "plain");
     },
   },
 };

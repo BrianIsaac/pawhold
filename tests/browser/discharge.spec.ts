@@ -81,6 +81,46 @@ for (const width of Object.keys(WIDTHS) as Width[]) {
       ).toBeDisabled();
     });
 
+    test("a quantity typed before the page has come alive is read into the bill once it has", async ({
+      page,
+    }) => {
+      const faults: string[] = [];
+      page.on("console", (message) => {
+        if (message.type() === "error") {
+          faults.push(message.text());
+        }
+      });
+      page.on("pageerror", (error) => faults.push(String(error)));
+      await signInAsPractice(page);
+      await page.goto("/today");
+      const bramble = await page.getByRole("link", { name: "Bramble" }).getAttribute("href");
+      // The page arrives as the server drew it; its scripts are held back, as on a slow line.
+      let release: () => void = () => undefined;
+      const held = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      await page.route(/\/_next\/static\/.*\.js(\?|$)/, async (route) => {
+        await held;
+        await route.continue();
+      });
+      await page.goto(`${bramble}/discharge`, { waitUntil: "commit" });
+      const approved = page.getByRole("region", { name: "Approved with the estimate" });
+      await approved.getByRole("textbox", { name: "Done: Tooth extraction, surgical" }).fill("5");
+
+      release();
+
+      const total = page.getByRole("region", { name: "Total" });
+      await expect(
+        total.getByText(
+          "The bill is £1,221.00, above the £927.00 held. Nothing above a hold is charged: send an update for the rest, or change the bill.",
+        ),
+      ).toBeVisible();
+      await expect(
+        approved.getByRole("textbox", { name: "Done: Tooth extraction, surgical" }),
+      ).toHaveValue("5");
+      expect(faults).toEqual([]);
+    });
+
     test("confirm and charge: each hold's capture and release land, then PayPal's tick on each", async ({
       page,
     }) => {
