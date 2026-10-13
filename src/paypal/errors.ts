@@ -33,13 +33,13 @@ const identityErrorBody = z.object({
 });
 
 /**
- * The response header PayPal's sandbox sent on every answer U0 recorded
- * (`probes/recorded/`), the token's included. It is the one place an
- * identity error, or an answer that is not JSON, says which request it was.
+ * The response header the sandbox's answers carry (U0's recordings under
+ * `probes/recorded/`, the token's included). It is the one place an identity
+ * error, or an answer that is not JSON, says which request it was.
  */
 const DEBUG_ID_HEADER = "paypal-debug-id";
 
-/** The longest PayPal id the audit trail keeps; a longer header is not an id. */
+/** The longest PayPal id the audit trail keeps; anything longer is not an id. */
 const MAX_DEBUG_ID_LENGTH = 255;
 
 /**
@@ -92,8 +92,8 @@ export class PayPalError extends Error {
 
   /**
    * Builds the error from a failed response's status, body text and headers.
-   * The body's `debug_id` is kept where PayPal gives one; the header's stands
-   * in where it gives none.
+   * The body's `debug_id` is kept where PayPal gives one the trail can keep;
+   * the header's stands in where it does not.
    *
    * @param status - The HTTP status.
    * @param text - The response body as received.
@@ -101,7 +101,7 @@ export class PayPalError extends Error {
    * @returns The error.
    */
   static fromResponse(status: number, text: string, headers?: Headers): PayPalError {
-    const headerDebugId = debugIdOf(headers);
+    const headerDebugId = usableDebugId(headers?.get(DEBUG_ID_HEADER));
     let json: unknown = null;
     try {
       json = text.length > 0 ? JSON.parse(text) : null;
@@ -114,7 +114,7 @@ export class PayPalError extends Error {
         status,
         name: api.data.name,
         message: api.data.message ?? api.data.name,
-        debugId: api.data.debug_id ?? headerDebugId,
+        debugId: usableDebugId(api.data.debug_id) ?? headerDebugId,
         details: api.data.details ?? [],
         links: api.data.links ?? [],
       });
@@ -142,14 +142,13 @@ export class PayPalError extends Error {
 }
 
 /**
- * The debug id a response's headers carry.
+ * A debug id as the audit trail can keep it, whichever place PayPal gave it in.
  *
- * @param headers - The response's headers.
- * @returns The id, or null when there is none or it is not one the trail can keep.
+ * @param value - The body's `debug_id` or the `Paypal-Debug-Id` header.
+ * @returns The id, or null when it is absent, empty or longer than the trail keeps.
  */
-function debugIdOf(headers: Headers | undefined): string | null {
-  const value = headers?.get(DEBUG_ID_HEADER)?.trim() ?? "";
-  return value.length > 0 && value.length <= MAX_DEBUG_ID_LENGTH ? value : null;
+function usableDebugId(value: string | null | undefined): string | null {
+  return value && value.length <= MAX_DEBUG_ID_LENGTH ? value : null;
 }
 
 /**

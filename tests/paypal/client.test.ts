@@ -335,61 +335,39 @@ describe("the PayPal client's errors", () => {
   });
 });
 
-describe("PayPal's debug id on an error (the sandbox sent `Paypal-Debug-Id` on every recorded answer)", () => {
-  const recordedToken = recordedAnswer("P4", "POST", /^\/v1\/oauth2\/token$/);
-  const HEADER_ID = recordedToken.debugId!;
-  const withDebugId = { "content-type": "application/json", "paypal-debug-id": HEADER_ID };
+describe("PayPal's debug id on an error (the sandbox's recorded answers carry `Paypal-Debug-Id`)", () => {
+  /** The header's id on P4's recorded token answer, whose body the recorder never read. */
+  const headerId = () => recordedAnswer("P4", "POST", /^\/v1\/oauth2\/token$/).debugId!;
+  const TRAIL_LIMIT = 255;
 
-  it("was sent on the token answer itself, whose body carries none", () => {
-    expect(recordedToken.status).toBe(200);
-    expect(HEADER_ID).toMatch(/^[0-9a-f]{10,}$/);
-  });
-
-  it("is kept from the header when the credentials are refused: the identity body has none", async () => {
-    const { client: paypalClient } = stubbed({
-      "/v1/oauth2/token": () =>
-        new Response(paypalFixtureText("api/oauth-401-invalid-client.json"), {
-          status: 401,
-          headers: withDebugId,
-        }),
+  /**
+   * An error answer as PayPal sends one.
+   *
+   * @param status - The HTTP status.
+   * @param body - The body text.
+   * @param debugId - The `Paypal-Debug-Id` header, when PayPal sends one.
+   * @returns The route.
+   */
+  const refusing = (status: number, body: string, debugId?: string) => () =>
+    new Response(body, {
+      status,
+      headers: {
+        "content-type": "application/json",
+        ...(debugId === undefined ? {} : { "paypal-debug-id": debugId }),
+      },
     });
 
-    const error = await paypalClient
-      .get(AUTHORIZATION_PATH, { response: authorization })
-      .catch((caught: unknown) => caught);
-
-    expect(error).toBeInstanceOf(PayPalError);
-    expect(error).toMatchObject({ status: 401, name: "invalid_client", debugId: HEADER_ID });
-  });
-
-  it("is kept from the header when the token is refused on the call and again after the refresh", async () => {
-    const { client: paypalClient, sent } = stubbed({
-      "/v1/oauth2/token": () => Response.json(TOKEN),
-      [AUTHORIZATION_PATH]: () =>
-        new Response(paypalFixtureText("api/api-401-invalid-token.json"), {
-          status: 401,
-          headers: withDebugId,
-        }),
-    });
-
-    const error = await paypalClient
-      .get(AUTHORIZATION_PATH, { response: authorization })
-      .catch((caught: unknown) => caught);
-
-    expect(error).toMatchObject({ status: 401, name: "invalid_token", debugId: HEADER_ID });
-    expect(sent.filter((request) => request.endsWith(AUTHORIZATION_PATH))).toHaveLength(2);
-  });
-
-  it("is kept from the header on an answer that is not JSON, named by its status", async () => {
+  /**
+   * The error a capture gets when PayPal answers it with a refusal.
+   *
+   * @param refusal - The route answering the capture.
+   * @returns What the client threw.
+   */
+  const captureRefused = async (refusal: () => Response): Promise<PayPalError> => {
     const { client: paypalClient } = stubbed({
       "/v1/oauth2/token": () => Response.json(TOKEN),
-      [`${AUTHORIZATION_PATH}/capture`]: () =>
-        new Response("<html><body>Service Unavailable</body></html>", {
-          status: 503,
-          headers: { "content-type": "text/html", "paypal-debug-id": HEADER_ID },
-        }),
+      [`${AUTHORIZATION_PATH}/capture`]: refusal,
     });
-
     const error = await paypalClient
       .post(`${AUTHORIZATION_PATH}/capture`, {
         requestId: "8f0f8a3e-0000-8000-8000-000000000006",
@@ -397,54 +375,130 @@ describe("PayPal's debug id on an error (the sandbox sent `Paypal-Debug-Id` on e
         response: authorization,
       })
       .catch((caught: unknown) => caught);
-
     expect(error).toBeInstanceOf(PayPalError);
-    expect(error).toMatchObject({ status: 503, name: "HTTP_503", debugId: HEADER_ID, details: [] });
+    return error as PayPalError;
+  };
+
+  it("was sent on the recorded token answer, whose body the recorder never read", () => {
+    expect(recordedAnswer("P4", "POST", /^\/v1\/oauth2\/token$/).status).toBe(200);
+    expect(headerId()).toMatch(/^[0-9a-f]{10,}$/);
   });
 
-  it("is the body's where PayPal gives both: negative testing's recorded refusal carries two", async () => {
-    const refusal = recordedAnswer("P5A", "POST", /\/capture$/);
-    const inBody = (refusal.responseBody as { debug_id: string }).debug_id;
-    expect(refusal.debugId).not.toBe(inBody);
+  it("is kept from the header when the credentials are refused: the identity body has none", async () => {
     const { client: paypalClient } = stubbed({
-      "/v1/oauth2/token": () => Response.json(TOKEN),
-      [`${AUTHORIZATION_PATH}/capture`]: () =>
-        Response.json(refusal.responseBody, {
-          status: refusal.status!,
-          headers: { "paypal-debug-id": refusal.debugId! },
-        }),
-    });
-
-    const error = await paypalClient
-      .post(`${AUTHORIZATION_PATH}/capture`, {
-        requestId: "8f0f8a3e-0000-8000-8000-000000000007",
-        body: {},
-        response: authorization,
-      })
-      .catch((caught: unknown) => caught);
-
-    expect(error).toMatchObject({ status: 422, debugId: inBody });
-    expect((error as PayPalError).hasIssue("AUTHORIZATION_EXPIRED")).toBe(true);
-  });
-
-  it.each([
-    ["no header", undefined],
-    ["an empty header", "  "],
-    ["a header longer than any id the audit trail keeps", "f".repeat(256)],
-  ])("is null when the body has none and there is %s", async (_case, header) => {
-    const { client: paypalClient } = stubbed({
-      "/v1/oauth2/token": () =>
-        new Response(paypalFixtureText("api/oauth-401-invalid-client.json"), {
-          status: 401,
-          headers: header === undefined ? {} : { "paypal-debug-id": header },
-        }),
+      "/v1/oauth2/token": refusing(
+        401,
+        paypalFixtureText("api/oauth-401-invalid-client.json"),
+        headerId(),
+      ),
     });
 
     const error = await paypalClient
       .get(AUTHORIZATION_PATH, { response: authorization })
       .catch((caught: unknown) => caught);
 
-    expect(error).toMatchObject({ status: 401, name: "invalid_client", debugId: null });
+    expect(error).toBeInstanceOf(PayPalError);
+    expect(error).toMatchObject({ status: 401, name: "invalid_client", debugId: headerId() });
+  });
+
+  it("is kept from the header when the token is refused on the call and again after the refresh", async () => {
+    const { client: paypalClient, sent } = stubbed({
+      "/v1/oauth2/token": () => Response.json(TOKEN),
+      [AUTHORIZATION_PATH]: refusing(
+        401,
+        paypalFixtureText("api/api-401-invalid-token.json"),
+        headerId(),
+      ),
+    });
+
+    const error = await paypalClient
+      .get(AUTHORIZATION_PATH, { response: authorization })
+      .catch((caught: unknown) => caught);
+
+    expect(error).toMatchObject({ status: 401, name: "invalid_token", debugId: headerId() });
+    expect(sent.filter((request) => request.endsWith(AUTHORIZATION_PATH))).toHaveLength(2);
+  });
+
+  it("is kept from the header on an answer that is not JSON, named by its status", async () => {
+    const error = await captureRefused(
+      () =>
+        new Response("<html><body>Service Unavailable</body></html>", {
+          status: 503,
+          headers: { "content-type": "text/html", "paypal-debug-id": headerId() },
+        }),
+    );
+
+    expect(error).toMatchObject({
+      status: 503,
+      name: "HTTP_503",
+      debugId: headerId(),
+      details: [],
+    });
+  });
+
+  it("is the body's where PayPal gives both: negative testing's recorded refusal carries two", async () => {
+    const refusal = recordedAnswer("P5A", "POST", /\/capture$/);
+    const inBody = (refusal.responseBody as { debug_id: string }).debug_id;
+    expect(refusal.debugId).not.toBe(inBody);
+
+    const error = await captureRefused(
+      refusing(refusal.status!, JSON.stringify(refusal.responseBody), refusal.debugId!),
+    );
+
+    expect(error).toMatchObject({ status: 422, debugId: inBody });
+    expect(error.hasIssue("AUTHORIZATION_EXPIRED")).toBe(true);
+  });
+
+  it.each([
+    ["empty", ""],
+    ["longer than any id the audit trail keeps", "b".repeat(TRAIL_LIMIT + 1)],
+  ])("is the header's when the body's debug_id is %s", async (_case, inBody) => {
+    const body = JSON.stringify({
+      name: "UNPROCESSABLE_ENTITY",
+      debug_id: inBody,
+      details: [{ issue: "AUTHORIZATION_EXPIRED" }],
+    });
+
+    const error = await captureRefused(refusing(422, body, headerId()));
+
+    expect(error).toMatchObject({ name: "UNPROCESSABLE_ENTITY", debugId: headerId() });
+    expect(error.hasIssue("AUTHORIZATION_EXPIRED")).toBe(true);
+  });
+
+  it("is kept at exactly the length the audit trail keeps, from the header or the body", async () => {
+    const longest = "f".repeat(TRAIL_LIMIT);
+    const named = JSON.stringify({ name: "UNPROCESSABLE_ENTITY", debug_id: longest });
+
+    const fromHeader = await captureRefused(
+      refusing(401, paypalFixtureText("api/api-401-invalid-token.json"), longest),
+    );
+    const fromBody = await captureRefused(refusing(422, named));
+
+    expect(fromHeader.debugId).toBe(longest);
+    expect(fromBody.debugId).toBe(longest);
+  });
+
+  it.each([
+    ["no header", undefined],
+    ["an empty header", ""],
+    ["a header longer than any id the audit trail keeps", "f".repeat(TRAIL_LIMIT + 1)],
+  ])("is null when the body has none and there is %s", async (_case, header) => {
+    const error = await captureRefused(
+      refusing(401, paypalFixtureText("api/api-401-invalid-token.json"), header),
+    );
+
+    expect(error).toMatchObject({ status: 401, name: "invalid_token", debugId: null });
+  });
+
+  it("is null when the body's is longer than the audit trail keeps and there is no header", async () => {
+    const body = JSON.stringify({
+      name: "UNPROCESSABLE_ENTITY",
+      debug_id: "b".repeat(TRAIL_LIMIT + 1),
+    });
+
+    const error = await captureRefused(refusing(422, body));
+
+    expect(error).toMatchObject({ name: "UNPROCESSABLE_ENTITY", debugId: null });
   });
 });
 
