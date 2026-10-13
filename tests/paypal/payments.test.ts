@@ -104,15 +104,19 @@ describe("the Payments v2 answers, as the sandbox gave them (U0's recordings)", 
 });
 
 describe("the Payments v2 answers read more strictly than PayPal's own SDK reads them (pinned)", () => {
-  const recorded = recordedAnswer("P2", "GET", /^\/v2\/payments\/authorizations\/[^/]+$/)
-    .responseBody as Record<string, unknown>;
+  const recorded = () =>
+    recordedAnswer("P2", "GET", /^\/v2\/payments\/authorizations\/[^/]+$/).responseBody as Record<
+      string,
+      unknown
+    >;
 
   it.each([
     ["an authorisation", authorization],
     ["a capture", capture],
     ["a refund", refund],
   ])("refuses %s in a status the published schema does not list", (_what, schema) => {
-    expect(schema.safeParse({ id: "91T13242G72341823", status: "CREATED_LATER" }).success).toBe(
+    expect(schema.safeParse({ id: "91T13242G72341823", status: "PENDING" }).success).toBe(true);
+    expect(schema.safeParse({ id: "91T13242G72341823", status: "PENDING_LATER" }).success).toBe(
       false,
     );
   });
@@ -120,17 +124,19 @@ describe("the Payments v2 answers read more strictly than PayPal's own SDK reads
   it.each(["status_details", "amount", "expiration_time", "links"])(
     "refuses an explicit null for %s, which may be absent",
     (field) => {
-      expect(authorization.safeParse(recorded).success).toBe(true);
-      expect(authorization.safeParse({ ...recorded, [field]: null }).success).toBe(false);
+      expect(authorization.safeParse(recorded()).success).toBe(true);
+      expect(authorization.safeParse({ ...recorded(), [field]: null }).success).toBe(false);
     },
   );
 
   it("keeps the fields it does not name, as the sandbox sent them", () => {
-    const read = authorization.parse(recorded) as Record<string, unknown>;
+    const sent = recorded();
+    const read = authorization.parse(sent) as Record<string, unknown>;
 
-    expect(recorded.seller_protection).toBeDefined();
-    expect(read.seller_protection).toEqual(recorded.seller_protection);
-    expect(read.supplementary_data).toEqual(recorded.supplementary_data);
+    expect(sent.seller_protection).toBeDefined();
+    expect(sent.supplementary_data).toBeDefined();
+    expect(read.seller_protection).toEqual(sent.seller_protection);
+    expect(read.supplementary_data).toEqual(sent.supplementary_data);
   });
 });
 
