@@ -28,4 +28,20 @@ describe("the landing page", () => {
       "You&#x27;ll get your own practice with cases at every stage. The PayPal sandbox login is on the owner&#x27;s page.",
     );
   });
+
+  it("draws a dog and a cat on the band, and each door's own drawing (U18)", () => {
+    const html = renderToStaticMarkup(<HomePage />);
+
+    for (const words of [
+      "A line drawing of a dog, sitting",
+      "A line drawing of a cat, sitting",
+      "A line drawing of a stethoscope",
+      "A line drawing of a phone with a paw print on its screen",
+    ]) {
+      expect(html).toContain(`aria-label="${words}"`);
+    }
+    expect(html).toMatch(
+      /aria-label="A line drawing of a stethoscope"[\s\S]*Try it as the practice[\s\S]*aria-label="A line drawing of a phone/,
+    );
+  });
 });

@@ -173,6 +173,14 @@ const RESTYLE: readonly (readonly [string, string, string, number])[] = [
     4.5,
   ],
   [
+    "the landing heading on the band (40 px and over, large)",
+    token("colour-saddle"),
+    token("colour-sage"),
+    3,
+  ],
+  ["the landing's sentence on the band", token("colour-ink"), token("colour-sage"), 4.5],
+  ["the note under the landing's doors", token("colour-ink-muted"), token("colour-surface"), 4.5],
+  [
     "a drawing's line on a mint disc or panel (a graphic)",
     token("colour-saddle"),
     token("colour-mint"),
