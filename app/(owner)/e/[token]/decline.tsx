@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
-import { DONT_GO_AHEAD, PAYPAL_ERROR, PRACTICE_WILL_CALL } from "@/owner/wording";
+import { DECLINE_FAILED, DONT_GO_AHEAD, PRACTICE_WILL_CALL } from "@/owner/wording";
 
 import styles from "./authorise.module.css";
 
@@ -37,7 +37,7 @@ export function Decline({ token }: { readonly token: string }) {
     <div className={styles.decline}>
       {failed ? (
         <p className={styles.error} role="alert">
-          {PAYPAL_ERROR}
+          {DECLINE_FAILED}
         </p>
       ) : null}
       <button

@@ -2,7 +2,7 @@ import { eq } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
 
 import { appendAuditEvent } from "@/audit/writer";
-import { capture, patientCase } from "@/db/schema";
+import { capture, patientCase, vet } from "@/db/schema";
 import { loadEstimateVersion, makeEstimateVersion } from "@/estimate/version";
 import { discharge } from "@/money/discharge";
 import { authoriseHold, orderHold, sendEstimate, withdrawEstimate } from "@/money/holds";
@@ -78,6 +78,7 @@ describe("the vet the owner's page names", () => {
 
   it("is the vet who opened the case, when the practice named one (section 6's {vet name})", async () => {
     const fixture = await makeDentalCase(db, "Named vet practice");
+    await db.insert(vet).values({ practiceId: fixture.practiceId, name: "Rowan Hale" });
     await db
       .update(patientCase)
       .set({ vetName: "Rowan Hale" })

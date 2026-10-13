@@ -46,25 +46,25 @@ A few seconds later the page adds "Confirmed by PayPal" and the time: PayPal's w
 5. Click **Confirm and charge £876.00**, then click **Confirm and charge £876.00** again in the dialog. pawhold captures £876.00 at PayPal and releases the rest: "£876.00 captured. £134.00 released to Priya."
 6. Go to **Today's cases** and click **New case**, fill in a patient, an owner and a procedure, and click **Open the case**. Type or paste your notes into **Clinical notes** and click **Draft estimate**: the model drafts each line from your words, priced from the practice's list, with "From your notes" under each.
 
-Only a hold you authorised yourself can be charged: the seeded cases' holds were never PayPal's, so pawhold refuses to send them to PayPal. To try an update, open **Otis** while it is held, describe a finding under **Add an update**, send it, then click **Try it as the owner** again: the owner's door opens the newest estimate Priya has been sent.
+Only a hold you authorised yourself can be charged: the seeded cases' holds were never PayPal's, so pawhold refuses to send them to PayPal. To try an update, open **Otis** while it is held, describe a finding under **Add an update**, send it, then click **Try it as the owner** again: the owner's door opens the newest estimate Priya has been sent. There is no phone in the demo, so a case waiting for its owner also offers **Open Priya's page**: the page the owner's link opens, in a new tab.
 
 ### What each money state means
 
 The practice's list shows each case's money as a chip, in these words.
 
-| Chip               | What it means                                                                                        | Seeded case                                    |
-| ------------------ | ---------------------------------------------------------------------------------------------------- | ---------------------------------------------- |
-| Estimate draft     | The vet is writing the estimate; the owner has seen nothing                                          | Pip, Moss                                      |
-| Waiting for owner  | The estimate is sent; nothing is held until the owner authorises it                                  | Otis, Archie                                   |
-| Held {amount}      | PayPal holds the top of the estimate on the owner's PayPal or card; nothing is charged yet           | Hazel (PayPal), Willow, Biscuit, Clover (card) |
-| Update waiting     | The vet found more to do and asked; the extra is not held until the owner says yes                   | Juno                                           |
-| Update declined    | The owner said no to the extra: the work stays within what is held                                   | Bramble                                        |
-| Hold extended      | PayPal reauthorised a PayPal-account hold after its three-day honour period                          | Bramble                                        |
-| Honour period over | A card hold is past PayPal's three days; card holds are never reauthorised, so the practice is told  | Rufus                                          |
-| Captured {amount}  | Discharged: exactly the bill was captured, from each hold up to its amount                           | Poppy                                          |
-| Released {amount}  | Discharged: what the bill did not use was released back to the owner                                 | Teddy                                          |
-| Refunded {amount}  | Part of a captured bill was refunded after discharge, as goodwill or a correction                    | Luna                                           |
-| Withdrawn          | The practice withdrew an estimate before the owner authorised it; PayPal's order was left unapproved | Milo                                           |
+| Chip               | What it means                                                                                                                       | Seeded case                                    |
+| ------------------ | ----------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------- |
+| Estimate draft     | The vet is writing the estimate; the owner has seen nothing                                                                         | Pip, Moss                                      |
+| Waiting for owner  | The estimate is sent; nothing is held until the owner authorises it                                                                 | Otis, Archie                                   |
+| Held {amount}      | PayPal holds the top of the estimate on the owner's PayPal or card; nothing is charged yet                                          | Hazel (PayPal), Willow, Biscuit, Clover (card) |
+| Update waiting     | The vet found more to do and asked; the extra is not held until the owner says yes                                                  | Juno                                           |
+| Update declined    | The owner said no to the extra: the work stays within what is held                                                                  | Bramble                                        |
+| Hold extended      | PayPal reauthorised a PayPal-account hold after its three-day honour period                                                         | Bramble                                        |
+| Honour period over | A card hold is past PayPal's three days; card holds are never reauthorised, so the practice is told to ask the owner for a new hold | Rufus                                          |
+| Captured {amount}  | Discharged: exactly the bill was captured, from each hold up to its amount                                                          | Poppy                                          |
+| Released {amount}  | Discharged: what the bill did not use was released back to the owner                                                                | Teddy                                          |
+| Refunded {amount}  | Part of a captured bill was refunded after discharge, as goodwill or a correction                                                   | Luna                                           |
+| Withdrawn          | The practice withdrew an estimate before the owner authorised it; PayPal's order was left unapproved                                | Milo                                           |
 
 ### What is seeded and what is live
 

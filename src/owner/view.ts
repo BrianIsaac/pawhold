@@ -6,13 +6,14 @@ import {
   bill,
   billLine,
   estimateLine,
+  estimateSource,
   estimateVersion,
   patientCase,
   practice,
   priceListItem,
 } from "@/db/schema";
+import { linesAdded } from "@/estimate/added";
 import {
-  estimateDelta,
   type EstimateLineView,
   type EstimateVersionView,
   loadEstimateVersion,
@@ -68,6 +69,10 @@ export interface OwnerUpdatePage extends OwnerVersionPage {
   readonly kind: "update";
   /** U4's explanation for the owner, checked by code; null when withheld or drafted by hand. */
   readonly explanation: string | null;
+  /** What the vet wrote, in full ("What the vet wrote", section 6); null for an update made by hand. */
+  readonly finding: string | null;
+  /** Whether the vet shared a photo with the owner ("Show the photo to the owner"). */
+  readonly photoShared: boolean;
   /** The lines the update adds or raises, in the owner's words, at this version's amounts. */
   readonly added: readonly OwnerLine[];
   /** What the case's holds held before this update. */
@@ -213,19 +218,18 @@ export async function ownerPage(
   }
 
   const previous = await loadEstimateVersion(executor, request.practiceId, previousHold.id);
-  const changed = new Set(
-    estimateDelta(previous!, version)
-      .items.filter((item) => item.change !== "removed")
-      .map((item) => item.code),
-  );
+  const source = await findingOf(executor, version.caseId, version.id);
   const { heldPence, increasePence } = base.hold
     ? { heldPence: base.hold.heldBeforePence, increasePence: base.hold.amount.pence }
     : await updateIncrease(executor, request.practiceId, version.id);
   return {
     kind: "update",
     ...base,
-    explanation: await updateExplanation(executor, version.caseId, version.id),
-    added: version.lines.filter((line) => changed.has(line.code)).map(ownerLine),
+    explanation:
+      source?.explanation ?? (await updateExplanation(executor, version.caseId, version.id)),
+    finding: source?.text ?? null,
+    photoShared: source?.photoShared ?? false,
+    added: linesAdded(previous!.lines, version.lines).map(ownerLine),
     heldPence,
     increasePence,
   };
@@ -308,6 +312,38 @@ async function isLatestSent(executor: Executor, version: EstimateVersionView): P
     .from(estimateVersion)
     .where(and(eq(estimateVersion.caseId, version.caseId), isNotNull(estimateVersion.sentAt)));
   return (latest?.number ?? version.number) === version.number;
+}
+
+/**
+ * What U5 keeps beside an update (its `estimate_source`): the vet's finding
+ * in full, the checked explanation, and whether a photo was shared. U11: the
+ * owner's page reads them here (U6-seam's owed item).
+ *
+ * @param executor - The pool or an open transaction.
+ * @param caseId - The case.
+ * @param versionId - The update's version.
+ * @returns What is kept, or null for an update drafted by hand.
+ */
+async function findingOf(
+  executor: Executor,
+  caseId: string,
+  versionId: string,
+): Promise<{ text: string; explanation: string | null; photoShared: boolean } | null> {
+  const [kept] = await executor
+    .select({
+      text: estimateSource.text,
+      explanation: estimateSource.explanation,
+      photoShared: sql<boolean>`${estimateSource.photoShared} and ${estimateSource.photo} is not null`,
+    })
+    .from(estimateSource)
+    .where(
+      and(
+        eq(estimateSource.caseId, caseId),
+        eq(estimateSource.versionId, versionId),
+        eq(estimateSource.kind, "finding"),
+      ),
+    );
+  return kept ?? null;
 }
 
 /**

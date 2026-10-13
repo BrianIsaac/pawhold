@@ -164,3 +164,24 @@ describe("the receipt, in section 6's words", () => {
     );
   });
 });
+
+describe("the owner's words the pixel pass changed (U11)", () => {
+  it("gives an estimate with no range one figure", async () => {
+    const { rangeLine } = await import("@/owner/wording");
+
+    expect(rangeLine("Rowan Hale", "£95.00", "£95.00")).toBe(
+      "Likely £95.00, depending on what Rowan Hale finds.",
+    );
+  });
+
+  it("says an approval nothing was taken from was released, never paid from at £0.00", async () => {
+    const { paidFromApprovals } = await import("@/owner/wording");
+
+    expect(paidFromApprovals(["£482.00", null])).toBe(
+      "Paid from your first approval: £482.00. Nothing was taken from your second approval: it was released.",
+    );
+    expect(paidFromApprovals(["£927.00", "£130.00"])).toBe(
+      "Paid from your first approval: £927.00. Paid from your second approval: £130.00.",
+    );
+  });
+});

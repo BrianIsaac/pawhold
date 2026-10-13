@@ -14,7 +14,9 @@ import { authoriseHold, declineUpdate, orderHold } from "@/money/holds";
 import { reconcileWebhookEvent } from "@/money/reconcile";
 import { openCase } from "@/practice/cases";
 import { approveAndSend } from "@/practice/estimate";
-import { caseTimeline, DESCRIBED_ACTIONS } from "@/practice/timeline";
+import type { AuditEventRecord } from "@/audit/writer";
+import { practiceClock } from "@/practice/time";
+import { caseTimeline, describeEvent, DESCRIBED_ACTIONS } from "@/practice/timeline";
 import { practice } from "@/db/schema";
 
 import { readSeedPriceList, seedFictionalPractice } from "../../seed/practice";
@@ -213,6 +215,7 @@ describe("the case's timeline (plan 3.5, section 6)", () => {
         detail: { versionId: null, number: 1, draftedLines: 4, source: "model", failure: null },
       },
       {
+        clock: practiceClock("Europe/London"),
         vetName: "Rowan Hale",
         ownerFirstName: "Nadia",
         patientName: "Bramble",
@@ -236,7 +239,7 @@ describe("the timeline's words", () => {
           walk(path);
         } else if (path.endsWith(".ts")) {
           for (const match of readFileSync(path, "utf8").matchAll(
-            /"((?:case|estimate|hold|bill|capture|webhook)\.[a-z_]+)"/g,
+            /"((?:case|estimate|hold|bill|capture|webhook|schedule)\.[a-z_]+)"/g,
           )) {
             written.add(match[1]!);
           }
@@ -277,5 +280,129 @@ describe("the seeded story", () => {
           .orderBy(asc(auditEvent.id))
       ).map((event) => `${event.actor} ${event.action}`);
     expect(await story(target.caseId)).toEqual(await story(seededCase));
+  });
+});
+
+describe("the timeline's words for a judge (U11)", () => {
+  /**
+   * One of the seeded case's events, made into another to describe.
+   *
+   * @param change - What the event is instead.
+   * @returns The event.
+   */
+  async function eventLike(change: Partial<AuditEventRecord>): Promise<AuditEventRecord> {
+    const [event] = await db
+      .select()
+      .from(auditEvent)
+      .where(eq(auditEvent.caseId, seededCase))
+      .orderBy(asc(auditEvent.id));
+    return { ...event!, detail: {}, amountPence: null, ...change };
+  }
+
+  const context = {
+    clock: practiceClock("Europe/London"),
+    vetName: "Rowan Hale",
+    ownerFirstName: "Ellis",
+    patientName: "Juno",
+    confirmations: new Map<string, Date>(),
+    billSignedOff: null,
+    rooms: new Map([["room-1", "Theatre 1"]]),
+    patients: new Map([
+      ["case-juno", "Juno"],
+      ["case-biscuit", "Biscuit"],
+    ]),
+  };
+
+  it("names an estimate with no range by its one figure", async () => {
+    const made = describeEvent(
+      await eventLike({
+        action: "estimate.version_made",
+        detail: { number: 1, lowPence: 9_500, highPence: 9_500 },
+      }),
+      context,
+    );
+    expect(made.what).toBe("made version 1 of the estimate, £95.00");
+    const sent = describeEvent(
+      await eventLike({
+        action: "estimate.sent",
+        moneyStateAfter: "awaiting_owner",
+        amountPence: 9_500,
+        detail: { lowPence: 9_500, highPence: 9_500 },
+      }),
+      context,
+    );
+    expect(sent.what).toBe("sent the estimate to Ellis: £95.00, a hold of £95.00");
+  });
+
+  it("names the vet who confirmed the bill as who captured and released at discharge", async () => {
+    const captured = await eventLike({
+      action: "hold.captured",
+      actor: "system",
+      amountPence: 87_600,
+      detail: { releasedPence: 13_400 },
+    });
+    const row = describeEvent(captured, {
+      ...context,
+      billSignedOff: { by: "Imogen Shaw", eventId: captured.id - 1 },
+    });
+    expect(`${row.who}: ${row.what}`).toBe("Imogen Shaw: captured £876.00, £134.00 released");
+    expect(describeEvent(captured, context).who).toBe("pawhold");
+  });
+
+  it.each([
+    [
+      "schedule.slot_held",
+      "schedule_agent",
+      {
+        roomId: "room-1",
+        startsAt: "2026-10-12T15:40:00.000Z",
+        reason: "Ellis hasn't approved the update for Juno.",
+      },
+      "Schedule agent: held Theatre 1 at 16:40. Ellis hasn't approved the update for Juno.",
+    ],
+    [
+      "schedule.move_proposed",
+      "schedule_agent",
+      { moveCaseId: "case-biscuit", moveTo: "2026-10-12T15:40:00.000Z" },
+      "Schedule agent: proposed moving Biscuit's procedure to 16:40",
+    ],
+    [
+      "schedule.move_applied",
+      "vet",
+      {
+        moveCaseId: "case-biscuit",
+        moved: { from: "2026-10-12T16:40:00.000Z", to: "2026-10-12T15:40:00.000Z" },
+        heldMoved: { from: "2026-10-12T15:40:00.000Z", to: "2026-10-12T16:40:00.000Z" },
+      },
+      "Rowan Hale: moved Biscuit's procedure to 16:40; Juno's now starts at 17:40",
+    ],
+    [
+      "schedule.booking_moved",
+      "vet",
+      { heldCaseId: "case-juno", to: "2026-10-12T15:40:00.000Z" },
+      "Rowan Hale: moved Juno's procedure to 16:40, into the slot held for Juno",
+    ],
+    ["schedule.proposal_dismissed", "vet", {}, "Rowan Hale: dismissed the proposed move"],
+    [
+      "schedule.slot_released",
+      "vet",
+      { roomId: "room-1", by: "practice" },
+      "Rowan Hale: released the hold on Theatre 1",
+    ],
+    [
+      "schedule.slot_released",
+      "schedule_agent",
+      { roomId: "room-1", by: "agent" },
+      "Schedule agent: released the hold on Theatre 1: the update was answered",
+    ],
+    [
+      "schedule.proposal_withdrawn",
+      "schedule_agent",
+      { why: "slot_started" },
+      "Schedule agent: withdrew the proposed move: the slot had started",
+    ],
+  ] as const)("words %s for a judge", async (action, actor, detail, words) => {
+    const row = describeEvent(await eventLike({ action, actor, detail }), context);
+    expect(`${row.who}: ${row.what}`).toBe(words);
   });
 });

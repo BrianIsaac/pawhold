@@ -5,7 +5,7 @@ import { useActionState, useEffect, useRef, useState } from "react";
 
 import type { DischargeProgressJson, ProgressStepJson } from "@/discharge/progress";
 import { money } from "@/discharge/wording";
-import { practiceSecond } from "@/practice/time";
+import { practiceClock } from "@/practice/time";
 
 import { Button } from "../../../../components/Button";
 import caseStyles from "../case.module.css";
@@ -27,6 +27,7 @@ const POLL_FOR_MS = 5 * 60 * 1000;
  * @param props - The case, the owner's first name, the progress as first rendered, and the bound resume.
  * @param props.caseId - The case.
  * @param props.ownerFirstName - The owner's first name.
+ * @param props.timeZone - The zone the practice reads its times in.
  * @param props.initial - The progress when the page was rendered.
  * @param props.resume - The resume action, bound to the case.
  * @returns The panel.
@@ -34,11 +35,13 @@ const POLL_FOR_MS = 5 * 60 * 1000;
 export function DischargeProgressPanel({
   caseId,
   ownerFirstName,
+  timeZone,
   initial,
   resume,
 }: {
   caseId: string;
   ownerFirstName: string;
+  timeZone: string;
   initial: DischargeProgressJson;
   resume: () => Promise<DischargeAnswer>;
 }) {
@@ -121,7 +124,11 @@ export function DischargeProgressPanel({
             </h3>
             <ul className={styles.steps}>
               {one.capture ? (
-                <Step label={`Captured ${money(one.capture.pence, currency)}`} step={one.capture} />
+                <Step
+                  timeZone={timeZone}
+                  label={`Captured ${money(one.capture.pence, currency)}`}
+                  step={one.capture}
+                />
               ) : one.plannedCapturePence > 0 && !one.expired ? (
                 <li className={styles.step}>
                   <span>Waiting to capture {money(one.plannedCapturePence, currency)}</span>
@@ -129,6 +136,7 @@ export function DischargeProgressPanel({
               ) : null}
               {one.release ? (
                 <Step
+                  timeZone={timeZone}
                   label={`Released ${money(one.release.pence, currency)} to ${ownerFirstName}`}
                   step={one.release}
                 />
@@ -195,17 +203,27 @@ export function DischargeProgressPanel({
  * @param props - The step's words and the step.
  * @param props.label - What moved.
  * @param props.step - The step.
+ * @param props.timeZone - The practice's zone.
  * @returns The row.
  */
-function Step({ label, step }: { label: string; step: ProgressStepJson }) {
+function Step({
+  label,
+  step,
+  timeZone,
+}: {
+  label: string;
+  step: ProgressStepJson;
+  timeZone: string;
+}) {
+  const clock = practiceClock(timeZone);
   return (
     <li className={styles.step}>
       <span>
-        {label} at {practiceSecond(new Date(step.at))}
+        {label} at {clock.second(new Date(step.at))}
       </span>
       {step.confirmedAt ? (
         <span className={styles.confirmed}>
-          Confirmed by PayPal {practiceSecond(new Date(step.confirmedAt))}
+          Confirmed by PayPal {clock.second(new Date(step.confirmedAt))}
         </span>
       ) : (
         <span className={styles.waiting}>Waiting for PayPal to confirm</span>

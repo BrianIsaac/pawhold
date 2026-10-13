@@ -8,18 +8,18 @@ test("the timeline shows every audit event of a seeded case in order", async ({ 
   const timeline = page.getByRole("region", { name: "Timeline" });
   const lines = timeline.locator("li > p");
   await expect(lines).toHaveText([
-    /^\d\d:\d\d Rowan Hale: opened the case for BrambleSeeded for the demo$/,
-    /^\d\d:\d\d Rowan Hale: made version 1 of the estimate, £731\.00 to £927\.00Seeded for the demo$/,
-    /^\d\d:\d\d Rowan Hale: approved version 1Seeded for the demo$/,
-    /^\d\d:\d\d Rowan Hale: sent the estimate to Nadia: £731\.00 to £927\.00, a hold of £927\.00Seeded for the demo$/,
-    /^\d\d:\d\d Owner: opened PayPal's checkout for a hold of £927\.00Seeded for the demo$/,
-    /^\d\d:\d\d Owner: authorised a hold of £927\.00 \(PayPal\)Seeded for the demo$/,
-    /^\d\d:\d\d Rowan Hale: made version 2 of the estimate, £951\.00 to £1,147\.00Seeded for the demo$/,
-    /^\d\d:\d\d Rowan Hale: approved version 2Seeded for the demo$/,
-    /^\d\d:\d\d Rowan Hale: sent an update to Nadia: the estimate is now £951\.00 to £1,147\.00Seeded for the demo$/,
-    /^\d\d:\d\d Owner: opened PayPal's checkout for a hold of £220\.00Seeded for the demo$/,
-    /^\d\d:\d\d Owner: declined the updateSeeded for the demo$/,
-    /^\d\d:\d\d pawhold: extended the hold of £927\.00: PayPal reauthorised itSeeded for the demo$/,
+    /^\d\d:\d\d Rowan Hale: opened the case for Bramble\sSeeded for the demo$/,
+    /^\d\d:\d\d Rowan Hale: made version 1 of the estimate, £731\.00 to £927\.00\sSeeded for the demo$/,
+    /^\d\d:\d\d Rowan Hale: approved version 1\sSeeded for the demo$/,
+    /^\d\d:\d\d Rowan Hale: sent the estimate to Nadia: £731\.00 to £927\.00, a hold of £927\.00\sSeeded for the demo$/,
+    /^\d\d:\d\d Owner: opened PayPal's checkout for a hold of £927\.00\sSeeded for the demo$/,
+    /^\d\d:\d\d Owner: authorised a hold of £927\.00 \(PayPal\)\sSeeded for the demo$/,
+    /^\d\d:\d\d Rowan Hale: made version 2 of the estimate, £951\.00 to £1,147\.00\sSeeded for the demo$/,
+    /^\d\d:\d\d Rowan Hale: approved version 2\sSeeded for the demo$/,
+    /^\d\d:\d\d Rowan Hale: sent an update to Nadia: the estimate is now £951\.00 to £1,147\.00\sSeeded for the demo$/,
+    /^\d\d:\d\d Owner: opened PayPal's checkout for a hold of £220\.00\sSeeded for the demo$/,
+    /^\d\d:\d\d Owner: declined the update\sSeeded for the demo$/,
+    /^\d\d:\d\d pawhold: extended the hold of £927\.00: PayPal reauthorised it\sSeeded for the demo$/,
   ]);
 
   const authorised = timeline.getByRole("listitem").filter({ hasText: "authorised a hold" });

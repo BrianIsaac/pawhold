@@ -18,6 +18,7 @@ import { ActionButton } from "./ActionButton";
 import { ActionDialog } from "./ActionDialog";
 import { AddItemForm } from "./AddItemForm";
 import styles from "./case.module.css";
+import { OwnerLinkHint } from "./OwnerLinkHint";
 import { DraftOutcome } from "./DraftOutcome";
 import { NotesForm } from "./NotesForm";
 import { NotesWithSpans } from "./NotesWithSpans";
@@ -212,9 +213,10 @@ function SentPanel({
  *
  * @param props - The case.
  * @param props.view - The case.
+ * @param props.ownerPath - The owner's link while their answer is awaited, or null.
  * @returns The section's body.
  */
-export function EstimateSection({ view }: { view: CaseView }) {
+export function EstimateSection({ view, ownerPath }: { view: CaseView; ownerPath: string | null }) {
   const { draft, sent } = view.estimate;
   const state = view.money.state;
   const first = view.case.ownerFirstName;
@@ -257,6 +259,7 @@ export function EstimateSection({ view }: { view: CaseView }) {
           <p className={styles.muted}>
             Waiting for {first} to authorise the hold of {high}.
           </p>
+          {ownerPath ? <OwnerLinkHint path={ownerPath} ownerFirstName={first} /> : null}
           <div className={styles.actions}>
             <ActionDialog
               id="withdraw-estimate"

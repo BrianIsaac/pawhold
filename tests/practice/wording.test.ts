@@ -91,3 +91,13 @@ describe("the case page's words (section 6, D11)", () => {
     expect(askToApprove("Nadia", 13_000, GBP)).toBe("Ask Nadia to approve £130.00");
   });
 });
+
+describe("an estimate with no range (U11)", () => {
+  it("says its one figure once, not as a range from it to itself", async () => {
+    const { estimateTotal } = await import("@/practice/wording");
+
+    expect(estimateTotal({ lowPence: 9_500, highPence: 9_500 }, "GBP")).toBe(
+      "Estimate £95.00. The hold will be £95.00.",
+    );
+  });
+});

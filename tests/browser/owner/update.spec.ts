@@ -8,7 +8,7 @@ import {
   expectNoSeriousViolations,
   expectTargetsAtLeast44,
   untilPayPalDrawn,
-} from "./support/checks";
+} from "../support/checks";
 import { saveShot } from "./support/shots";
 
 const database = openBrowserDatabase();

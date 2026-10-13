@@ -11,7 +11,9 @@
   margin-bottom: var(--space-5);
 }
 
+/* As tall as a target, so the title stands at one height with or without a button. */
 .headRow {
+  min-height: var(--target-min);
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -69,6 +71,11 @@
 @media (min-width: 64rem) {
   .columns {
     grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
+  }
+
+  /* A panel with nothing kept beside it still lines up under the estimate. */
+  .secondColumn {
+    grid-column: 2;
   }
 }
 
@@ -163,7 +170,6 @@
 
 .code {
   display: inline-block;
-  margin-left: var(--space-2);
   white-space: nowrap;
   color: var(--colour-ink-muted);
   font-family: var(--font-mono);
@@ -183,17 +189,6 @@
   font-weight: var(--font-weight-medium);
   text-align: right;
   white-space: nowrap;
-}
-
-@media (max-width: 35.99rem) {
-  .lineHead {
-    grid-template-columns: auto minmax(0, 1fr);
-  }
-
-  .linePrice {
-    grid-column: 2;
-    text-align: left;
-  }
 }
 
 .lineNote {
@@ -352,4 +347,31 @@
   margin: 0;
   padding: 0;
   list-style: none;
+}
+
+/* The owner's link, opened by the practice in the demo (U11). */
+.ownerLink {
+  display: grid;
+  gap: var(--space-2);
+  justify-items: start;
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-2);
+  background: var(--colour-accent-soft);
+}
+
+.ownerLinkButton {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--target-min);
+  padding: var(--space-2) var(--space-4);
+  border: 2px solid var(--colour-accent);
+  border-radius: var(--radius-2);
+  background: var(--colour-surface);
+  color: var(--colour-accent-strong);
+  font-weight: var(--font-weight-medium);
+  text-decoration: none;
+}
+
+.ownerLinkButton:hover {
+  background: var(--colour-accent-soft);
 }

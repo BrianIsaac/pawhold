@@ -198,10 +198,22 @@
 }
 
 .hours li {
-  padding: var(--space-2) var(--space-1);
+  min-width: 0;
   color: var(--colour-ink-muted);
   font-size: var(--font-size-0);
   font-variant-numeric: tabular-nums;
+}
+
+/*
+ * An hour's label stays in view, just inside the room names, while its hour
+ * scrolls past, as a booking's words do: the first hour in view is always
+ * labelled.
+ */
+.hour {
+  position: sticky;
+  left: calc(var(--label) + var(--space-1));
+  display: inline-block;
+  padding: var(--space-2) var(--space-1);
 }
 
 .lane {
@@ -219,9 +231,14 @@
   container-type: inline-size;
 }
 
+/*
+ * A booking is never narrower than a target, even one the day's edge cuts
+ * short (a consult running past midnight); it overhangs its slot instead.
+ */
 .booking {
   display: flex;
   height: 100%;
+  min-width: var(--target-min);
   min-height: var(--target-min);
   padding: var(--space-1) var(--space-2);
   border-left: 4px solid currentColor;

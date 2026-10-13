@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
+import { LinkPending } from "../components/LinkPending";
 import styles from "./practice.module.css";
 
 /** The practice's places, in the order the header lists them; U8a adds "/day". */
@@ -29,6 +30,7 @@ export function PracticeNav() {
               aria-current={pathname === place.href ? "page" : undefined}
             >
               {place.label}
+              <LinkPending />
             </Link>
           </li>
         ))}

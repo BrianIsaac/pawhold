@@ -22,28 +22,31 @@ export interface LineActions {
  * @param props - The panel, its currency, the lines to show and, for a draft, each line's actions.
  * @param props.panel - The version and its source.
  * @param props.currency - The case's currency.
- * @param props.from - Show the lines from this index on (an update's added lines).
+ * @param props.only - Show only these lines (an update's added or changed lines), by id.
  * @param props.actions - For a draft, the bound actions of the line with each id.
  * @returns The lines.
  */
 export function VersionLines({
   panel,
   currency,
-  from = 0,
+  only,
   actions,
 }: {
   panel: VersionPanel;
   currency: CurrencyCode;
-  from?: number;
+  only?: ReadonlySet<string>;
   actions?: (lineId: string) => LineActions;
 }) {
+  const lines = only
+    ? panel.version.lines.filter((line) => only.has(line.id))
+    : panel.version.lines;
   return (
     <ol
       className={styles.lines}
-      start={from + 1}
+      start={lines[0]?.position ?? 1}
       aria-label={`Lines of version ${panel.version.number}`}
     >
-      {panel.version.lines.slice(from).map((line) => {
+      {lines.map((line) => {
         const bound = actions?.(line.id);
         return (
           <li key={line.id} className={styles.line}>
@@ -53,8 +56,7 @@ export function VersionLines({
               </span>
               <div>
                 <p className={styles.lineName}>
-                  {line.name}
-                  <span className={styles.code}>{line.code}</span>
+                  {line.name} <span className={styles.code}>{line.code}</span>
                 </p>
                 <p className={styles.lineQuantity}>{lineQuantity(line, currency)}</p>
               </div>

@@ -10,7 +10,7 @@ import {
   sandboxSecrets,
   voidWhatTheWalksHeld,
 } from "./owner/support/sandbox";
-import { DOUBLE_URL } from "./support/discharge";
+import { approveAtTheDouble } from "./support/double-approval";
 import { type ReadmeWalk, walkReadme } from "./support/readme-walk";
 
 /*
@@ -54,22 +54,7 @@ async function approveWithPayPal(page: Page): Promise<void> {
     await approveInWindow(await opened, buyerLogin(), sandboxSecrets());
     return;
   }
-  if (!DOUBLE_URL) {
-    throw new Error("the walk needs PayPal's sandbox or the run's PayPal double");
-  }
-  const path = new URL(page.url()).pathname;
-  const ordered = await page.request.post(`${path}/order`);
-  expect(ordered.status()).toBe(200);
-  const { orderId } = (await ordered.json()) as { orderId: string };
-  const approved = await fetch(`${DOUBLE_URL}/__double/orders/${orderId}/approve`, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ kind: "paypal" }),
-  });
-  expect(approved.status).toBe(204);
-  const authorised = await page.request.post(`${path}/authorise`, { data: { orderId } });
-  expect(authorised.status()).toBe(200);
-  await page.reload();
+  await approveAtTheDouble(page);
 }
 
 /** How the browser suite walks the README: PayPal's step as {@link approveWithPayPal} has it. */

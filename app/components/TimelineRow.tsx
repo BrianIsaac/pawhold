@@ -39,7 +39,12 @@ export function TimelineRow({ at, time, who, what, details, note }: TimelineRowP
         <span>
           {who}: {what}
         </span>
-        {note === undefined ? null : <span className={styles.note}>{note}</span>}
+        {note === undefined ? null : (
+          <>
+            {" "}
+            <span className={styles.note}>{note}</span>
+          </>
+        )}
       </p>
       {details.length === 0 ? null : (
         <details className={styles.details}>

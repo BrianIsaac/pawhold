@@ -3,7 +3,7 @@
 import { useActionState } from "react";
 
 import { Button } from "../../../components/Button";
-import { TextField } from "../../../components/Field";
+import { TextAreaField, TextField } from "../../../components/Field";
 import { type FormState, NOTHING_YET } from "../../form-state";
 import styles from "./case.module.css";
 
@@ -79,11 +79,12 @@ export function LineEditor({
           defaultValue={saved.values.dependsOn ?? line.dependsOn ?? ""}
           error={saved.fields.dependsOn}
         />
-        <TextField
+        <TextAreaField
           id={`${id}-wording`}
           name="ownerWording"
           label="What the owner reads"
           hint="Leave empty to show the item's own name"
+          rows={3}
           defaultValue={saved.values.ownerWording ?? line.ownerWording ?? ""}
           error={saved.fields.ownerWording}
         />

@@ -31,7 +31,7 @@ export const DOUBLE_URL = process.env.PAWHOLD_BROWSER_PAYPAL_DOUBLE_URL ?? null;
  * @returns The client.
  * @throws Error when the run has no double.
  */
-function doubleClient(): PayPalClient {
+export function doubleClient(): PayPalClient {
   if (!DOUBLE_URL) {
     throw new Error("the discharge walks need the PayPal double that `pnpm test:browser` starts");
   }

@@ -1,6 +1,6 @@
 import type { UpdateTriggerCheck } from "@/estimate/trigger";
 import type { CurrencyCode } from "@/money/currency";
-import { formatMoney, formatPercent } from "@/money/format";
+import { formatMoney, formatMoneyRange, formatPercent } from "@/money/format";
 
 /**
  * The practice's screens' words. Those section 6 drafts are built as drafted
@@ -22,7 +22,8 @@ export const REDRAFT_WARNING =
   "Drafting again replaces the lines of this draft, including any you added by hand.";
 
 /**
- * Section 6: the total and the hold (D3: the hold is the top of the range).
+ * Section 6: the total and the hold (D3: the hold is the top of the range);
+ * an estimate with no range names its one figure (U11, flagged).
  *
  * @param totals - The range in pence.
  * @param totals.lowPence - The low end.
@@ -34,9 +35,8 @@ export function estimateTotal(
   totals: { lowPence: number; highPence: number },
   currency: CurrencyCode,
 ): string {
-  const low = formatMoney({ pence: totals.lowPence, currency });
   const high = formatMoney({ pence: totals.highPence, currency });
-  return `Estimate ${low} to ${high}. The hold will be ${high}.`;
+  return `Estimate ${formatMoneyRange({ ...totals, currency })}. The hold will be ${high}.`;
 }
 
 /**

@@ -1,4 +1,3 @@
-import AxeBuilder from "@axe-core/playwright";
 import type { Page } from "@playwright/test";
 
 import { WALK_FINDING, WALK_PHOTO_PATH } from "../support/update-walk-words";
@@ -12,95 +11,13 @@ import {
   type Width,
 } from "./fixtures";
 import { openBrowserDatabase } from "./owner/support/cases";
+import { checkScreen } from "./support/checks";
 import {
   deliverDischargeWebhooks,
   dischargedCase,
   DOUBLE_URL,
   twoHoldCase,
 } from "./support/discharge";
-
-/** The smallest a tap target may be, each way (plan 5, U5's acceptance). */
-const TARGET_PX = 44;
-
-/** A target found smaller than {@link TARGET_PX}. */
-interface SmallTarget {
-  readonly element: string;
-  readonly width: number;
-  readonly height: number;
-}
-
-/**
- * Every visible interactive element smaller than 44 px either way. A
- * checkbox or radio inside its label is measured by the label, which is its
- * target; anything inside a closed disclosure or dialog is not on the screen.
- *
- * @param page - The page.
- * @returns The targets too small.
- */
-async function smallTargets(page: Page): Promise<SmallTarget[]> {
-  return page.evaluate((min) => {
-    const selector = [
-      "a[href]",
-      "button",
-      "input:not([type=hidden])",
-      "select",
-      "textarea",
-      "summary",
-      "[tabindex]:not([tabindex='-1'])",
-      "[role=button]",
-      "[role=link]",
-    ].join(",");
-    const small: { element: string; width: number; height: number }[] = [];
-    for (const element of document.querySelectorAll<HTMLElement>(selector)) {
-      const style = getComputedStyle(element);
-      if (
-        style.visibility === "hidden" ||
-        style.display === "none" ||
-        element.getClientRects().length === 0
-      ) {
-        continue;
-      }
-      const target =
-        element instanceof HTMLInputElement &&
-        (element.type === "checkbox" || element.type === "radio") &&
-        element.closest("label")
-          ? element.closest("label")!
-          : element;
-      const box = target.getBoundingClientRect();
-      if (box.width === 0 && box.height === 0) {
-        continue;
-      }
-      if (box.width < min - 0.5 || box.height < min - 0.5) {
-        small.push({
-          element: `${element.tagName.toLowerCase()}${element.id ? `#${element.id}` : ""} "${(element.textContent ?? element.getAttribute("aria-label") ?? "").trim().slice(0, 40)}"`,
-          width: Math.round(box.width),
-          height: Math.round(box.height),
-        });
-      }
-    }
-    return small;
-  }, TARGET_PX);
-}
-
-/**
- * Checks the page as it stands: no serious or critical axe violation, and
- * every target at least 44 px.
- *
- * @param page - The page.
- * @returns Resolves once checked.
- */
-async function checkScreen(page: Page): Promise<void> {
-  const results = await new AxeBuilder({ page }).analyze();
-  const serious = results.violations
-    .filter((violation) => violation.impact === "serious" || violation.impact === "critical")
-    .map((violation) => ({
-      id: violation.id,
-      impact: violation.impact,
-      targets: violation.nodes.map((node) => node.target.join(" ")),
-    }));
-  expect(serious).toEqual([]);
-  expect(await smallTargets(page)).toEqual([]);
-}
 
 /**
  * Runs a screen's steps on a database handle of its own, closed after.

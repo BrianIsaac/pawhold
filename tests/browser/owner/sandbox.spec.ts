@@ -3,7 +3,7 @@ import { expect, type Page, test } from "@playwright/test";
 import { approveInWindow } from "../../../probes/buyer";
 
 import { brambleUpdate, openBrowserDatabase, sentBrambleEstimate } from "./support/cases";
-import { expectNoSeriousViolations, expectTargetsAtLeast44 } from "./support/checks";
+import { expectNoSeriousViolations, expectTargetsAtLeast44 } from "../support/checks";
 import {
   buyerLogin,
   sandboxConfigured,

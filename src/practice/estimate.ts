@@ -22,6 +22,7 @@ import type { CurrencyCode } from "@/money/currency";
 import { sendEstimate, type SentEstimate, withdrawEstimate } from "@/money/holds";
 import type { MoneyState } from "@/money/state";
 import { type CaseMoney, caseMoney } from "@/money/view";
+import { scheduleSettings } from "@/schedule/settings";
 
 import { firstName, type MoneyChip, moneyChips } from "./chips";
 import { PracticeError } from "./errors";
@@ -65,6 +66,8 @@ export interface CaseView {
   readonly money: CaseMoney;
   readonly chips: readonly MoneyChip[];
   readonly currency: CurrencyCode;
+  /** The zone the practice reads its times in (`practice.time_zone`). */
+  readonly timeZone: string;
   /** The first estimate: its open draft, or what was sent (or, once held, what the owner approved). */
   readonly estimate: {
     readonly draft: VersionPanel | null;
@@ -149,6 +152,7 @@ export async function loadCaseView(
     money,
     chips: moneyChips(money),
     currency: money.currency,
+    timeZone: (await scheduleSettings(executor, practiceId)).timeZone,
     estimate: {
       draft: inEstimatePhase && open ? panel(open) : null,
       sent: inEstimatePhase

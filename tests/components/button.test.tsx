@@ -40,7 +40,9 @@ describe("Button", () => {
       </ButtonLink>,
     );
 
-    expect(html).toMatch(/^<a [^>]*href="\/today"[^>]*>Today<\/a>$/);
+    expect(html).toMatch(
+      /^<a [^>]*href="\/today"[^>]*>Today<span [^>]*aria-hidden="true"><\/span><\/a>$/,
+    );
     expect(html).toContain('data-variant="secondary"');
   });
 });

@@ -6,9 +6,11 @@ import { z } from "zod";
 import { refundableCaptures } from "@/discharge/refund";
 import { chargeOption, refundedConfirmation } from "@/discharge/wording";
 import { toPayPalValue } from "@/money/paypal-value";
+import { ownerLink } from "@/owner/link";
 import { PracticeError } from "@/practice/errors";
-import { loadCaseView } from "@/practice/estimate";
+import { type CaseView, loadCaseView } from "@/practice/estimate";
 import { caseTimeline } from "@/practice/timeline";
+import { updateShows } from "@/practice/update";
 import {
   estimateWithdrawn,
   sentConfirmation,
@@ -16,7 +18,7 @@ import {
   updateWithdrawn,
 } from "@/practice/wording";
 import { currentPracticeSession } from "@/server/practice-session";
-import { database } from "@/server/runtime";
+import { database, sessionSecret } from "@/server/runtime";
 
 import { ButtonLink } from "../../../components/Button";
 import { Chip } from "../../../components/Chip";
@@ -71,6 +73,7 @@ export default async function CasePage(props: PageProps<"/cases/[id]">) {
     ? await refundableCaptures(database().db, session.practiceId, id)
     : [];
   const first = view.case.ownerFirstName;
+  const ownerPath = await awaitedOwnerPath(view, session.practiceId);
   const confirmation =
     search.sent === "estimate" && view.money.state === "awaiting_owner"
       ? sentConfirmation(first)
@@ -131,14 +134,14 @@ export default async function CasePage(props: PageProps<"/cases/[id]">) {
         <h2 id="estimate-title" className={styles.sectionTitle}>
           Estimate
         </h2>
-        <EstimateSection view={view} />
+        <EstimateSection view={view} ownerPath={ownerPath} />
       </section>
-      {view.approved.length > 0 ? (
+      {view.approved.length > 0 && updateShows(view.update) ? (
         <section id="update" className={styles.section} aria-labelledby="update-title">
           <h2 id="update-title" className={styles.sectionTitle}>
             Update
           </h2>
-          <UpdateSection view={view} />
+          <UpdateSection view={view} ownerPath={ownerPath} />
         </section>
       ) : null}
       {refundable.length > 0 ? (
@@ -166,4 +169,31 @@ export default async function CasePage(props: PageProps<"/cases/[id]">) {
       </section>
     </>
   );
+}
+
+/**
+ * The owner's link to the version whose answer the case awaits, minted now
+ * (U11): every practice is a demo practice, so the practice is offered the
+ * page the owner's phone would open. Null when nothing awaits the owner.
+ *
+ * @param view - The case.
+ * @param practiceId - The practice.
+ * @returns The link's path, or null.
+ */
+async function awaitedOwnerPath(view: CaseView, practiceId: string): Promise<string | null> {
+  const versionId =
+    view.money.state === "awaiting_owner"
+      ? view.estimate.sent?.version.id
+      : view.money.state === "update_awaiting_owner"
+        ? view.update.awaiting?.panel.version.id
+        : undefined;
+  if (!versionId) {
+    return null;
+  }
+  const link = await ownerLink(
+    database().db,
+    { practiceId, caseId: view.case.id, versionId },
+    { secret: sessionSecret(), now: new Date() },
+  );
+  return link.path;
 }

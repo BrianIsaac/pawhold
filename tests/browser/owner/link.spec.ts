@@ -3,7 +3,7 @@ import { expect, test } from "@playwright/test";
 import { OWNER_LINK_LIFETIME_MS } from "@/owner/link";
 
 import { openBrowserDatabase, sentBrambleEstimate } from "./support/cases";
-import { expectNoSeriousViolations, expectTargetsAtLeast44 } from "./support/checks";
+import { expectNoSeriousViolations, expectTargetsAtLeast44 } from "../support/checks";
 import { saveShot } from "./support/shots";
 
 const database = openBrowserDatabase();

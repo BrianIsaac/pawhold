@@ -3,7 +3,7 @@ import { z } from "zod";
 
 import { appendAuditEvent } from "@/audit/writer";
 import type { Executor } from "@/db/client";
-import { auditEvent, estimateLine, estimateVersion, patientCase } from "@/db/schema";
+import { auditEvent, estimateLine, estimateVersion, patientCase, vet } from "@/db/schema";
 import { type CaseMoney, caseMoney } from "@/money/view";
 
 import { firstName, type MoneyChip, moneyChips, nextStep } from "./chips";
@@ -56,8 +56,8 @@ export function parsePracticeRequest<T extends z.ZodType>(
 
 /**
  * Opens a case: an animal admitted for one treatment pathway (plan 3.2),
- * under the vet whose name its estimates' approvals carry, with
- * `case.opened` written by the vet.
+ * under the vet whose name its estimates' approvals carry (one of the
+ * practice's vets, added if new), with `case.opened` written by the vet.
  *
  * @param executor - The pool or an open transaction.
  * @param request - The practice, the patient, the owner, the procedure and the vet.
@@ -70,6 +70,12 @@ export async function openCase(
 ): Promise<string> {
   const { practiceId, ...kase } = parsePracticeRequest(openCaseRequest, request);
   return executor.transaction(async (tx) => {
+    // The case's vet is one of the practice's vets (U11): a name the
+    // practice has not used before becomes one.
+    await tx
+      .insert(vet)
+      .values({ practiceId, name: kase.vetName })
+      .onConflictDoNothing({ target: [vet.practiceId, vet.name] });
     const [opened] = await tx
       .insert(patientCase)
       .values({ practiceId, ...kase })
@@ -145,7 +151,13 @@ export async function todaysCases(executor: Executor, practiceId: string): Promi
         ...row,
         money,
         chips: moneyChips(money),
-        next: nextStep(money.state, { ownerFirstName: firstName(row.ownerName), hasDraftLines }),
+        next: nextStep(money.state, {
+          ownerFirstName: firstName(row.ownerName),
+          hasDraftLines,
+          honourPeriodOver: money.holds.some(
+            (one) => one.status === "authorised" && one.honourPeriodFlaggedAt !== null,
+          ),
+        }),
       };
     }),
   );

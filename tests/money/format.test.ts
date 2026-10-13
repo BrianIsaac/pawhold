@@ -50,3 +50,14 @@ describe("a percentage from basis points", () => {
     expect(formatPercent(5)).toBe("0");
   });
 });
+
+describe("a range of money (U11)", () => {
+  it("names one figure when its ends are the same, and both otherwise", async () => {
+    const { formatMoneyRange } = await import("@/money/format");
+
+    expect(formatMoneyRange({ lowPence: 9_500, highPence: 9_500, currency: "GBP" })).toBe("£95.00");
+    expect(formatMoneyRange({ lowPence: 73_100, highPence: 92_700, currency: "GBP" })).toBe(
+      "£731.00 to £927.00",
+    );
+  });
+});

@@ -23,8 +23,13 @@
   gap: var(--owner-space-5);
 }
 
+/*
+ * The owner's headings name the practice; balancing would split its name
+ * ("Hollins / Lane Veterinary Surgery"), so they only avoid a word alone.
+ */
 .header h1 {
   margin: 0 0 var(--owner-space-3);
+  text-wrap: pretty;
   font-size: 1.5rem;
   line-height: 1.25;
   letter-spacing: -0.01em;
@@ -247,4 +252,50 @@
   font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
   font-size: 0.875rem;
   user-select: all;
+}
+
+/* A failed page's way on: the decline's shape, so the owner's buttons match. */
+.retry {
+  justify-self: start;
+  min-height: 48px;
+  margin-top: var(--owner-space-4);
+  padding: var(--owner-space-3) var(--owner-space-4);
+  border: 2px solid var(--owner-ink-soft);
+  border-radius: var(--owner-radius);
+  background: transparent;
+  color: var(--owner-ink);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+/* An update's finding: the vet's own words in full, and the photo if shared (section 6). */
+.finding {
+  display: grid;
+  gap: var(--owner-space-3);
+}
+
+.finding h2 {
+  margin: 0;
+  color: var(--owner-ink-soft);
+  font-size: 1rem;
+}
+
+.finding blockquote {
+  margin: 0;
+  padding: var(--owner-space-3) var(--owner-space-4);
+  border-left: 3px solid var(--owner-rule);
+  border-radius: var(--owner-radius);
+  background: var(--owner-card);
+}
+
+.photo {
+  margin: 0;
+}
+
+.photo img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  border-radius: var(--owner-radius);
 }

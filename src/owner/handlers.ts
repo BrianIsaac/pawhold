@@ -7,6 +7,7 @@ import { sameOrigin } from "@/judge/session";
 import { MoneyError, type MoneyRefusal } from "@/money/errors";
 import { authoriseHold, declineUpdate, orderHold } from "@/money/holds";
 import { caseHolds, type HoldView } from "@/money/view";
+import { loadSourcePhoto } from "@/practice/update";
 import type { PayPalClient } from "@/paypal/client";
 
 import { resolveOwnerLink } from "./resolve";
@@ -32,7 +33,12 @@ export interface OwnerHoldAnswer {
 
 /** Why an owner's request was refused, as the page branches on it. */
 export type OwnerRefusal =
-  MoneyRefusal | "link_expired" | "cross_origin" | "order_mismatch" | "paypal_not_configured";
+  | MoneyRefusal
+  | "link_expired"
+  | "cross_origin"
+  | "order_mismatch"
+  | "paypal_not_configured"
+  | "photo_not_shared";
 
 /** PayPal's order ids: upper-case letters and digits. */
 const authoriseBody = z.strictObject({ orderId: z.string().regex(/^[A-Z0-9]{10,40}$/) });
@@ -209,6 +215,38 @@ export function createOwnerHandlers(dependencies: OwnerHandlerDependencies) {
         .where(and(eq(patientCase.id, link.caseId), eq(patientCase.practiceId, link.practiceId)));
       const found = await linkHold(dependencies.db, link);
       return answer(200, { state: kase!.state, hold: found ? holdAnswer(found) : null });
+    },
+
+    /**
+     * `GET /e/{token}/photo`: the photo the vet added to the update the link
+     * names, only when they chose "Show the photo to the owner" (section 6).
+     * The link is the only credential; never cached, never sniffed (U11).
+     *
+     * @param _request - The request.
+     * @param token - The link's token.
+     * @returns The photo, or 404.
+     */
+    photo: async (_request: Request, token: string): Promise<Response> => {
+      const link = await open(token);
+      if (link instanceof Response) {
+        return link;
+      }
+      const photo = await loadSourcePhoto(dependencies.db, {
+        practiceId: link.practiceId,
+        caseId: link.caseId,
+        versionId: link.versionId,
+      });
+      if (!photo?.shared) {
+        return refuse(404, "photo_not_shared");
+      }
+      return new Response(new Uint8Array(photo.bytes), {
+        headers: {
+          "content-type": photo.mediaType,
+          "cache-control": "private, no-store",
+          "x-content-type-options": "nosniff",
+          "content-disposition": "inline",
+        },
+      });
     },
 
     /**

@@ -2,24 +2,20 @@ import { eq } from "drizzle-orm";
 
 import { appendAuditEvent, type AuditEventInput } from "@/audit/writer";
 import type { Transaction } from "@/db/client";
-import {
-  allocation,
-  bill,
-  billLine,
-  capture,
-  estimateLine,
-  estimateSource,
-  estimateVersion,
-  hold,
-  patientCase,
-  refund,
-} from "@/db/schema";
+import { allocation, bill, billLine, capture, hold, patientCase, refund } from "@/db/schema";
 import type { PriceListWithItems } from "@/estimate/price-list";
-import { estimateLineInput, type EstimateLineInput } from "@/estimate/version";
 import { allocateBill, approvalsByHold } from "@/money/allocation";
 import type { MoneyState } from "@/money/state";
 import { seededPayPalId } from "@/paypal/seeded";
 
+import {
+  approved,
+  sent,
+  type SeededEvent,
+  type SeededVersion,
+  versionMade,
+  writeSentVersion,
+} from "../versions";
 import type { MoneyStateCase, SeededPayment } from "./cases";
 
 const SECOND_MS = 1000;
@@ -38,24 +34,6 @@ const WEBHOOK_LAG_MS = 18 * SECOND_MS;
 /** The reason U3's hourly rule writes when it flags a card hold. */
 const CARD_FLAG_REASON =
   "a card hold is never reauthorised: PayPal documents reauthorisation for PayPal accounts only";
-
-/** One line of a seeded version, as the bill and the allocation need it. */
-interface SeededLine {
-  readonly id: string;
-  readonly code: string;
-  readonly unitPricePence: number;
-  readonly highPence: number;
-}
-
-/** A version the seed wrote, as its events and its hold name it. */
-interface SeededVersion {
-  readonly id: string;
-  readonly number: number;
-  readonly priceListId: string;
-  readonly lowPence: number;
-  readonly highPence: number;
-  readonly lines: readonly SeededLine[];
-}
 
 /** A hold the seed wrote, as the discharge reads it. */
 interface SeededHold {
@@ -152,7 +130,7 @@ export async function writeMoneyStateCase(
   });
   await event(versionMade(estimate), at(story.sentAt - 7));
   await event(approved(estimate, kase.vetName), at(story.sentAt, -30));
-  await event(sent(estimate, currency, "estimate_draft", "awaiting_owner"), at(story.sentAt));
+  await event(sent(estimate, "estimate_draft", "awaiting_owner"), at(story.sentAt));
   let state: MoneyState = "awaiting_owner";
 
   if (story.orderedAt === undefined) {
@@ -263,7 +241,7 @@ export async function writeMoneyStateCase(
     });
     await event(versionMade(update), at(story.update.sentAt - 6));
     await event(approved(update, kase.vetName), at(story.update.sentAt, -30));
-    await event(sent(update, currency, "held", "update_awaiting_owner"), at(story.update.sentAt));
+    await event(sent(update, "held", "update_awaiting_owner"), at(story.update.sentAt));
     state = "update_awaiting_owner";
     const increasePence = update.highPence - estimate.highPence;
     const updateOrder = seededPayPalId();
@@ -668,188 +646,6 @@ async function settle(
     .set({ moneyState: state, updatedAt: at })
     .where(eq(patientCase.id, caseId));
   return { caseId, state };
-}
-
-/**
- * Writes one version as a draft with its lines and its source, then sends it,
- * as U2 does: the database checks the sent totals against the lines.
- *
- * @param tx - The transaction.
- * @param write - The version's practice, case, list, number, lines, source and times.
- * @param write.practiceId - The practice.
- * @param write.caseId - The case.
- * @param write.list - The price list it is priced from.
- * @param write.number - Its number.
- * @param write.lines - Its lines.
- * @param write.source - The words it was drafted from.
- * @param write.source.kind - Notes or a finding.
- * @param write.source.text - The words.
- * @param write.source.explanation - The owner's explanation of an update.
- * @param write.madeAt - When it was made.
- * @param write.sentAt - When it was sent.
- * @returns The version.
- * @throws Error when a line's item is not on the list.
- */
-async function writeSentVersion(
-  tx: Transaction,
-  write: {
-    practiceId: string;
-    caseId: string;
-    list: PriceListWithItems;
-    number: number;
-    lines: readonly EstimateLineInput[];
-    source: { kind: "notes" | "finding"; text: string; explanation: string | null };
-    madeAt: Date;
-    sentAt: Date;
-  },
-): Promise<SeededVersion> {
-  const priced = write.lines.map((given) => {
-    const line = estimateLineInput.parse(given);
-    const item = write.list.items.get(line.code);
-    if (!item) {
-      throw new Error(`the showcase's ${line.code} is not on the practice's price list`);
-    }
-    return { line, item };
-  });
-  const [version] = await tx
-    .insert(estimateVersion)
-    .values({
-      practiceId: write.practiceId,
-      caseId: write.caseId,
-      priceListId: write.list.id,
-      number: write.number,
-      createdAt: write.madeAt,
-    })
-    .returning({ id: estimateVersion.id });
-  const versionId = version!.id;
-  const stored = await tx
-    .insert(estimateLine)
-    .values(
-      priced.map(({ line, item }, position) => ({
-        versionId,
-        priceListId: write.list.id,
-        position: position + 1,
-        priceListItemId: item.id,
-        unitPricePence: item.unitPricePence,
-        quantityLow: line.quantityLow,
-        quantityHigh: line.quantityHigh,
-        dependsOn: line.dependsOn ?? null,
-        notesSpan: line.notesSpan ?? null,
-        ownerWording: line.ownerWording ?? null,
-      })),
-    )
-    .returning({ id: estimateLine.id, position: estimateLine.position });
-  await tx.insert(estimateSource).values({
-    versionId,
-    practiceId: write.practiceId,
-    caseId: write.caseId,
-    kind: write.source.kind,
-    text: write.source.text,
-    explanation: write.source.explanation,
-    createdAt: write.madeAt,
-    updatedAt: write.madeAt,
-  });
-  const lowPence = priced.reduce(
-    (sum, { line, item }) => sum + item.unitPricePence * line.quantityLow,
-    0,
-  );
-  const highPence = priced.reduce(
-    (sum, { line, item }) => sum + item.unitPricePence * line.quantityHigh,
-    0,
-  );
-  await tx
-    .update(estimateVersion)
-    .set({ sentAt: write.sentAt, totalLowPence: lowPence, totalHighPence: highPence })
-    .where(eq(estimateVersion.id, versionId));
-  const idAt = new Map(stored.map((row) => [row.position, row.id]));
-  return {
-    id: versionId,
-    number: write.number,
-    priceListId: write.list.id,
-    lowPence,
-    highPence,
-    lines: priced.map(({ line, item }, position) => ({
-      id: idAt.get(position + 1)!,
-      code: line.code,
-      unitPricePence: item.unitPricePence,
-      highPence: item.unitPricePence * line.quantityHigh,
-    })),
-  };
-}
-
-type SeededEvent = Omit<AuditEventInput, "practiceId" | "caseId">;
-
-/**
- * `estimate.version_made`, as U2 writes it.
- *
- * @param version - The version.
- * @returns The event.
- */
-function versionMade(version: SeededVersion): SeededEvent {
-  return {
-    actor: "vet",
-    action: "estimate.version_made",
-    detail: {
-      versionId: version.id,
-      number: version.number,
-      priceListId: version.priceListId,
-      lineCount: version.lines.length,
-      lowPence: version.lowPence,
-      highPence: version.highPence,
-    },
-  };
-}
-
-/**
- * `estimate.approved`, the vet's approval with the vet's name, as U5 writes it.
- *
- * @param version - The version.
- * @param vetName - The vet.
- * @returns The event.
- */
-function approved(version: SeededVersion, vetName: string): SeededEvent {
-  return {
-    actor: "vet",
-    action: "estimate.approved",
-    detail: {
-      versionId: version.id,
-      number: version.number,
-      vetName,
-      lowPence: version.lowPence,
-      highPence: version.highPence,
-      lineCount: version.lines.length,
-    },
-  };
-}
-
-/**
- * `estimate.sent` with the states before and after, as U3 writes it.
- *
- * @param version - The version.
- * @param currency - Its currency.
- * @param before - The case's state before.
- * @param after - The case's state after.
- * @returns The event.
- */
-function sent(
-  version: SeededVersion,
-  currency: "GBP" | "USD",
-  before: "estimate_draft" | "held",
-  after: "awaiting_owner" | "update_awaiting_owner",
-): SeededEvent {
-  return {
-    actor: "vet",
-    action: "estimate.sent",
-    moneyStateBefore: before,
-    moneyStateAfter: after,
-    amount: { pence: version.highPence, currency },
-    detail: {
-      versionId: version.id,
-      number: version.number,
-      lowPence: version.lowPence,
-      highPence: version.highPence,
-    },
-  };
 }
 
 /**

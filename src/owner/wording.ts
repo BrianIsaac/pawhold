@@ -79,7 +79,7 @@ export function estimateIntro(vet: string, patient: string, high: string): strin
 }
 
 /**
- * The estimate's range (section 6).
+ * The estimate's range (section 6); one figure when it has no range (U11, flagged).
  *
  * @param vet - Who the vet is, as the page names them.
  * @param low - The bottom of the range, shown.
@@ -87,7 +87,7 @@ export function estimateIntro(vet: string, patient: string, high: string): strin
  * @returns The sentence.
  */
 export function rangeLine(vet: string, low: string, high: string): string {
-  return `Likely ${low} to ${high}, depending on what ${vet} finds.`;
+  return `Likely ${low === high ? high : `${low} to ${high}`}, depending on what ${vet} finds.`;
 }
 
 /**
@@ -279,19 +279,25 @@ const ORDINALS = ["first", "second", "third", "fourth", "fifth", "sixth", "seven
 /**
  * What each approval paid (section 6: "Paid from your first approval: {a}.
  * Paid from your second approval: {b}."); one approval is "your approval",
- * this unit's wording.
+ * and an approval nothing was taken from was released, never "paid from"
+ * at nothing: this unit's wording (U6, U11), flagged.
  *
- * @param amounts - What each approval paid, shown, in the order they were given.
+ * @param amounts - What each approval paid, shown, in the order they were given; null for nothing.
  * @returns The sentences.
  */
-export function paidFromApprovals(amounts: readonly string[]): string {
+export function paidFromApprovals(amounts: readonly (string | null)[]): string {
   if (amounts.length === 1) {
-    return `Paid from your approval: ${amounts[0]}.`;
+    return amounts[0] === null
+      ? "Nothing was taken from your approval: it was released."
+      : `Paid from your approval: ${amounts[0]}.`;
   }
   return amounts
-    .map(
-      (amount, at) => `Paid from your ${ORDINALS[at] ?? `number ${at + 1}`} approval: ${amount}.`,
-    )
+    .map((amount, at) => {
+      const which = `your ${ORDINALS[at] ?? `number ${at + 1}`} approval`;
+      return amount === null
+        ? `Nothing was taken from ${which}: it was released.`
+        : `Paid from ${which}: ${amount}.`;
+    })
     .join(" ");
 }
 
@@ -340,3 +346,60 @@ export const BILL_TOTAL = "Total";
 export function billQuantity(quantity: number, unit: string): string {
   return `${quantity} at ${unit} each`;
 }
+
+/**
+ * The heading of an update the owner has answered (approved or declined):
+ * section 6's heading, told in the past once the asking is over. This unit's
+ * wording (U11), flagged.
+ *
+ * @param vet - Who the vet is, as the page names them, capitalised.
+ * @returns The heading.
+ */
+export function answeredUpdateHeading(vet: string): string {
+  return `${vet} found something and asked before going ahead.`;
+}
+
+/** A withdrawn estimate's link: its heading. This unit's wording (U11), flagged. */
+export const ESTIMATE_WITHDRAWN_HEADING = "This estimate was withdrawn";
+
+/**
+ * A withdrawn estimate's link: nothing to authorise, nothing charged. This
+ * unit's wording (U11), flagged.
+ *
+ * @param practice - The practice's name.
+ * @returns The sentence.
+ */
+export function estimateWithdrawn(practice: string): string {
+  return `${practice} withdrew this estimate, so there is nothing to authorise and nothing has been charged. Ask them if you'd like it sent again.`;
+}
+
+/** A withdrawn update's link: its heading. This unit's wording (U11), flagged. */
+export const UPDATE_WITHDRAWN_HEADING = "This update was withdrawn";
+
+/**
+ * A withdrawn update's link: nothing to approve; what was held stays. This
+ * unit's wording (U11), flagged.
+ *
+ * @param practice - The practice's name.
+ * @returns The sentence.
+ */
+export function updateWithdrawn(practice: string): string {
+  return `${practice} withdrew this update, so there is nothing to approve. What you authorised before stays as it was.`;
+}
+
+/**
+ * "Don't go ahead" that did not reach pawhold: declining asks nothing of
+ * PayPal, so section 6's PayPal error is not its words. This unit's wording
+ * (U11), flagged.
+ */
+export const DECLINE_FAILED = "That didn't go through, so nothing has changed. Try again.";
+
+/** An owner's page that failed to render: its heading. This unit's wording (U11), flagged. */
+export const OWNER_PAGE_FAILED_HEADING = "This page couldn't load";
+
+/** An owner's page that failed to render. This unit's wording (U11), flagged. */
+export const OWNER_PAGE_FAILED =
+  "Nothing has been charged. Try again in a moment, or ask the practice that sent you the link.";
+
+/** The button that renders a failed page again. */
+export const TRY_AGAIN = "Try again";
