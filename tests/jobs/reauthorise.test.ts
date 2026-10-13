@@ -247,6 +247,7 @@ describe("the reauthorisation job (plan 3.2, U0's P5 (a): once per wallet hold, 
       .values({
         practiceId: fixture.practiceId,
         patientName: "Pepper",
+        species: "dog",
         ownerName: "B. Owner",
         procedure: "Dental",
       })

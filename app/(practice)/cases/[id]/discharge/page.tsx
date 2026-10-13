@@ -9,6 +9,7 @@ import { BILL_HEADING, money, NOT_ON_ESTIMATE, NOTHING_HELD } from "@/discharge/
 import type { CurrencyCode } from "@/money/currency";
 import { moneyChips } from "@/practice/chips";
 import { PracticeError } from "@/practice/errors";
+import { withSpecies } from "@/practice/species";
 import { type PracticeClock, practiceClock } from "@/practice/time";
 import { scheduleSettings } from "@/schedule/settings";
 import { currentPracticeSession } from "@/server/practice-session";
@@ -141,7 +142,7 @@ export default async function DischargePage(props: PageProps<"/cases/[id]/discha
         <dl className={caseStyles.facts}>
           <div>
             <dt>Patient</dt>
-            <dd>{view.case.patientName}</dd>
+            <dd>{withSpecies(view.case.patientName, view.case.species)}</dd>
           </div>
           <div>
             <dt>Owner</dt>

@@ -492,3 +492,28 @@ for (const width of Object.keys(WIDTHS) as Width[]) {
     });
   });
 }
+
+/** Widths where today's list is laid out as a table: from its breakpoint (56rem) up. */
+const TABLE_WIDTHS = [900, 1024, 1180] as const;
+
+test.describe("today's list as a table", () => {
+  for (const width of TABLE_WIDTHS) {
+    test(`never runs off the page at ${width} px, every species on one line`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 900 });
+      await signInAsPractice(page);
+      await page.goto("/today");
+      await expect(page.getByRole("link", { name: "Bramble" })).toBeVisible();
+
+      const overflow = await page.evaluate(
+        () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      );
+      expect(overflow).toBe(0);
+      const list = page.getByRole("list", { name: "Today's cases" });
+      const cells = await list.getByText(/^(Dog|Cat|Other)$/).all();
+      expect(cells.length).toBeGreaterThan(0);
+      for (const species of cells) {
+        expect(await lineBoxes(species)).toHaveLength(1);
+      }
+    });
+  }
+});

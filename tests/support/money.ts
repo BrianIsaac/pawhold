@@ -69,7 +69,13 @@ export async function makeDentalCase(
   });
   const [kase] = await executor
     .insert(patientCase)
-    .values({ practiceId, patientName: "Biscuit", ownerName: "Ann Owner", procedure: "Dental" })
+    .values({
+      practiceId,
+      patientName: "Biscuit",
+      species: "dog",
+      ownerName: "Ann Owner",
+      procedure: "Dental",
+    })
     .returning();
   return { practiceId, caseId: kase!.id };
 }

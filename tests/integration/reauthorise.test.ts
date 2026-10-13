@@ -83,7 +83,13 @@ describe.skipIf(!configured)("the reauthorisation job against the sandbox (owed 
     });
     const [kase] = await db
       .insert(patientCase)
-      .values({ practiceId, patientName: "Standing", ownerName: "Sandbox Buyer", procedure: "P5" })
+      .values({
+        practiceId,
+        patientName: "Standing",
+        species: "dog",
+        ownerName: "Sandbox Buyer",
+        procedure: "P5",
+      })
       .returning();
     const draft = await makeEstimateVersion(db, {
       practiceId,

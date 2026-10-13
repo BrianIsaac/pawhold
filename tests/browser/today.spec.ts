@@ -7,6 +7,7 @@ test.describe("today's cases", () => {
 
     await expect(page.getByRole("heading", { level: 1, name: "Today's cases" })).toBeVisible();
     const row = page.getByRole("listitem").filter({ hasText: "Bramble" });
+    await expect(row.getByText("Dog", { exact: true })).toBeVisible();
     await expect(row).toContainText("Nadia Haddad");
     await expect(row).toContainText("Dental under GA");
     await expect(row.getByText("Update declined", { exact: true })).toBeVisible();
@@ -31,10 +32,21 @@ test.describe("today's cases", () => {
     await page.getByRole("button", { name: "New case" }).click();
     const dialog = page.getByRole("dialog", { name: "Open a case" });
     await expect(dialog.getByLabel("Vet")).toHaveValue("Rowan Hale");
+    const species = dialog.getByRole("combobox", { name: "Species" });
+    await expect(species).toHaveValue("");
+    await expect(species.getByRole("option")).toHaveText([
+      "Choose the species",
+      "Dog",
+      "Cat",
+      "Other",
+    ]);
     await dialog.getByLabel("Patient").fill("Pepper");
     await dialog.getByRole("button", { name: "Open the case" }).click();
     await expect(dialog.getByLabel("Owner")).toHaveAttribute("aria-invalid", "true");
+    await expect(species).toHaveAttribute("aria-invalid", "true");
+    await expect(species).toHaveAccessibleDescription("Choose the species");
 
+    await species.selectOption({ label: "Other" });
     await dialog.getByLabel("Owner").fill("Sam Patel");
     await dialog.getByLabel("Procedure").fill("Dental");
     await dialog.getByRole("button", { name: "Open the case" }).click();
@@ -42,6 +54,7 @@ test.describe("today's cases", () => {
     await expect(page).toHaveURL(/\/cases\/[0-9a-f-]{36}$/);
     await page.goto("/today");
     const row = page.getByRole("listitem").filter({ hasText: "Pepper" });
+    await expect(row.getByText("Other", { exact: true })).toBeVisible();
     await expect(row.getByText("Estimate draft", { exact: true })).toBeVisible();
     await expect(row).toContainText("Draft the estimate");
   });

@@ -38,7 +38,13 @@ describe("the practice's clock", () => {
     await setScheduleSettings(db, { practiceId, leadMinutes: 30, timeZone: "America/New_York" });
     const [kase] = await db
       .insert(patientCase)
-      .values({ practiceId, patientName: "Moss", ownerName: "Theo Grant", procedure: "Booster" })
+      .values({
+        practiceId,
+        patientName: "Moss",
+        species: "other",
+        ownerName: "Theo Grant",
+        procedure: "Booster",
+      })
       .returning({ id: patientCase.id });
     await db.insert(auditEvent).values({
       practiceId,

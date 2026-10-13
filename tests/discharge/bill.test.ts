@@ -20,6 +20,14 @@ beforeEach(async () => {
 });
 
 describe("the itemised bill (section 6, the practice: discharge)", () => {
+  it("names the animal with its species (U17)", async () => {
+    await heldVersion({ db, paypal }, fixture);
+
+    const view = await loadDischargeView(db, fixture.practiceId, fixture.caseId);
+
+    expect(view.case).toMatchObject({ patientName: "Biscuit", species: "dog" });
+  });
+
   it("lists the approved estimate's lines, grouped by the version that approved them, each at its estimate's low", async () => {
     await heldVersion({ db, paypal }, fixture);
     await heldVersion({ db, paypal }, fixture, DENTAL_UPDATE_LINES);

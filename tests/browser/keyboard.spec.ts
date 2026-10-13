@@ -106,6 +106,30 @@ for (const width of Object.keys(WIDTHS) as Width[]) {
       await expect(page.getByRole("heading", { level: 1, name: "Bramble" })).toBeVisible();
     });
 
+    test("today's new case, the species chosen with the arrow keys (U17)", async ({ page }) => {
+      await signInAsPractice(page);
+      await page.goto("/today");
+      await tabTo(page, page.getByRole("button", { name: "New case" }));
+      await page.keyboard.press("Enter");
+      const dialog = page.getByRole("dialog", { name: "Open a case" });
+      await expect(dialog.getByLabel("Patient")).toBeFocused();
+      await page.keyboard.type("Pepper");
+      await page.keyboard.press("Tab");
+      const species = dialog.getByRole("combobox", { name: "Species" });
+      await expect(species).toBeFocused();
+      await page.keyboard.press("ArrowDown");
+      await page.keyboard.press("ArrowDown");
+      await expect(species).toHaveValue("cat");
+      await page.keyboard.press("Tab");
+      await page.keyboard.type("Sam Patel");
+      await page.keyboard.press("Tab");
+      await page.keyboard.type("Dental");
+      await tabTo(page, dialog.getByRole("button", { name: "Open the case" }));
+      await page.keyboard.press("Enter");
+      await expect(page.getByRole("heading", { level: 1, name: "Pepper" })).toBeVisible();
+      await expect(page.getByRole("definition").filter({ hasText: "Cat" })).toBeVisible();
+    });
+
     test("a case's update: drafted, reviewed and sent", async ({ page }) => {
       const practiceId = await signInAsPractice(page);
       await page.goto(`/cases/${await caseOf(practiceId, "Bramble")}`);

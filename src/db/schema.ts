@@ -19,6 +19,8 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 
+import { SPECIES } from "../practice/species";
+
 /**
  * A practice is either the seeded showcase, kept for the whole judging
  * period, or one made for a judge's session (plan 7.4).
@@ -43,6 +45,13 @@ export const moneyState = pgEnum("money_state", [
   "refunded",
   "withdrawn",
 ]);
+
+/**
+ * The animal a case is for (U17): a dog, a cat, or another animal, which the
+ * owner's page draws as a paw. Made from `SPECIES`, the one list, which the
+ * "New case" field, its check and the words for each also read.
+ */
+export const animalSpecies = pgEnum("animal_species", SPECIES);
 
 /** Who an audit event is about having acted (plan 3.5). */
 export const auditActor = pgEnum("audit_actor", [
@@ -115,6 +124,12 @@ export const patientCase = pgTable(
       .notNull()
       .references(() => practice.id, { onDelete: "restrict" }),
     patientName: text("patient_name").notNull(),
+    /**
+     * The patient's species (U17). No default: every case names one. Migration
+     * 0015 gave the cases already open "other", or the seed's species where
+     * the seed wrote the case.
+     */
+    species: animalSpecies("species").notNull(),
     ownerName: text("owner_name").notNull(),
     procedure: text("procedure").notNull(),
     /**

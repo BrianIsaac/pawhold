@@ -67,7 +67,13 @@ async function makePractice(): Promise<{ practiceId: string; caseId: string }> {
   });
   const [kase] = await db
     .insert(patientCase)
-    .values({ practiceId: made!.id, patientName: "Bella", ownerName: "Jo", procedure: "Spay" })
+    .values({
+      practiceId: made!.id,
+      patientName: "Bella",
+      species: "dog",
+      ownerName: "Jo",
+      procedure: "Spay",
+    })
     .returning();
   return { practiceId: made!.id, caseId: kase!.id };
 }
@@ -214,7 +220,13 @@ describe("the per-session draft cap (D8)", () => {
     await draftEstimate(limited, { practiceId, caseId, notes: NOTES_A });
     const [another] = await db
       .insert(patientCase)
-      .values({ practiceId, patientName: "Milo", ownerName: "Jo", procedure: "Spay" })
+      .values({
+        practiceId,
+        patientName: "Milo",
+        species: "cat",
+        ownerName: "Jo",
+        procedure: "Spay",
+      })
       .returning();
 
     const capped = await draftEstimate(limited, {

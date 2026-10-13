@@ -86,6 +86,7 @@ export async function openScheduleCase(
     .values({
       practiceId,
       patientName: kase.patientName,
+      species: "dog",
       ownerName: kase.ownerName ?? "Alex Owner",
       procedure: "Lump removal",
       vetName: "Rowan Hale",

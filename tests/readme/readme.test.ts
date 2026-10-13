@@ -49,6 +49,7 @@ describe("the README's testing instructions (U9)", () => {
       { kind: "click", name: "Confirm and charge £876.00", inDialog: true },
       { kind: "see", text: "£876.00 captured. £134.00 released to Priya." },
     ]);
+    expect(steps[5]?.text).toContain("fill in a patient, its species, an owner and a procedure");
     expect(steps[5]?.actions).toContainEqual({ kind: "new_case" });
     expect(steps[5]?.actions).toContainEqual({ kind: "type", field: "Clinical notes" });
   });

@@ -76,7 +76,13 @@ beforeEach(async () => {
   });
   const [kase] = await db
     .insert(patientCase)
-    .values({ practiceId, patientName: "Biscuit", ownerName: "Sam Owner", procedure: "Dental" })
+    .values({
+      practiceId,
+      patientName: "Biscuit",
+      species: "dog",
+      ownerName: "Sam Owner",
+      procedure: "Dental",
+    })
     .returning();
   caseId = kase!.id;
   list = (await currentPriceList(db, practiceId))!;
@@ -288,7 +294,13 @@ describe("what is refused before the model is asked", () => {
     const [bare] = await db.insert(practice).values({ name: "Bare", kind: "judge" }).returning();
     const [kase] = await db
       .insert(patientCase)
-      .values({ practiceId: bare!.id, patientName: "Rex", ownerName: "A. Owner", procedure: "X" })
+      .values({
+        practiceId: bare!.id,
+        patientName: "Rex",
+        species: "dog",
+        ownerName: "A. Owner",
+        procedure: "X",
+      })
       .returning();
     const counted = countingModel(createRecordedModel(store));
 
@@ -420,6 +432,7 @@ describe("what happens after the model is asked (the review's findings, 12 Octob
       .values({
         practiceId,
         patientName: "Rex",
+        species: "dog",
         ownerName: "A. Owner",
         procedure: "X",
         currencyCode: "USD",

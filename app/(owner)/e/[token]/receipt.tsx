@@ -10,6 +10,7 @@ import {
   refundedNote,
   RELEASE_TIMING,
 } from "@/owner/wording";
+import { withSpecies } from "@/practice/species";
 
 import styles from "./page.module.css";
 
@@ -27,6 +28,9 @@ export function Receipt({ page }: { readonly page: OwnerReceiptPage }) {
   return (
     <article className={styles.page} aria-labelledby="receipt-heading">
       <header className={styles.header}>
+        <p className={styles.eyebrow}>
+          {withSpecies(page.header.patientName, page.header.species)}
+        </p>
         <h1 id="receipt-heading">
           {receiptHeading(page.header.patientName, page.header.practiceName)}
         </h1>

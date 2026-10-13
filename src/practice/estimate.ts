@@ -30,6 +30,7 @@ import { approvedVersions, type VersionPanel, versionPanel } from "./panels";
 
 export type { VersionPanel } from "./panels";
 import { caseSources, keepSourceOrRefuse } from "./sources";
+import type { Species } from "./species";
 import { loadUpdateView, type UpdateView } from "./update";
 import { parsePracticeRequest } from "./cases";
 
@@ -58,6 +59,7 @@ export interface CaseView {
   readonly case: {
     readonly id: string;
     readonly patientName: string;
+    readonly species: Species;
     readonly ownerName: string;
     readonly ownerFirstName: string;
     readonly procedure: string;
@@ -144,6 +146,7 @@ export async function loadCaseView(
     case: {
       id: kase.id,
       patientName: kase.patientName,
+      species: kase.species,
       ownerName: kase.ownerName,
       ownerFirstName: firstName(kase.ownerName),
       procedure: kase.procedure,

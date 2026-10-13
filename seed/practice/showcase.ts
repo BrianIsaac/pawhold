@@ -19,6 +19,7 @@ import { approved, sent, versionMade, writeSentVersion } from "../versions";
  */
 export const SHOWCASE_CASE = {
   patientName: "Bramble",
+  species: "dog" as const,
   ownerName: "Nadia Haddad",
   procedure: "Dental under GA",
   vetName: "Rowan Hale",
@@ -152,6 +153,7 @@ export async function seedShowcaseCase(
     .values({
       practiceId,
       patientName: kase.patientName,
+      species: kase.species,
       ownerName: kase.ownerName,
       procedure: kase.procedure,
       vetName: kase.vetName,
@@ -169,6 +171,7 @@ export async function seedShowcaseCase(
       moneyStateAfter: "estimate_draft",
       detail: {
         patientName: kase.patientName,
+        species: kase.species,
         ownerName: kase.ownerName,
         procedure: kase.procedure,
         vetName: kase.vetName,

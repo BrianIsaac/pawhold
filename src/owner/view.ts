@@ -22,11 +22,14 @@ import {
 import type { CurrencyCode } from "@/money/currency";
 import type { MoneyState } from "@/money/state";
 import { caseHolds, caseMoney, heldTotal, type HoldView, updateIncrease } from "@/money/view";
+import type { Species } from "@/practice/species";
 
 /** Who a case is for and who sent it, as the owner's pages name them. */
 export interface OwnerCaseHeader {
   readonly practiceName: string;
   readonly patientName: string;
+  /** The patient's species (U17), which the page's head names it with. */
+  readonly species: Species;
   readonly ownerName: string;
   /** The vet who opened the case, or null for a case opened before vets were named. */
   readonly vetName: string | null;
@@ -150,6 +153,7 @@ async function caseHeader(
     .select({
       practiceName: practice.name,
       patientName: patientCase.patientName,
+      species: patientCase.species,
       ownerName: patientCase.ownerName,
       vetName: patientCase.vetName,
       state: patientCase.moneyState,

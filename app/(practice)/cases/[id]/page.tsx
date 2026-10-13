@@ -9,6 +9,7 @@ import { toPayPalValue } from "@/money/paypal-value";
 import { ownerLink } from "@/owner/link";
 import { PracticeError } from "@/practice/errors";
 import { type CaseView, loadCaseView } from "@/practice/estimate";
+import { speciesLabel } from "@/practice/species";
 import { caseTimeline } from "@/practice/timeline";
 import { updateShows } from "@/practice/update";
 import {
@@ -106,6 +107,10 @@ export default async function CasePage(props: PageProps<"/cases/[id]">) {
           ) : null}
         </div>
         <dl className={styles.facts}>
+          <div>
+            <dt>Species</dt>
+            <dd>{speciesLabel(view.case.species)}</dd>
+          </div>
           <div>
             <dt>Owner</dt>
             <dd>{view.case.ownerName}</dd>

@@ -5,7 +5,7 @@ import { auditEvent, patientCase, practice, vet } from "@/db/schema";
 import { importPriceList } from "@/estimate/price-list";
 import { makeEstimateVersion } from "@/estimate/version";
 import { firstName } from "@/practice/chips";
-import { openCase, todaysCases } from "@/practice/cases";
+import { openCase, type OpenCaseRequest, todaysCases } from "@/practice/cases";
 import { PracticeError } from "@/practice/errors";
 
 import { connectTestDatabase } from "../support/database";
@@ -34,7 +34,8 @@ const CASE = {
   ownerName: "Ann Owner",
   procedure: "Dental under GA",
   vetName: "Rowan Hale",
-};
+  species: "dog",
+} as const;
 
 describe("opening a case", () => {
   it("opens it under its vet, in draft, and writes case.opened by the vet", async () => {
@@ -93,6 +94,32 @@ describe("opening a case", () => {
     expect((refused as PracticeError).fields).toHaveProperty("ownerName");
   });
 
+  it("refuses a case without its species, naming the field (U17)", async () => {
+    const withoutSpecies = {
+      practiceId,
+      patientName: CASE.patientName,
+      ownerName: CASE.ownerName,
+      procedure: CASE.procedure,
+      vetName: CASE.vetName,
+    };
+    const refused = await openCase(db, withoutSpecies as unknown as OpenCaseRequest).catch(
+      (error: unknown) => error,
+    );
+    expect(refused).toBeInstanceOf(PracticeError);
+    expect((refused as PracticeError).fields).toEqual({ species: "Choose the species" });
+  });
+
+  it.each(["", "hamster", "Dog"])(
+    "refuses %j as a species, naming the field (U17)",
+    async (species) => {
+      const refused = await openCase(db, { practiceId, ...CASE, species }).catch(
+        (error: unknown) => error,
+      );
+      expect(refused).toBeInstanceOf(PracticeError);
+      expect((refused as PracticeError).fields).toEqual({ species: "Choose the species" });
+    },
+  );
+
   it("refuses a name past 100 characters", async () => {
     await expect(
       openCase(db, { practiceId, ...CASE, vetName: "x".repeat(101) }),
@@ -113,7 +140,12 @@ describe("today's cases", () => {
       csv: DENTAL_PRICES,
     });
     const first = await openCase(db, { practiceId: other!.id, ...CASE, patientName: "Older" });
-    const second = await openCase(db, { practiceId: other!.id, ...CASE, patientName: "Newer" });
+    const second = await openCase(db, {
+      practiceId: other!.id,
+      ...CASE,
+      patientName: "Newer",
+      species: "cat",
+    });
     await makeEstimateVersion(db, {
       practiceId: other!.id,
       caseId: second,
@@ -126,12 +158,14 @@ describe("today's cases", () => {
     expect(listed.map((one) => one.id)).toEqual([second, first]);
     expect(listed[0]).toMatchObject({
       patientName: "Newer",
+      species: "cat",
       ownerName: "Ann Owner",
       procedure: "Dental under GA",
       chips: [{ tone: "estimate_draft", label: "Estimate draft" }],
       next: "Review and send the estimate",
     });
     expect(listed[1]?.next).toBe("Draft the estimate");
+    expect(listed[1]?.species).toBe("dog");
   });
 
   it("never lists another practice's case", async () => {

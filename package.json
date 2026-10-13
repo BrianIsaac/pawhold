@@ -23,6 +23,7 @@
     "test:watch": "vitest --project unit",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx scripts/migrate.ts",
+    "db:revert": "tsx scripts/revert-migration.ts",
     "cron:hourly": "tsx scripts/cron-hourly.ts",
     "paypal:smoke-order": "tsx scripts/sandbox-order-smoke.ts",
     "probes": "tsx probes/run.ts",

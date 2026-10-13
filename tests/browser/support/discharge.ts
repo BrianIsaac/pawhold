@@ -95,6 +95,7 @@ export async function twoHoldCase(db: Database["db"], practiceId: string): Promi
     .values({
       practiceId,
       patientName: "Pepper",
+      species: "dog",
       ownerName: "Sam Patel",
       procedure: "Dental under anaesthetic",
       vetName: "Rowan Hale",

@@ -75,7 +75,13 @@ describe("the fictional practice's seed (D2)", () => {
     const practiceId = await startSeededSession();
     const [kase] = await db
       .insert(patientCase)
-      .values({ practiceId, patientName: "Biscuit", ownerName: "A. Owner", procedure: "Dental" })
+      .values({
+        practiceId,
+        patientName: "Biscuit",
+        species: "dog",
+        ownerName: "A. Owner",
+        procedure: "Dental",
+      })
       .returning();
 
     const draft = await makeEstimateVersion(db, {
@@ -108,5 +114,33 @@ describe("the fictional practice's seed (D2)", () => {
     expect((await currentPriceList(db, first))?.id).not.toBe(
       (await currentPriceList(db, second))?.id,
     );
+  });
+
+  it("gives every seeded case its animal's species, as its notes name it (U17)", async () => {
+    const practiceId = await startSeededSession();
+
+    const cases = await db
+      .select({ patientName: patientCase.patientName, species: patientCase.species })
+      .from(patientCase)
+      .where(eq(patientCase.practiceId, practiceId))
+      .orderBy(patientCase.patientName);
+
+    expect(Object.fromEntries(cases.map((one) => [one.patientName, one.species]))).toEqual({
+      Archie: "dog",
+      Biscuit: "dog",
+      Bramble: "dog",
+      Clover: "cat",
+      Hazel: "dog",
+      Juno: "dog",
+      Luna: "dog",
+      Milo: "cat",
+      Moss: "other",
+      Otis: "dog",
+      Pip: "dog",
+      Poppy: "cat",
+      Rufus: "dog",
+      Teddy: "dog",
+      Willow: "dog",
+    });
   });
 });

@@ -92,6 +92,7 @@ async function live(kase: MoneyStateCase): Promise<string> {
     .values({
       practiceId,
       patientName: kase.patientName,
+      species: kase.species,
       ownerName: kase.ownerName,
       procedure: kase.procedure,
       vetName: kase.vetName,

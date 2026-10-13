@@ -56,20 +56,22 @@ export const PLAN_NOTES =
  * Opens a case from today's "New case" and lands on it.
  *
  * @param page - The page, signed in as the practice.
- * @param kase - The patient, the owner and the procedure.
+ * @param kase - The patient, its species, the owner and the procedure.
  * @param kase.patient - The patient.
+ * @param kase.species - The species' label as the field offers it; "Dog" when not given.
  * @param kase.owner - The owner.
  * @param kase.procedure - The procedure.
  * @returns Resolves on the case's page.
  */
 export async function openNewCase(
   page: Page,
-  kase: { patient: string; owner: string; procedure: string },
+  kase: { patient: string; owner: string; procedure: string; species?: string },
 ): Promise<void> {
   await page.goto("/today");
   await page.getByRole("button", { name: "New case" }).click();
   const dialog = page.getByRole("dialog", { name: "Open a case" });
   await dialog.getByLabel("Patient").fill(kase.patient);
+  await dialog.getByLabel("Species").selectOption({ label: kase.species ?? "Dog" });
   await dialog.getByLabel("Owner").fill(kase.owner);
   await dialog.getByLabel("Procedure").fill(kase.procedure);
   await dialog.getByRole("button", { name: "Open the case" }).click();
