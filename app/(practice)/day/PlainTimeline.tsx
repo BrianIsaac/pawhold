@@ -83,6 +83,7 @@ export function PlainTimeline({ view, openingLine }: { view: DayView; openingLin
         day={view.day}
         line={openingLine}
         slots={view.range.slots}
+        bookings={view.rooms.flatMap((lane) => lane.bookings.map((one) => one.column))}
       />
     </>
   );

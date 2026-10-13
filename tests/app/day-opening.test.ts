@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { openingLine, takeOverScroll } from "../../app/(practice)/day/opening";
+import { openingLine, reachableLine, takeOverScroll } from "../../app/(practice)/day/opening";
 
 describe("where the day's grid opens (U11)", () => {
   it("keeps the lead columns before the line it brings into view", () => {
@@ -35,6 +35,35 @@ describe("where the day's grid opens (U11)", () => {
 
   it("never opens before the grid's first line", () => {
     expect(openingLine(2, [])).toBe(1);
+  });
+});
+
+describe("where the grid opens when the day ends before the view can open where it would (U16)", () => {
+  it("opens where it would when the scroller reaches that far", () => {
+    expect(reachableLine(100, 120.5, [])).toBe(100);
+    expect(reachableLine(120, 120, [])).toBe(120);
+  });
+
+  it("opens at the last whole line the scroller reaches, never part way into a column", () => {
+    expect(reachableLine(130, 120.5, [])).toBe(120);
+  });
+
+  it("moves back to the start of a booking the scroller's end would leave cut under the room names", () => {
+    expect(reachableLine(130, 120.5, [{ start: 111, end: 126 }])).toBe(111);
+    expect(
+      reachableLine(130, 120.5, [
+        { start: 111, end: 126 },
+        { start: 104, end: 113 },
+      ]),
+    ).toBe(104);
+  });
+
+  it("keeps a booking that starts on the line it opens at whole", () => {
+    expect(reachableLine(130, 120.5, [{ start: 120, end: 126 }])).toBe(120);
+  });
+
+  it("never opens before the grid's first line", () => {
+    expect(reachableLine(30, 0.4, [])).toBe(1);
   });
 });
 

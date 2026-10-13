@@ -29,7 +29,39 @@ interface Span {
  * @returns The grid line the view starts at.
  */
 export function openingLine(line: number, bookings: readonly Span[]): number {
-  let start = Math.max(1, line - LEAD_COLUMNS);
+  const start = uncut(Math.max(1, line - LEAD_COLUMNS), bookings);
+  const intoHour = (start - 1) % HOUR_COLUMNS;
+  const roomy = start - Math.max(0, intoHour - (HOUR_COLUMNS - LABEL_COLUMNS));
+  return bookings.some((one) => one.start < roomy && one.end > roomy) ? start : roomy;
+}
+
+/**
+ * Where the grid opens in a scroller that may end before it: late in the
+ * day, the view cannot start at its opening line, and a scroller stopped at
+ * its end would start the view part way into a column, and maybe part way
+ * into a booking under the room names. The view then opens at the last
+ * whole line the scroller reaches, moved back to the start of any booking
+ * that would open cut, so every booking in view is whole however late it is.
+ *
+ * @param line - The grid line the view would open at (`openingLine`'s).
+ * @param lastLine - The line the view starts at with the scroller at its end; a fraction part way into a column.
+ * @param bookings - Every booking's span.
+ * @returns The grid line the view starts at.
+ */
+export function reachableLine(line: number, lastLine: number, bookings: readonly Span[]): number {
+  return line <= lastLine ? line : uncut(Math.max(1, Math.floor(lastLine)), bookings);
+}
+
+/**
+ * A grid line moved back to the start of any booking it would cut, and of
+ * any booking that cuts that, until none does.
+ *
+ * @param line - The grid line.
+ * @param bookings - Every booking's span.
+ * @returns The line, or the earliest start it was moved back to.
+ */
+function uncut(line: number, bookings: readonly Span[]): number {
+  let start = line;
   for (let moved = true; moved;) {
     moved = false;
     for (const one of bookings) {
@@ -39,9 +71,7 @@ export function openingLine(line: number, bookings: readonly Span[]): number {
       }
     }
   }
-  const intoHour = (start - 1) % HOUR_COLUMNS;
-  const roomy = start - Math.max(0, intoHour - (HOUR_COLUMNS - LABEL_COLUMNS));
-  return bookings.some((one) => one.start < roomy && one.end > roomy) ? start : roomy;
+  return start;
 }
 
 /**
