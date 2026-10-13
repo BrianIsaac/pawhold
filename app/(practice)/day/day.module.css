@@ -126,11 +126,6 @@
   contain: inline-size;
 }
 
-.empty {
-  margin: 0 0 var(--space-3);
-  color: var(--colour-ink-muted);
-}
-
 .scroller {
   --label: 6rem;
   --slot: 1.5rem;

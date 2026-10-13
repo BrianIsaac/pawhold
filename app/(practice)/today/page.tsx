@@ -7,6 +7,7 @@ import { currentPracticeSession } from "@/server/practice-session";
 import { database } from "@/server/runtime";
 
 import { Chip } from "../../components/Chip";
+import { CatAsleep } from "../../components/Drawing";
 import { LinkPending } from "../../components/LinkPending";
 import { List, ListRow } from "../../components/List";
 import styles from "../practice.module.css";
@@ -48,6 +49,7 @@ export default async function TodayPage() {
         // has one width for all.
         template="minmax(5rem, 0.6fr) 7rem minmax(6rem, 0.9fr) minmax(7rem, 1.1fr) minmax(11rem, 1.7fr) minmax(7.5rem, 1.3fr)"
         empty="No cases yet. Open one to draft its estimate."
+        emptyFigure={<CatAsleep />}
       >
         {cases.map((kase) => (
           <ListRow

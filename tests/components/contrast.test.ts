@@ -146,6 +146,53 @@ const RESTYLE: readonly (readonly [string, string, string, number])[] = [
   ["the focus ring on sage", token("colour-focus"), token("colour-sage"), 3],
   ["the owner's focus ring on white", owner.get("--owner-focus")!, token("colour-surface"), 3],
   ["the owner's focus ring on mint", owner.get("--owner-focus")!, token("colour-mint"), 3],
+  // U18: the drawings, the owner's head panel, the thanks at "Held", the landing's band.
+  [
+    "the animal's name and species on the head panel (36 px and over, large)",
+    token("colour-saddle"),
+    token("colour-mint"),
+    3,
+  ],
+  [
+    "the owner's heading on the head panel (24 px, large)",
+    token("colour-saddle"),
+    token("colour-mint"),
+    3,
+  ],
+  ["the head panel's sentence under the heading", token("colour-ink"), token("colour-mint"), 4.5],
+  [
+    "the practice's name on an update's head panel",
+    token("colour-ink-muted"),
+    token("colour-mint"),
+    4.5,
+  ],
+  [
+    "the thanks at Held (18 px, on the white card)",
+    token("colour-saddle"),
+    token("colour-surface"),
+    4.5,
+  ],
+  [
+    "the landing heading on the band (40 px and over, large)",
+    token("colour-saddle"),
+    token("colour-sage"),
+    3,
+  ],
+  ["the landing's sentence on the band", token("colour-ink"), token("colour-sage"), 4.5],
+  ["the note under the landing's doors", token("colour-ink-muted"), token("colour-surface"), 4.5],
+  [
+    "an empty state's words under its drawing",
+    token("colour-ink-muted"),
+    token("colour-surface"),
+    4.5,
+  ],
+  [
+    "a drawing's line on a mint disc or panel (a graphic)",
+    token("colour-saddle"),
+    token("colour-mint"),
+    3,
+  ],
+  ["a drawing's line on white (a graphic)", token("colour-saddle"), token("colour-surface"), 3],
 ];
 
 describe("contrast on every chip tone", () => {

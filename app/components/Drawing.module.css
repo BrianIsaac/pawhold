@@ -1,0 +1,71 @@
+/*
+ * The drawings' one line: saddle, 2.5 units, round at its ends and joins.
+ * Saddle is 5.7:1 on white and 3.9:1 on mint, past the 3:1 a graphic needs
+ * (WCAG 1.4.11). A shape in front takes the ground it sits on.
+ */
+.drawing {
+  display: block;
+  overflow: visible;
+  color: var(--colour-saddle);
+}
+
+.line {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.fill {
+  fill: var(--drawing-ground, var(--colour-surface));
+}
+
+.patch {
+  fill: var(--colour-moss);
+}
+
+/* An eye, a nose: ink with no line round it. */
+.dot {
+  fill: currentColor;
+  stroke: none;
+}
+
+/* A small shape filled with the line's own colour. */
+.solid {
+  fill: currentColor;
+}
+
+.disc {
+  --drawing-ground: var(--colour-mint);
+  --disc: 6rem;
+
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: var(--disc);
+  height: var(--disc);
+  border-radius: 50%;
+  background: var(--colour-mint);
+}
+
+.disc[data-size="small"] {
+  --disc: 4.5rem;
+}
+
+.disc[data-size="medium"] {
+  --disc: 5rem;
+}
+
+.disc[data-size="large"] {
+  --disc: 8.5rem;
+}
+
+.disc > .drawing {
+  width: 74%;
+  height: 74%;
+}
+
+.disc[data-size="large"] > .drawing {
+  width: 80%;
+}

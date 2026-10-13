@@ -1,6 +1,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
+import { CatAsleep } from "../../app/components/Drawing";
 import { List, ListRow } from "../../app/components/List";
 
 describe("List", () => {
@@ -38,6 +39,19 @@ describe("List", () => {
     );
 
     expect(html).toContain("No cases yet.");
+    expect(html).not.toContain("<ul");
+  });
+
+  it("draws its figure above the words when it has one, still without a list", () => {
+    const html = renderToStaticMarkup(
+      <List label="Cases" columns={["Patient"]} empty="No cases yet." emptyFigure={<CatAsleep />}>
+        {[]}
+      </List>,
+    );
+
+    expect(html).toMatch(
+      /<svg [^>]*aria-label="A line drawing of a cat, asleep"[\s\S]*No cases yet\./,
+    );
     expect(html).not.toContain("<ul");
   });
 });

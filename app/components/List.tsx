@@ -1,5 +1,6 @@
 import { Children, type CSSProperties, type ReactNode } from "react";
 
+import { EmptyState } from "./EmptyState";
 import styles from "./List.module.css";
 
 /** A list's props. */
@@ -12,6 +13,8 @@ export interface ListProps {
   readonly template?: string;
   /** Shown instead of the list when it has no rows. */
   readonly empty?: ReactNode;
+  /** A drawing above the empty words. */
+  readonly emptyFigure?: ReactNode;
   readonly children: ReactNode;
 }
 
@@ -21,10 +24,10 @@ export interface ListProps {
  * Each cell names its own column, so the shared headings are hidden from
  * assistive technology and a row reads whole ("Patient Biscuit, Money Held").
  *
- * @param props - The label, the columns, the template, the empty words and the rows.
+ * @param props - The label, the columns, the template, the empty words, their drawing and the rows.
  * @returns The list.
  */
-export function List({ label, columns, template, empty, children }: ListProps) {
+export function List({ label, columns, template, empty, emptyFigure, children }: ListProps) {
   const rows = Children.toArray(children);
   const style = {
     "--list-columns": template ?? `repeat(${columns.length}, minmax(0, 1fr))`,
@@ -37,7 +40,11 @@ export function List({ label, columns, template, empty, children }: ListProps) {
         ))}
       </div>
       {rows.length === 0 && empty !== undefined ? (
-        <p className={styles.empty}>{empty}</p>
+        emptyFigure ? (
+          <EmptyState figure={emptyFigure}>{empty}</EmptyState>
+        ) : (
+          <p className={styles.empty}>{empty}</p>
+        )
       ) : (
         <ul aria-label={label} className={styles.rows}>
           {rows}

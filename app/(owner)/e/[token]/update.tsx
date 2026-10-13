@@ -11,6 +11,7 @@ import {
   vetCalled,
 } from "@/owner/wording";
 
+import { OwnerHead } from "./head";
 import { OwnerLines } from "./lines";
 import styles from "./page.module.css";
 
@@ -43,11 +44,11 @@ export function Update({
   const vet = capitalised(vetCalled(page.header.vetName));
   return (
     <article className={styles.page} aria-labelledby="update-heading">
-      <header className={styles.header}>
+      <OwnerHead header={page.header}>
         <p className={styles.eyebrow}>{page.header.practiceName}</p>
         <h1 id="update-heading">{answered ? answeredUpdateHeading(vet) : updateHeading(vet)}</h1>
         {page.explanation ? <p className={styles.explanation}>{page.explanation}</p> : null}
-      </header>
+      </OwnerHead>
 
       {page.finding ? (
         <section className={styles.finding} aria-labelledby="finding-heading">

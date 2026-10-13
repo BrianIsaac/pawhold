@@ -1,45 +1,102 @@
+/*
+ * The landing page as the restyle's mock-ups draw it: the wordmark on white,
+ * a sage band with the heading, its line and a dog and a cat (their shapes
+ * filled in mint), then the two doors as cards at the panel's radius. Saddle
+ * on sage is 3.3:1, so the heading is large text at every width (40 px and
+ * over); its line is espresso, 8.7:1 on sage (taupe ink never sits on sage).
+ */
 .landing {
   min-height: 100dvh;
-  display: grid;
-  align-items: center;
-  padding: var(--space-7) var(--gutter);
 }
 
+.top,
+.bandInner,
 .inner {
-  width: 100%;
-  max-width: 40rem;
+  max-width: 64rem;
   margin: 0 auto;
+  padding-inline: var(--gutter);
+}
+
+.top {
+  padding-block: var(--space-5) var(--space-4);
 }
 
 .brand {
-  margin: 0 0 var(--space-5);
+  margin: 0;
+}
+
+.band {
+  --drawing-ground: var(--colour-mint);
+
+  background: var(--colour-sage);
+}
+
+.bandInner {
+  display: grid;
+  gap: var(--space-5);
+  align-items: end;
+  padding-top: var(--space-6);
 }
 
 .heading {
   margin: 0 0 var(--space-4);
   color: var(--colour-saddle);
   font-family: var(--font-display);
-  font-size: var(--font-size-4);
+  font-size: 2.5rem;
   font-variation-settings: var(--font-display-settings);
   font-weight: var(--font-weight-display);
   letter-spacing: -0.01em;
+  line-height: 1.1;
 }
 
 .lede {
-  margin: 0 0 var(--space-6);
-  color: var(--colour-ink-muted);
+  max-width: 34rem;
+  margin: 0;
+  color: var(--colour-ink);
   font-size: var(--font-size-2);
+}
+
+/* The dog and the cat stand on the band's lower edge. */
+.art {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  margin-bottom: -3px;
+}
+
+.art > svg {
+  width: 9.5rem;
+  height: 9.5rem;
+}
+
+.art > svg + svg {
+  margin-left: -1.5rem;
+}
+
+.inner {
+  padding-block: var(--space-6) var(--space-7);
 }
 
 .doors {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--space-3);
+  gap: var(--space-4);
   margin-bottom: var(--space-4);
 }
 
-.doors > a {
-  flex: 1 1 14rem;
+.door {
+  flex: 1 1 16rem;
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-4);
+  border: 1px solid var(--colour-edge);
+  border-radius: var(--radius-panel);
+  background: var(--colour-surface);
+}
+
+.door > a {
+  flex: 1;
 }
 
 .note {
@@ -48,7 +105,20 @@
 }
 
 @media (min-width: 48rem) {
+  .bandInner {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .bandText {
+    padding-bottom: var(--space-6);
+  }
+
   .heading {
-    font-size: var(--font-size-5);
+    font-size: 3.25rem;
+  }
+
+  .art > svg {
+    width: 12rem;
+    height: 12rem;
   }
 }

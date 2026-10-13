@@ -6,6 +6,8 @@
  * (`formatPence`), never written here.
  */
 
+import type { Species } from "@/practice/species";
+
 /**
  * Who section 6's "{vet name}" is for a case opened before the practice
  * named its vet (`patient_case.vet_name` is null): "your vet". Flagged in
@@ -151,6 +153,42 @@ export function heldDone(amount: string, kind: "paypal" | "card"): string {
 
 /** The hold's state once PayPal answered the authorisation (the brief's "Held"). */
 export const HELD = "Held";
+
+/**
+ * Beside the hold, under the drawing of the animal content (the restyle's
+ * mock-ups: proposed, the operator's to keep, reword or strike).
+ *
+ * @param patient - The patient's name.
+ * @param vet - Who the vet is, as the page names them.
+ * @returns The sentence.
+ */
+export function heldThanks(patient: string, vet: string): string {
+  return `Thank you. ${patient} is in good hands with ${vet}.`;
+}
+
+/** Each species as the drawing of it is named, after "A line drawing of {name}, ". */
+const DRAWN_AS: Readonly<Record<Species, string>> = {
+  dog: "a dog",
+  cat: "a cat",
+  other: "another animal",
+};
+
+/**
+ * What the drawing of the patient says to a screen reader: U17's words for
+ * the species, with "a paw print" for an animal that is neither a dog nor a
+ * cat, since that is what is drawn.
+ *
+ * @param patient - The patient's name.
+ * @param species - Its species.
+ * @param content - Whether it is drawn content, eyes closed (the "Held" moment).
+ * @returns The words, such as "A line drawing of Otis, a dog, sitting".
+ */
+export function patientDrawn(patient: string, species: Species, content = false): string {
+  if (species === "other") {
+    return `A line drawing of a paw print, for ${patient}, ${DRAWN_AS[species]}`;
+  }
+  return `A line drawing of ${patient}, ${DRAWN_AS[species]}, sitting${content ? " happily" : ""}`;
+}
 
 const CONFIRMED_TIME = new Intl.DateTimeFormat("en-GB", {
   hour: "2-digit",

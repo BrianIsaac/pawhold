@@ -129,10 +129,13 @@
   font-size: 0.875rem;
 }
 
+/* The hold: the animal on its disc, then the words beside it. */
 .held {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  column-gap: var(--space-4);
+  row-gap: var(--space-2);
+  align-items: start;
   padding: var(--space-4);
   border: 1px solid var(--colour-accent);
   border-radius: var(--radius-3);
@@ -140,8 +143,28 @@
   background: var(--colour-surface);
 }
 
+.held > * {
+  grid-column: 2;
+}
+
+.held > :first-child {
+  grid-column: 1;
+  grid-row: 1 / span 4;
+}
+
+/* Saddle on white is 5.7:1, AA at any size. */
+.heldThanks {
+  margin: 0;
+  color: var(--colour-saddle);
+  font-family: var(--font-display);
+  font-size: 1.125rem;
+  font-variation-settings: var(--font-display-settings);
+  font-weight: var(--font-weight-display);
+  line-height: 1.4;
+}
+
 .heldChip {
-  align-self: flex-start;
+  justify-self: start;
   margin: 0;
   padding: 2px var(--space-3);
   border-radius: 999px;

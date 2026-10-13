@@ -8,6 +8,8 @@ import { DAY_BUTTONS } from "@/schedule/wording";
 import { currentPracticeSession } from "@/server/practice-session";
 import { database } from "@/server/runtime";
 
+import { DogAsleep } from "../../components/Drawing";
+import { EmptyState } from "../../components/EmptyState";
 import practice from "../practice.module.css";
 import { SignedOut } from "../SignedOut";
 import { dismissMoveAction, moveItAction, undoHoldAction } from "./actions";
@@ -149,7 +151,7 @@ export default async function DayPage({
           Bookings by room
         </h2>
         {view.bookingCount === 0 ? (
-          <p className={styles.empty}>Nothing is booked on {view.label}.</p>
+          <EmptyState figure={<DogAsleep />}>Nothing is booked on {view.label}.</EmptyState>
         ) : null}
         <DayBoard view={view} openingLine={scrollTo} plain={dayBoardSetting() === "plain"}>
           <PlainTimeline view={view} openingLine={scrollTo} />
