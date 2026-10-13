@@ -91,6 +91,14 @@
   --font-sans:
     system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif;
   --font-mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, "Liberation Mono", monospace;
+  /*
+   * The display face, Fraunces, for the landing heading, the owner's headings
+   * and the words at "Held" only: soft, never wonky, at 600. Money is never
+   * set in it. `--font-display` itself is set by app/fonts.ts on the landing
+   * page's and the owner's layouts, the only places it is drawn.
+   */
+  --font-display-settings: "SOFT" 100, "WONK" 0;
+  --font-weight-display: 600;
   --font-size-0: 0.875rem;
   --font-size-1: 1rem;
   --font-size-2: 1.125rem;

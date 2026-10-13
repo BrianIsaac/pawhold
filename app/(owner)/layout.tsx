@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
 
+import { fraunces } from "../fonts";
 import styles from "./owner.module.css";
 
 export const metadata: Metadata = {
@@ -27,7 +28,7 @@ export const viewport: Viewport = {
  */
 export default function OwnerLayout({ children }: Readonly<{ children: ReactNode }>) {
   return (
-    <div className={styles.owner} data-owner-shell="">
+    <div className={`${styles.owner} ${fraunces.variable}`} data-owner-shell="">
       <main className={styles.column}>{children}</main>
     </div>
   );

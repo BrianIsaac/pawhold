@@ -6,6 +6,18 @@
   background: var(--colour-surface);
 }
 
+/* The owner's headings: Fraunces in saddle, 5.7:1 on white. */
+.notice h1,
+.header h1,
+.sectionHeading,
+.finding h2 {
+  color: var(--colour-saddle);
+  font-family: var(--font-display);
+  font-variation-settings: var(--font-display-settings);
+  font-weight: var(--font-weight-display);
+  letter-spacing: -0.01em;
+}
+
 .notice h1 {
   margin: 0 0 var(--space-2);
   font-size: 1.375rem;
@@ -32,7 +44,6 @@
   text-wrap: pretty;
   font-size: 1.5rem;
   line-height: 1.25;
-  letter-spacing: -0.01em;
 }
 
 .intro {
@@ -60,9 +71,7 @@
 
 .sectionHeading {
   margin: 0;
-  font-size: 1rem;
-  font-weight: 600;
-  color: var(--colour-ink-muted);
+  font-size: 1.125rem;
 }
 
 .lines {
@@ -277,8 +286,7 @@
 
 .finding h2 {
   margin: 0;
-  color: var(--colour-ink-muted);
-  font-size: 1rem;
+  font-size: 1.125rem;
 }
 
 .finding blockquote {

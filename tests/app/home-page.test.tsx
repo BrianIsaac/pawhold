@@ -1,7 +1,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
-import HomePage from "../../app/page";
+import HomePage from "../../app/(landing)/page";
 
 describe("the landing page", () => {
   it("carries the heading and the line section 6 drafts for judge mode", () => {

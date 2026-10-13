@@ -1,6 +1,6 @@
-import buttons from "./components/Button.module.css";
-import { Wordmark } from "./components/Wordmark";
-import styles from "./landing.module.css";
+import buttons from "../components/Button.module.css";
+import { Wordmark } from "../components/Wordmark";
+import styles from "../landing.module.css";
 
 /**
  * The landing page (judge mode): section 6's heading, its line, the two
