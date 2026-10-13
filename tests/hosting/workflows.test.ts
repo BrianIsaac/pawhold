@@ -8,7 +8,9 @@ import { z } from "zod";
  * The GitHub workflows as GitHub reads them: the gate on every push and
  * pull request (U1), and the live smoke (U10) on dispatch, after each deploy
  * of `main` and on a schedule, whose thirty-minute run is the uptime check
- * (plan 7.4, D8) and whose failure is GitHub's email to the operator.
+ * (plan 7.4, D8) and whose failure is GitHub's email to the operator. Since
+ * U14 the uptime alert is the hourly job's probe on Render's own cron
+ * (`src/jobs/live-probe.ts`); GitHub's schedule is the second, when it runs.
  */
 
 /**
@@ -85,6 +87,18 @@ function runs(one: Job): string[] {
  */
 function uses(one: Job): string[] {
   return one.steps.flatMap((each) => (each.uses === undefined ? [] : [each.uses]));
+}
+
+/**
+ * How far apart two minutes of the hour are, round the clock face.
+ *
+ * @param one - A minute.
+ * @param other - Another.
+ * @returns The distance in minutes, at most thirty.
+ */
+function minutesApart(one: number, other: number): number {
+  const apart = Math.abs(one - other) % 60;
+  return Math.min(apart, 60 - apart);
 }
 
 const gate = workflow.parse(workflowFile("gate.yml"));
@@ -172,6 +186,29 @@ describe("the live smoke workflow (U10)", () => {
     expect(halfHourly).toHaveLength(1);
     // Off the hour, when GitHub's scheduler is busiest and delays runs.
     expect(halfHourly[0]!.split(" ")[0]!.split(",")).not.toContain("0");
+  });
+
+  it("keeps every scheduled minute off the quarter hours, and the uptime check apart from Render's hourly probe", () => {
+    const blueprint = z
+      .object({
+        services: z.array(z.object({ type: z.string(), schedule: z.string().optional() })),
+      })
+      .parse(parse(readFileSync(new URL("../../render.yaml", import.meta.url), "utf8")));
+    const probe = Number(
+      blueprint.services.find((one) => one.type === "cron")!.schedule!.split(/\s+/)[0],
+    );
+    const scheduled = crons.map((cron) => cron.split(/\s+/)[0]!.split(",").map(Number));
+
+    for (const minute of scheduled.flat()) {
+      for (const quarter of [0, 15, 30, 45]) {
+        expect(minutesApart(minute, quarter), `minute ${minute}`).toBeGreaterThanOrEqual(5);
+      }
+    }
+    // The probe runs a minute or two after the cron's own minute; a check
+    // beside it would say the same thing twice and leave the rest of the hour to one.
+    for (const minute of scheduled.find((minutes) => minutes.length === 2)!) {
+      expect(minutesApart(minute, probe), `minute ${minute}`).toBeGreaterThanOrEqual(8);
+    }
   });
 
   it("walks the README once a day on its own schedule", () => {

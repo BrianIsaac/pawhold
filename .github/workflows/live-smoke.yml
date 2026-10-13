@@ -4,6 +4,12 @@
 # the discharge, a live draft) runs after each deploy of main, once a day and
 # on dispatch. A failed run is GitHub's own workflow-failure email to the
 # operator. tests/hosting/workflows.test.ts holds this file to that shape.
+#
+# Since U14 the uptime alert is the hourly job's probe on Render's own cron
+# (src/jobs/live-probe.ts), whose failed run is Render's email: GitHub fired
+# none of this file's first scheduled runs, and says a scheduled run "can be
+# delayed" and "may be dropped". This schedule is the second alert, when it
+# runs.
 
 name: live smoke
 
@@ -24,10 +30,12 @@ on:
     branches:
       - main
   schedule:
-    # The uptime check, every thirty minutes, off the hour.
-    - cron: "7,37 * * * *"
-    # The walk, once a day (13:23 Singapore).
-    - cron: "23 5 * * *"
+    # The uptime check, every thirty minutes: off the quarter hours, when
+    # GitHub's scheduler is busiest, and apart from Render's probe at the top
+    # of the hour.
+    - cron: "22,52 * * * *"
+    # The walk, once a day (13:37 Singapore).
+    - cron: "37 5 * * *"
 
 permissions:
   contents: read
@@ -78,7 +86,7 @@ jobs:
 
   walk:
     needs: uptime
-    if: ${{ !failure() && !cancelled() && needs.uptime.result == 'success' && (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.walk) || github.event.schedule == '23 5 * * *') }}
+    if: ${{ !failure() && !cancelled() && needs.uptime.result == 'success' && (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.walk) || github.event.schedule == '37 5 * * *') }}
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
