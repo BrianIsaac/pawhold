@@ -448,6 +448,11 @@
   --b-grid-header-background: transparent;
   --b-grid-header-hover-background: transparent;
   --b-grid-header-hover-color: var(--colour-ink-muted);
+  --b-grid-header-padding: var(--space-3);
+  --b-grid-cell-color: var(--colour-ink);
+  --b-grid-cell-selected-color: var(--colour-ink);
+  --b-horizontal-time-axis-cell-padding-inline: 0;
+  --b-horizontal-time-axis-lowest-font-size: var(--font-size-0);
   --b-grid-cell-hover-background: transparent;
   --b-grid-cell-selected-background: transparent;
   --b-grid-cell-hover-selected-background: transparent;
@@ -494,7 +499,7 @@
   padding: var(--space-2) var(--space-3);
   font-size: var(--font-size-0);
   font-weight: var(--font-weight-bold);
-  line-height: var(--line-height-body);
+  line-height: var(--line-height-tight);
   white-space: normal;
 }
 
@@ -503,7 +508,7 @@
   color: var(--colour-ink-muted);
   font-size: var(--font-size-0);
   font-weight: var(--font-weight-regular);
-  line-height: var(--line-height-tight);
+  line-height: var(--line-height-body);
 }
 
 .board :global(.b-grid-header-text) {
@@ -536,7 +541,7 @@
   box-shadow: 0 1px 0 var(--colour-line-soft);
 }
 
-.board :global(.b-grid-header),
+.board :global(.b-grid-header.b-depth-0),
 .board :global(.b-sch-header-time-axis-cell) {
   border-block-end: 0;
 }
@@ -555,7 +560,7 @@
 
 .board :global(.b-sch-header-row) {
   flex: 0 0 auto;
-  height: calc(var(--font-size-0) * var(--line-height-tight) + 2 * var(--space-2));
+  height: calc(var(--font-size-0) * var(--line-height-body) + 2 * var(--space-2));
 }
 
 /* Now, across the rooms (below the hours, so it never crosses a label, and under the bookings). */

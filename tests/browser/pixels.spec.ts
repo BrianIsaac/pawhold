@@ -14,10 +14,13 @@ import {
 } from "./fixtures";
 import {
   DAY_STATES,
+  type DayState,
+  failTheScheduler,
   GRID_NAME,
   hourCells,
   prepareDay,
   roomNamesEdge,
+  SCHEDULER_MODULE,
   shownAs,
   STATE_WORDS,
 } from "./support/day";
@@ -107,6 +110,61 @@ async function textContrast(element: Locator): Promise<number> {
     const ground = luminance(parse(style.backgroundColor));
     return (Math.max(ink, ground) + 0.05) / (Math.min(ink, ground) + 0.05);
   });
+}
+
+/**
+ * How the day's grid sets its hour labels and its room names: the type's
+ * size, line and colour, where the words stand from the grid's left edge,
+ * and where the hours end and the rooms' rows begin. The hour read is the
+ * second, which nothing holds in view, with the grid at the day's start.
+ *
+ * @param page - The page, on the day.
+ * @param state - The state the day is drawn in.
+ * @returns The measures, to a tenth of a pixel.
+ */
+async function gridType(page: Page, state: DayState) {
+  const grid = page.getByRole("region", { name: GRID_NAME });
+  await grid.evaluate((element) => {
+    element.scrollLeft = 0;
+  });
+  const hour = await hourCells(page, state)
+    .nth(1)
+    .evaluate((cell, gridName) => {
+      const label = cell.firstElementChild ?? cell;
+      const style = getComputedStyle(label);
+      const range = document.createRange();
+      range.selectNodeContents(label);
+      const tenth = (value: number): number => Math.round(value * 10) / 10;
+      const grid = cell.closest(`[aria-label="${gridName}"]`)!.getBoundingClientRect();
+      return {
+        size: style.fontSize,
+        line: style.lineHeight,
+        colour: style.color,
+        words: tenth(range.getBoundingClientRect().left - grid.left),
+        rowsFrom: tenth(cell.getBoundingClientRect().bottom - grid.top),
+      };
+    }, GRID_NAME);
+  const rooms = await grid.evaluate((element) =>
+    [...element.querySelectorAll("[data-room]")].map((room) => {
+      const style = getComputedStyle(room);
+      const range = document.createRange();
+      range.selectNodeContents(room);
+      const lines = new Set([...range.getClientRects()].map((rect) => Math.round(rect.top)));
+      return {
+        name: room.textContent,
+        size: style.fontSize,
+        weight: style.fontWeight,
+        line: style.lineHeight,
+        colour: style.color,
+        inset:
+          Math.round(
+            (range.getBoundingClientRect().left - element.getBoundingClientRect().left) * 10,
+          ) / 10,
+        lines: lines.size,
+      };
+    }),
+  );
+  return { hour, rooms };
 }
 
 for (const width of Object.keys(WIDTHS) as Width[]) {
@@ -230,6 +288,38 @@ for (const width of Object.keys(WIDTHS) as Width[]) {
         expect(page_[0]).toBeLessThanOrEqual(page_[1]!);
       });
     }
+
+    test("the board sets its hour labels and its room names as the plain timeline does", async ({
+      page,
+    }) => {
+      await failTheScheduler(page);
+      await signInAsPractice(page);
+      await page.goto("/day");
+      await shownAs(page, "plain");
+      const plain = await gridType(page, "plain");
+
+      await page.unroute(SCHEDULER_MODULE);
+      await page.reload();
+      await shownAs(page, "board");
+      const board = await gridType(page, "board");
+      expect(board).toEqual(plain);
+
+      // The board's own heading over the room names starts where they start.
+      const heading = await page
+        .getByRole("region", { name: GRID_NAME })
+        .locator(".b-grid-header-scroller-locked .b-grid-header-text")
+        .evaluate((element, gridName) => {
+          const range = document.createRange();
+          range.selectNodeContents(element);
+          const grid = element.closest(`[aria-label="${gridName}"]`)!;
+          return (
+            Math.round(
+              (range.getBoundingClientRect().left - grid.getBoundingClientRect().left) * 10,
+            ) / 10
+          );
+        }, GRID_NAME);
+      expect(heading).toBe(board.rooms[0]!.inset);
+    });
 
     test("a case's title stands at the same height with or without a button beside it", async ({
       page,
