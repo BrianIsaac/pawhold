@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 
 import { currentPracticeSession } from "@/server/practice-session";
 
+import { Wordmark } from "../components/Wordmark";
 import { PracticeNav } from "./PracticeNav";
 import styles from "./practice.module.css";
 
@@ -28,7 +29,7 @@ export default async function PracticeLayout({ children }: Readonly<{ children: 
       <header className={styles.header}>
         <div className={styles.headerInner}>
           <div className={styles.brand}>
-            <span className={styles.product}>pawhold</span>
+            <Wordmark />
             {session ? <span className={styles.practiceName}>{session.practiceName}</span> : null}
           </div>
           {session ? <PracticeNav /> : null}

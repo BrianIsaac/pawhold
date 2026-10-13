@@ -83,7 +83,7 @@
   display: grid;
   gap: var(--space-4);
   padding: var(--space-5);
-  border: 1px solid var(--colour-line-soft);
+  border: 1px solid var(--colour-edge);
   border-radius: var(--radius-3);
   background: var(--colour-surface);
   box-shadow: var(--shadow-1);
@@ -364,14 +364,15 @@
   align-items: center;
   min-height: var(--target-min);
   padding: var(--space-2) var(--space-4);
-  border: 2px solid var(--colour-accent);
-  border-radius: var(--radius-2);
+  border: 2px solid var(--colour-saddle);
+  border-radius: var(--radius-button);
   background: var(--colour-surface);
-  color: var(--colour-accent-strong);
+  color: var(--colour-saddle);
   font-weight: var(--font-weight-medium);
   text-decoration: none;
 }
 
 .ownerLinkButton:hover {
   background: var(--colour-accent-soft);
+  color: var(--colour-deep-saddle);
 }

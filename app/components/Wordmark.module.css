@@ -1,0 +1,25 @@
+/* Saddle on white is 5.7:1 and on mint 3.9:1, which the wordmark's 20 px bold clears as large text. */
+.wordmark {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--colour-saddle);
+  font-size: 1.25rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  line-height: var(--line-height-tight);
+}
+
+.tile {
+  flex: none;
+  width: 1.75rem;
+  height: 1.75rem;
+}
+
+.ground {
+  fill: var(--colour-saddle);
+}
+
+.paw {
+  fill: var(--colour-mint);
+}

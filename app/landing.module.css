@@ -13,10 +13,6 @@
 
 .brand {
   margin: 0 0 var(--space-5);
-  color: var(--colour-accent-strong);
-  font-size: var(--font-size-2);
-  font-weight: var(--font-weight-bold);
-  letter-spacing: 0.01em;
 }
 
 .heading {
