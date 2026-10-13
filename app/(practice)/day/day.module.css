@@ -134,6 +134,8 @@
   --slot: 1.5rem;
 
   overflow-x: auto;
+  /* A booking brought into view by the keyboard stops clear of the room names. */
+  scroll-padding-inline-start: calc(var(--label) + var(--space-1));
   border: 1px solid var(--colour-line-soft);
   border-radius: var(--radius-3);
   background: var(--colour-surface);
@@ -407,4 +409,176 @@
 .booking[data-tone="withdrawn"] {
   background-color: var(--money-withdrawn-bg);
   color: var(--money-withdrawn-ink);
+}
+
+/* The board (U8b): the Scheduler, under the plain timeline until it has drawn. */
+
+.dayBoard {
+  position: relative;
+}
+
+.boardStage:not([data-shown]) {
+  position: absolute;
+  inset-inline: 0;
+  visibility: hidden;
+}
+
+/*
+ * The Scheduler is laid out as wide as the day and scrolls in the board's own
+ * box, as the plain timeline does: every booking is in the document, the
+ * page's own Tab order reaches each, and the room names, the hour labels and
+ * a booking's words stay in view by the same rules as the plain timeline's.
+ * So nothing inside the Scheduler scrolls or clips on its own.
+ */
+.board :global(.b-scheduler) {
+  --b-grid-cell-border-color: var(--colour-line-soft);
+  --b-grid-header-border-color: var(--colour-line-soft);
+  --b-grid-cell-background: transparent;
+  --b-grid-header-background: transparent;
+  --b-grid-cell-hover-background: transparent;
+  --b-grid-cell-selected-background: transparent;
+  --b-grid-cell-hover-selected-background: transparent;
+  --b-time-range-line-zindex: 0;
+
+  min-height: 0;
+  background: transparent;
+  color: var(--colour-ink);
+  font-family: inherit;
+}
+
+.board :global(.b-panel-body-wrap),
+.board :global(.b-grid-panel-body),
+.board :global(.b-grid-header-container),
+.board :global(.b-grid-body-container),
+.board :global(.b-grid-header-scroller),
+.board :global(.b-grid-headers),
+.board :global(.b-grid-sub-grid) {
+  overflow: clip !important;
+}
+
+/* The room names stay at the left while the day scrolls under them. */
+.board :global(.b-grid-header-scroller-locked),
+.board :global(.b-grid-sub-grid-locked) {
+  position: sticky;
+  inset-inline-start: 0;
+  z-index: 3;
+  background: var(--colour-surface);
+  border-right: 1px solid var(--colour-line);
+}
+
+/* Each side stacks on its own, so no booking is ever drawn over the room names. */
+.board :global(.b-grid-header-scroller-normal),
+.board :global(.b-grid-sub-grid-normal) {
+  z-index: 0;
+}
+
+.board :global(.b-grid-splitter),
+.board :global(.b-focus-trap) {
+  display: none;
+}
+
+.board :global(.b-grid-sub-grid-locked .b-grid-cell) {
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--font-size-0);
+  font-weight: var(--font-weight-bold);
+  line-height: var(--line-height-body);
+  white-space: normal;
+}
+
+.board :global(.b-grid-header) {
+  padding: 0 var(--space-3);
+  color: var(--colour-ink-muted);
+  font-size: var(--font-size-0);
+  font-weight: var(--font-weight-regular);
+  line-height: var(--line-height-tight);
+}
+
+.board :global(.b-grid-header-text) {
+  padding: var(--space-2) 0;
+}
+
+/* An hour's label stays in view, just inside the room names, while its hour scrolls past. */
+.board :global(.b-sch-header-time-axis-cell) {
+  padding: 0;
+  color: var(--colour-ink-muted);
+  font-size: var(--font-size-0);
+  font-weight: var(--font-weight-regular);
+  font-variant-numeric: tabular-nums;
+  cursor: default;
+}
+
+.board :global(.b-sch-header-text) {
+  position: sticky;
+  inset-inline-start: calc(var(--label) + var(--space-1));
+  padding: var(--space-2) var(--space-1);
+  font-size: inherit;
+}
+
+/*
+ * The line under the hours is the header's own, drawn below it and over the
+ * rows, so it shows wherever on the page the board falls (a header's border
+ * can be lost to the rows by half a pixel).
+ */
+.board :global(.b-grid-header-container) {
+  box-shadow: 0 1px 0 var(--colour-line-soft);
+}
+
+.board :global(.b-grid-header),
+.board :global(.b-sch-header-time-axis-cell) {
+  border-block-end: 0;
+}
+
+.board :global(.b-grid-cell) {
+  border-block-end: 1px solid var(--colour-line-soft);
+}
+
+.board :global(.b-grid-row.b-last .b-grid-cell) {
+  border-block-end: 0;
+}
+
+.board :global(.b-column-line) {
+  border-color: var(--colour-line-soft);
+}
+
+.board :global(.b-sch-header-row) {
+  flex: 0 0 auto;
+  height: calc(var(--font-size-0) * var(--line-height-tight) + 2 * var(--space-2));
+}
+
+/* Now, across the rooms (below the hours, so it never crosses a label, and under the bookings). */
+.board :global(.b-timeline-sub-grid) .boardNow {
+  border-inline-start: 2px solid var(--colour-danger);
+  opacity: 1;
+}
+
+/* An event is the plain timeline's block and nothing else: the Scheduler places it, the block draws it. */
+.board :global(.b-sch-event-wrap) {
+  padding: 0 1px;
+}
+
+.board :global(.b-sch-event) {
+  overflow: visible;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+  color: inherit;
+  font-size: inherit;
+  font-weight: inherit;
+}
+
+.board :global(.b-sch-event-content) {
+  display: block;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  overflow: visible;
+  container-type: inline-size;
+}
+
+.board :global(.b-jsx-container) {
+  display: block;
+  width: 100%;
+  height: 100%;
 }
