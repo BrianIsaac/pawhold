@@ -2,15 +2,21 @@ import { join } from "node:path";
 
 import type { Page } from "@playwright/test";
 
-import { expect, test, WIDTHS, type Width } from "./fixtures";
+import { signSessionId, SESSION_COOKIE, startJudgeSession } from "@/judge/session";
+
+import { expect, signInAsPractice, test, WIDTHS, type Width } from "./fixtures";
+import { browserSecret, openBrowserDatabase } from "./owner/support/cases";
 import { checkScreen } from "./support/checks";
-import { expectFraunces } from "./support/type";
+import { londonDay } from "./support/day";
+import { expectFraunces, expectSystemStack } from "./support/type";
 
 /*
- * The drawings on the landing page (U18, the restyle's mock-ups): the
- * landing's sage band with the heading in Fraunces and a dog and a cat, its
- * two doors as cards at the panel's radius each with its drawing on a mint
- * disc. Shots for the handover when SHOTS_DIR is set.
+ * The drawings on the landing page and the practice's empty states (U18,
+ * the restyle's mock-ups): the landing's sage band with the heading in
+ * Fraunces and a dog and a cat, its two doors as cards at the panel's
+ * radius each with its drawing on a mint disc; a cat asleep above Today's
+ * empty list and a dog asleep above an empty day, their words in the system
+ * stack. Shots for the handover when SHOTS_DIR is set.
  */
 
 const shots = process.env.SHOTS_DIR;
@@ -25,6 +31,32 @@ async function expectNoOverflow(page: Page): Promise<void> {
     () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
   );
   expect(overflow).toBe(0);
+}
+
+/**
+ * Signs the page in to a practice of its own with no cases at all, as a
+ * judge's would be had its seed made none. The practice's walks run fully
+ * parallel, so a worker can close a file's shared handle and then take
+ * another of its tests: the database is opened for this call alone.
+ *
+ * @param page - The page.
+ */
+async function signInToAnEmptyPractice(page: Page): Promise<void> {
+  const database = openBrowserDatabase();
+  let started: Awaited<ReturnType<typeof startJudgeSession>>;
+  try {
+    started = await startJudgeSession({ db: database.db }, "practice");
+  } finally {
+    await database.close();
+  }
+  await page.goto("/");
+  await page.context().addCookies([
+    {
+      name: SESSION_COOKIE,
+      value: signSessionId(started.sessionId, browserSecret()),
+      url: new URL(page.url()).origin,
+    },
+  ]);
 }
 
 for (const width of Object.keys(WIDTHS) as Width[]) {
@@ -71,6 +103,44 @@ for (const width of Object.keys(WIDTHS) as Width[]) {
       await expectNoOverflow(page);
       if (shots) {
         await page.screenshot({ path: join(shots, `landing-${px}.png`), fullPage: true });
+      }
+    });
+
+    test("today's cases with none yet: a cat asleep above the words", async ({ page }) => {
+      await signInToAnEmptyPractice(page);
+      await page.goto("/today");
+
+      const words = page.getByText("No cases yet. Open one to draft its estimate.");
+      await expect(words).toBeVisible();
+      await expectSystemStack(words);
+      await expect(
+        page.getByRole("img", { name: "A line drawing of a cat, asleep" }),
+      ).toBeVisible();
+      // The practice's working screens never draw Fraunces, so never fetch it.
+      await expect(page.locator('link[rel="preload"][as="font"]')).toHaveCount(0);
+
+      await checkScreen(page);
+      await expectNoOverflow(page);
+      if (shots) {
+        await page.screenshot({ path: join(shots, `today-empty-${px}.png`), fullPage: true });
+      }
+    });
+
+    test("a day with nothing booked: a dog asleep above the words", async ({ page }) => {
+      await signInAsPractice(page);
+      await page.goto(`/day?day=${londonDay(30 * 24 * 60)}`);
+
+      const words = page.getByText(/^Nothing is booked on/);
+      await expect(words).toBeVisible();
+      await expectSystemStack(words);
+      await expect(
+        page.getByRole("img", { name: "A line drawing of a dog, asleep" }),
+      ).toBeVisible();
+
+      await checkScreen(page);
+      await expectNoOverflow(page);
+      if (shots) {
+        await page.screenshot({ path: join(shots, `day-empty-${px}.png`), fullPage: true });
       }
     });
   });

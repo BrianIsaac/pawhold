@@ -181,6 +181,12 @@ const RESTYLE: readonly (readonly [string, string, string, number])[] = [
   ["the landing's sentence on the band", token("colour-ink"), token("colour-sage"), 4.5],
   ["the note under the landing's doors", token("colour-ink-muted"), token("colour-surface"), 4.5],
   [
+    "an empty state's words under its drawing",
+    token("colour-ink-muted"),
+    token("colour-surface"),
+    4.5,
+  ],
+  [
     "a drawing's line on a mint disc or panel (a graphic)",
     token("colour-saddle"),
     token("colour-mint"),
