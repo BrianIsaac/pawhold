@@ -24,23 +24,24 @@ const HEALTHY = { status: "ok", database: "reached", commit: "0233063".padEnd(40
 /** What the stand-in answers `/api/health` with; each test sets its own. */
 let answer: (response: ServerResponse) => void = (response) => response.end();
 let asked: string[] = [];
-let standIn: Server;
+let standIn: Server | undefined;
 let liveUrl: string;
 
-let admin: postgres.Sql;
+let admin: postgres.Sql | undefined;
 let databaseName: string;
 let databaseUrl: string;
 
 beforeAll(async () => {
-  standIn = createServer((request, response) => {
+  const server = createServer((request, response) => {
     asked.push(`${request.method} ${request.url}`);
     answer(response);
   });
-  await new Promise<void>((resolve) => standIn.listen(0, "127.0.0.1", resolve));
-  liveUrl = `http://127.0.0.1:${(standIn.address() as AddressInfo).port}`;
+  standIn = server;
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  liveUrl = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
 
-  admin = postgres(inject("databaseUrl"), { max: 1, onnotice: () => {} });
   databaseName = `pawhold_test_${randomBytes(6).toString("hex")}`;
+  admin = postgres(inject("databaseUrl"), { max: 1, onnotice: () => {} });
   await admin.unsafe(`create database ${databaseName}`);
   const url = new URL(inject("databaseUrl"));
   url.pathname = `/${databaseName}`;
@@ -49,9 +50,11 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  await new Promise<void>((resolve) => standIn.close(() => resolve()));
-  await admin.unsafe(`drop database if exists ${databaseName} with (force)`);
-  await admin.end();
+  await new Promise<void>((resolve) => (standIn ? standIn.close(() => resolve()) : resolve()));
+  if (admin) {
+    await admin.unsafe(`drop database if exists ${databaseName} with (force)`);
+    await admin.end();
+  }
 });
 
 /** How one run of the job ended. */
@@ -60,9 +63,13 @@ interface Run {
   readonly lines: string[];
 }
 
+/** Longer than any run here takes; a run still going then is stopped and the test fails. */
+const RUN_LIMIT_MS = 45_000;
+
 /**
  * Runs the job as Render's start command does, with nothing in its
  * environment but what is given (so never this machine's PayPal credentials).
+ * Both of its streams are read as one, in the order it wrote them.
  *
  * @param environment - The job's variables.
  * @returns Its exit code and every line it wrote.
@@ -70,7 +77,7 @@ interface Run {
 function runJob(environment: Record<string, string>): Promise<Run> {
   asked = [];
   return new Promise((resolve, reject) => {
-    const child = spawn("pnpm", ["cron:hourly"], {
+    const child = spawn("sh", ["-c", "exec pnpm cron:hourly 2>&1"], {
       cwd: ROOT,
       env: {
         PATH: process.env.PATH ?? "",
@@ -78,13 +85,22 @@ function runJob(environment: Record<string, string>): Promise<Run> {
         NODE_ENV: "production",
         ...environment,
       },
-      stdio: ["ignore", "pipe", "pipe"],
+      stdio: ["ignore", "pipe", "ignore"],
     });
+    const limit = setTimeout(() => {
+      child.kill("SIGKILL");
+      reject(new Error(`pnpm cron:hourly was still running after ${RUN_LIMIT_MS} ms`));
+    }, RUN_LIMIT_MS);
     let output = "";
     child.stdout.on("data", (chunk: Buffer) => (output += chunk.toString()));
-    child.stderr.on("data", (chunk: Buffer) => (output += chunk.toString()));
-    child.on("error", reject);
-    child.on("close", (code) => resolve({ code, lines: output.split("\n") }));
+    child.on("error", (error) => {
+      clearTimeout(limit);
+      reject(error);
+    });
+    child.on("close", (code) => {
+      clearTimeout(limit);
+      resolve({ code, lines: output.split("\n") });
+    });
   });
 }
 
@@ -136,31 +152,42 @@ describe("pnpm cron:hourly, as Render's cron runs it (U14)", () => {
     expect(run.code).toBe(1);
   }, 60_000);
 
-  it("still probes, and fails, when its own work cannot reach the database", async () => {
+  it("still probes, and fails, when its own work cannot reach the database or has none to reach", async () => {
     answer = (response) => {
       response.writeHead(200, { "content-type": "application/json" });
       response.end(JSON.stringify(HEALTHY));
     };
 
-    const run = await runJob({
-      DATABASE_URL: "postgres://pawhold:pawhold@127.0.0.1:1/pawhold",
-      PAWHOLD_LIVE_URL: liveUrl,
-    });
+    for (const database of [
+      { DATABASE_URL: "postgres://pawhold:pawhold@127.0.0.1:1/pawhold" },
+      {},
+    ]) {
+      const run = await runJob({ ...database, PAWHOLD_LIVE_URL: liveUrl });
 
-    expect(run.lines.some((line) => line.startsWith("pawhold: hourly job failed"))).toBe(true);
-    expect(probeLines(run)).toHaveLength(1);
-    expect(probeLines(run)[0]).toContain("answered healthy on attempt 1");
-    expect(run.code).toBe(1);
-  }, 60_000);
+      const failed = run.lines.findIndex((line) => line.startsWith("pawhold: hourly job failed"));
+      const probe = run.lines.findIndex((line) => line.startsWith("pawhold: live probe"));
+      expect(failed, JSON.stringify(database)).toBeGreaterThanOrEqual(0);
+      expect(probe).toBeGreaterThan(failed);
+      expect(probeLines(run)).toHaveLength(1);
+      expect(probeLines(run)[0]).toContain("answered healthy on attempt 1");
+      expect(run.code).toBe(1);
+    }
+  }, 120_000);
 
-  it("refuses an address that is not an origin before doing anything", async () => {
+  it("does its own work whatever the probe's address is, then fails on one that is not an origin", async () => {
     const run = await runJob({
       DATABASE_URL: databaseUrl,
       PAWHOLD_LIVE_URL: "https://pawhold.onrender.com/api/health",
     });
 
-    expect(run.lines.join("\n")).toContain("PAWHOLD_LIVE_URL");
-    expect(run.lines.some((line) => line.startsWith("pawhold: hourly job {"))).toBe(false);
+    const report = run.lines.findIndex((line) => line.startsWith("pawhold: hourly job {"));
+    const probe = run.lines.findIndex((line) => line.startsWith("pawhold: live probe"));
+    expect(run.lines[report]).toContain('"databaseReached":true');
+    expect(probe).toBeGreaterThan(report);
+    expect(probeLines(run)).toEqual([
+      "pawhold: live probe failed: PAWHOLD_LIVE_URL must be an http or https origin: must be an origin, with no path, query or fragment",
+    ]);
+    expect(asked).toEqual([]);
     expect(run.code).toBe(1);
   }, 60_000);
 });

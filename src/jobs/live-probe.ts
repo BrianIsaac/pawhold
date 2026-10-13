@@ -23,6 +23,9 @@ const RETRY_AFTER_MS = 5_000;
 /** How much of a field of a strange body the probe's line repeats. */
 const SAID_LIMIT = 40;
 
+/** How much of a failed request's message the probe's line repeats. */
+const FAILURE_LIMIT = 80;
+
 const liveEnvironment = z.object({
   PAWHOLD_LIVE_URL: z
     .union([z.literal(""), z.url({ protocol: /^https?$/ })])
@@ -35,11 +38,14 @@ const liveEnvironment = z.object({
     .transform((url) => url.origin),
 });
 
-/** The health check's answer, as far as the probe reads it. */
+/**
+ * The health check's answer, as far as the probe reads it. The commit is
+ * only repeated in the line, so whatever it is never decides the verdict.
+ */
 const healthBody = z.object({
   status: z.string(),
   database: z.string(),
-  commit: z.string().nullable().optional(),
+  commit: z.unknown().optional(),
 });
 
 /** What the probe needs. */
@@ -79,22 +85,33 @@ type Attempt =
   | { readonly healthy: false; readonly saw: string };
 
 /**
- * The address the probe asks: the health check of `PAWHOLD_LIVE_URL` when
- * that is set and not empty (a bed's or a fork's origin), else of the
- * deployment. The live smoke reads the same variable the same way.
+ * The origin of the live service: `PAWHOLD_LIVE_URL` when that is set and
+ * not empty (a bed's or a fork's), else the deployment. The hourly job's
+ * probe and the live smoke both read it here.
  *
  * @param source - The environment; `process.env` by default.
- * @returns The health check's URL.
+ * @returns The origin, without a trailing slash.
  * @throws Error when `PAWHOLD_LIVE_URL` is not an http or https origin.
  */
-export function liveHealthUrl(source: Record<string, string | undefined> = process.env): string {
+export function liveOrigin(source: Record<string, string | undefined> = process.env): string {
   const parsed = liveEnvironment.safeParse(source);
   if (!parsed.success) {
     throw new Error(
       `PAWHOLD_LIVE_URL must be an http or https origin: ${parsed.error.issues.map((issue) => issue.message).join("; ")}`,
     );
   }
-  return `${parsed.data.PAWHOLD_LIVE_URL}${HEALTH_PATH}`;
+  return parsed.data.PAWHOLD_LIVE_URL;
+}
+
+/**
+ * The address the probe asks: the live service's health check.
+ *
+ * @param source - The environment; `process.env` by default.
+ * @returns The health check's URL.
+ * @throws Error when `PAWHOLD_LIVE_URL` is not an http or https origin.
+ */
+export function liveHealthUrl(source: Record<string, string | undefined> = process.env): string {
+  return `${liveOrigin(source)}${HEALTH_PATH}`;
 }
 
 /**
@@ -173,7 +190,10 @@ async function attempt(url: string, ask: typeof fetch, timeoutMs: number): Promi
     };
   }
   if (status === 200 && body.data.status === "ok" && body.data.database === "reached") {
-    return { healthy: true, commit: body.data.commit ?? null };
+    return {
+      healthy: true,
+      commit: typeof body.data.commit === "string" ? body.data.commit : null,
+    };
   }
   return {
     healthy: false,
@@ -208,7 +228,7 @@ function failure(error: unknown): string {
   const cause =
     error instanceof Error ? (error.cause as { code?: unknown } | undefined) : undefined;
   const code = typeof cause?.code === "string" ? `: ${cause.code}` : "";
-  return `the request failed (${message}${code})`;
+  return `the request failed (${cut(message, FAILURE_LIMIT)}${code})`;
 }
 
 /**
@@ -218,5 +238,17 @@ function failure(error: unknown): string {
  * @returns The quoted value.
  */
 function said(value: string): string {
-  return JSON.stringify(value.length > SAID_LIMIT ? `${value.slice(0, SAID_LIMIT)}...` : value);
+  return JSON.stringify(cut(value, SAID_LIMIT));
+}
+
+/**
+ * Words from outside, on one line and no longer than a limit.
+ *
+ * @param text - The words.
+ * @param limit - How many characters to keep.
+ * @returns The words, with every run of white space a single space.
+ */
+function cut(text: string, limit: number): string {
+  const line = text.replace(/\s+/g, " ").trim();
+  return line.length > limit ? `${line.slice(0, limit)}...` : line;
 }

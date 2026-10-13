@@ -1,6 +1,9 @@
+import { createServer } from "node:http";
+import type { AddressInfo } from "node:net";
+
 import { describe, expect, it } from "vitest";
 
-import { DEPLOYMENT_URL, liveHealthUrl, probeLive } from "@/jobs/live-probe";
+import { DEPLOYMENT_URL, liveHealthUrl, liveOrigin, probeLive } from "@/jobs/live-probe";
 
 const HEALTH_URL = "https://pawhold.onrender.com/api/health";
 
@@ -48,8 +51,16 @@ function silentFetch(): typeof fetch {
     });
 }
 
+/**
+ * An answer for `stubFetch`: a JSON body under a status.
+ *
+ * @param status - The HTTP status.
+ * @param body - The body.
+ * @returns The answer.
+ */
 const json = (status: number, body: unknown) => (): Response => Response.json(body, { status });
 
+/** The wait before the retry, not waited. */
 const noPause = async (): Promise<void> => {};
 
 describe("the hourly job's probe of the live service (U14)", () => {
@@ -128,6 +139,47 @@ describe("the hourly job's probe of the live service (U14)", () => {
       saw: "no answer in 30 ms",
     });
     expect(Date.now() - started).toBeLessThan(2_000);
+  });
+
+  it("bounds the body as well: an answer whose headers come and whose body never ends is a timeout", async () => {
+    const server = createServer((_, response) => {
+      response.writeHead(200, { "content-type": "application/json" });
+      response.write('{"status":"ok",');
+    });
+    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+    const url = `http://127.0.0.1:${(server.address() as AddressInfo).port}/api/health`;
+    const started = Date.now();
+
+    try {
+      const probe = await probeLive({ url, timeoutMs: 150, pause: noPause });
+
+      expect(probe).toEqual({ healthy: false, url, attempts: 2, saw: "no answer in 150 ms" });
+      expect(Date.now() - started).toBeLessThan(3_000);
+    } finally {
+      server.closeAllConnections();
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+    }
+  });
+
+  it("judges health by the status and the database alone, whatever the commit is or is not", async () => {
+    for (const [commit, read] of [
+      [{}, null],
+      [{ commit: null }, null],
+      [{ commit: 20261013 }, null],
+      [{ commit: { sha: "0233063" } }, null],
+      [{ commit: "0233063" }, "0233063"],
+    ] as const) {
+      const { fetch } = stubFetch(json(200, { status: "ok", database: "reached", ...commit }));
+
+      const probe = await probeLive({ url: HEALTH_URL, fetch, pause: noPause });
+
+      expect(probe, JSON.stringify(commit)).toEqual({
+        healthy: true,
+        url: HEALTH_URL,
+        attempts: 1,
+        commit: read,
+      });
+    }
   });
 
   it("fails on a 200 whose body is not the health check's JSON", async () => {
@@ -212,6 +264,17 @@ describe("the hourly job's probe of the live service (U14)", () => {
     expect(saw).not.toContain("\n");
     expect(saw.length).toBeLessThan(160);
   });
+
+  it("keeps what a strange failure says short and on one line", async () => {
+    const { fetch } = stubFetch(() => new Error(`one\r\ntwo ${"x".repeat(500)}`));
+
+    const probe = await probeLive({ url: HEALTH_URL, fetch, pause: noPause });
+
+    expect(probe.healthy).toBe(false);
+    const saw = probe.healthy ? "" : probe.saw;
+    expect(saw).toMatch(/^the request failed \(one two x+\.\.\.\)$/);
+    expect(saw.length).toBeLessThan(160);
+  });
 });
 
 describe("the address the probe asks (U14)", () => {
@@ -224,6 +287,16 @@ describe("the address the probe asks (U14)", () => {
     );
     expect(liveHealthUrl({ PAWHOLD_LIVE_URL: "http://127.0.0.1:3000" })).toBe(
       "http://127.0.0.1:3000/api/health",
+    );
+  });
+
+  it("is the health check of the origin the live smoke walks", () => {
+    expect(liveOrigin({})).toBe(DEPLOYMENT_URL);
+    expect(liveOrigin({ PAWHOLD_LIVE_URL: "https://Pawhold.onrender.com:443/" })).toBe(
+      "https://pawhold.onrender.com",
+    );
+    expect(liveHealthUrl({ PAWHOLD_LIVE_URL: "https://Pawhold.onrender.com:443/" })).toBe(
+      HEALTH_URL,
     );
   });
 
