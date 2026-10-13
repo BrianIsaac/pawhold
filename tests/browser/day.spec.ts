@@ -326,6 +326,13 @@ for (const width of Object.keys(WIDTHS) as Width[]) {
         await expect(bookingOf(page, "Archie")).toHaveAttribute("data-tone", "awaiting_owner");
         await expect(bookingOf(page, "Archie")).toContainText("Waiting for owner");
         const sameDocument = await markDocument(page);
+        const another = page
+          .getByRole("region", { name: GRID_NAME })
+          .getByRole("link")
+          .filter({ hasNotText: "Archie" })
+          .first();
+        await another.focus();
+        await expect(another).toBeFocused();
 
         const owner = await context.newPage();
         await owner.goto(await ownerPathOf(practiceId, archie.caseId));
@@ -336,6 +343,8 @@ for (const width of Object.keys(WIDTHS) as Width[]) {
         await expect(bookingOf(page, "Archie")).toHaveAttribute("data-tone", "held");
         await expect(bookingOf(page, "Archie")).toContainText(/Held £\d/);
         expect(await sameDocument()).toBe(true);
+        // The day was read again under the keyboard: the booking it stood on is still the one in focus.
+        await expect(another).toBeFocused();
         await shownAs(page, state);
       });
 
@@ -360,9 +369,10 @@ for (const width of Object.keys(WIDTHS) as Width[]) {
           elsewhere.add(url.origin);
         }
       });
+      const asked = page.waitForResponse((response) => response.url().endsWith("/day/changes"));
       await openHeldDay(page, "board");
 
-      await page.waitForLoadState("networkidle");
+      await asked;
       expect([...elsewhere]).toEqual([]);
     });
 
@@ -380,6 +390,43 @@ for (const width of Object.keys(WIDTHS) as Width[]) {
       await expect(page.locator(".b-scheduler")).toHaveCount(0);
       await expect(page.getByRole("heading", { name: "Something went wrong" })).toHaveCount(0);
       await expect(page.getByRole("heading", { level: 1, name: "The day" })).toBeVisible();
+    });
+
+    test("the board takes over from the plain timeline under the keyboard: the booking in focus and the scroll are kept", async ({
+      page,
+    }) => {
+      let release: () => void = () => undefined;
+      const waiting = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      await page.route(SCHEDULER_MODULE, async (route) => {
+        await waiting;
+        await route.continue();
+      });
+      await signInAsPractice(page);
+      await page.goto(`/day?day=${londonDay(30)}`);
+      const board = page.locator("[data-day-board]");
+      await expect(board).toHaveAttribute("data-day-board", "plain");
+      const grid = page.getByRole("region", { name: GRID_NAME });
+      const booking = grid.getByRole("link").last();
+      const href = await booking.getAttribute("href");
+      await booking.focus();
+      await grid.evaluate((element) => {
+        element.scrollLeft = 333;
+      });
+      const scrolled = await grid.evaluate((element) => element.scrollLeft);
+      expect(scrolled).toBeGreaterThan(0);
+
+      release();
+      await shownAs(page, "board");
+
+      const focused = page.getByRole("region", { name: GRID_NAME }).locator("a:focus");
+      await expect(focused).toHaveAttribute("href", href!);
+      expect(
+        await page
+          .getByRole("region", { name: GRID_NAME })
+          .evaluate((element) => element.scrollLeft),
+      ).toBe(scrolled);
     });
 
     test("goes back to the plain timeline when the Scheduler throws as it draws", async ({
@@ -440,11 +487,87 @@ test.describe("the day's floor: a Scheduler that takes too long", () => {
     await expect(board).not.toHaveAttribute("data-fallback", /./);
 
     await expect(board).toHaveAttribute("data-fallback", "timeout", { timeout: 15_000 });
+    const arrived = page.waitForResponse((response) => response.url().endsWith("/day/scheduler"));
     release();
-    await page.waitForResponse((response) => response.url().endsWith("/day/scheduler"));
+    await arrived;
     await page.waitForTimeout(1_000);
 
     await expect(board).toHaveAttribute("data-day-board", "plain");
     await expect(page.locator(".b-scheduler")).toHaveCount(0);
+  });
+
+  test("stays on the plain timeline when the Scheduler loads and is made but draws nothing", async ({
+    page,
+  }) => {
+    await page.route(SCHEDULER_MODULE, (route) =>
+      route.fulfill({
+        contentType: "text/javascript",
+        // A Scheduler that takes whatever it is given and asked, and draws nothing.
+        body: [
+          "const sink = new Proxy(function () {}, {",
+          "  get: (target, key) => (key === Symbol.toPrimitive ? () => '' : sink),",
+          "  apply: () => sink,",
+          "  construct: () => sink,",
+          "});",
+          "export const Widget = sink;",
+          "export const DomHelper = sink;",
+          "export const StringHelper = { uncapitalize: (text) => text.charAt(0).toLowerCase() + text.slice(1) };",
+          "export class Scheduler {",
+          "  static $name = 'Scheduler';",
+          "  constructor() {",
+          "    return new Proxy(this, { get: (target, key) => (key in target ? target[key] : sink) });",
+          "  }",
+          "  destroy() {}",
+          "}",
+        ].join("\n"),
+      }),
+    );
+    await openHeldDay(page, "plain").catch(() => undefined);
+    const board = page.locator("[data-day-board]");
+
+    await expect(board).toHaveAttribute("data-fallback", "timeout", { timeout: 15_000 });
+    await expect(board).toHaveAttribute("data-day-board", "plain");
+    await expect(bookingOf(page, "Juno")).toContainText("Held by pawhold");
+  });
+});
+
+test.describe("the day's routes", () => {
+  test("the Scheduler's module is served to a signed-in practice alone, compressed, and not sent twice", async ({
+    page,
+    playwright,
+    baseURL,
+  }) => {
+    const stranger = await playwright.request.newContext({ baseURL: baseURL! });
+    expect((await stranger.get("/day/scheduler")).status()).toBe(401);
+    expect((await stranger.get("/day/changes")).status()).toBe(401);
+    await stranger.dispose();
+
+    await signInAsPractice(page);
+    const served = await page.request.get("/day/scheduler", {
+      headers: { "accept-encoding": "br" },
+    });
+    expect(served.status()).toBe(200);
+    expect(served.headers()["content-type"]).toBe("text/javascript; charset=utf-8");
+    expect(served.headers()["content-encoding"]).toBe("br");
+    expect(served.headers()["cache-control"]).toBe("private, no-cache");
+    expect(served.headers()["vary"]).toContain("Accept-Encoding");
+    const tag = served.headers()["etag"]!;
+    expect(tag).toMatch(/^"[\w-]+-br"$/);
+
+    for (const held of [tag, `W/${tag}`, `"another", ${tag}`]) {
+      const again = await page.request.get("/day/scheduler", {
+        headers: { "accept-encoding": "br", "if-none-match": held },
+      });
+      expect(again.status(), held).toBe(304);
+    }
+    const changed = await page.request.get("/day/scheduler", {
+      headers: { "accept-encoding": "br", "if-none-match": '"an-older-install-br"' },
+    });
+    expect(changed.status()).toBe(200);
+
+    const stamp = await page.request.get("/day/changes");
+    expect(stamp.status()).toBe(200);
+    expect(stamp.headers()["cache-control"]).toBe("private, no-store");
+    expect(await stamp.json()).toEqual({ stamp: expect.stringMatching(/^\d+$/) });
   });
 });

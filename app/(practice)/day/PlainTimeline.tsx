@@ -3,12 +3,10 @@ import { type CSSProperties, Fragment } from "react";
 import { faceOf } from "@/schedule/board";
 import type { DayView } from "@/schedule/day";
 
-import { NOW_CLASS } from "./board-marks";
+import { NOW_CLASS, PLAIN_SCROLLER_ID } from "./board-marks";
 import { BookingBlock } from "./BookingBlock";
 import styles from "./day.module.css";
 import { ScrollIntoDay } from "./ScrollIntoDay";
-
-const SCROLLER_ID = "day-grid";
 
 /**
  * The plain timeline (U8a's grid): a row per room, a column per five
@@ -26,7 +24,7 @@ export function PlainTimeline({ view, openingLine }: { view: DayView; openingLin
   return (
     <>
       <div
-        id={SCROLLER_ID}
+        id={PLAIN_SCROLLER_ID}
         className={styles.scroller}
         role="region"
         aria-label="The day's bookings, by room and time"
@@ -81,7 +79,7 @@ export function PlainTimeline({ view, openingLine }: { view: DayView; openingLin
         </div>
       </div>
       <ScrollIntoDay
-        scrollerId={SCROLLER_ID}
+        scrollerId={PLAIN_SCROLLER_ID}
         day={view.day}
         line={openingLine}
         slots={view.range.slots}

@@ -6,6 +6,21 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 /**
+ * Whether a request already holds the module by its tag: `If-None-Match`
+ * may list several tags, and marks a weak one with `W/`.
+ *
+ * @param ifNoneMatch - The request's `If-None-Match`, or null.
+ * @param tag - The module's entity tag.
+ * @returns Whether the browser has it.
+ */
+function holdsTag(ifNoneMatch: string | null, tag: string): boolean {
+  return (ifNoneMatch ?? "")
+    .split(",")
+    .map((held) => held.trim().replace(/^W\//, ""))
+    .some((held) => held === tag || held === "*");
+}
+
+/**
  * The Scheduler's own module, for the day's board (U8b): served from the
  * installed package as its maker ships it, never through this
  * application's bundler (which cannot take the trial's obfuscated bundle)
@@ -28,12 +43,13 @@ export async function GET(request: Request): Promise<Response> {
   } catch {
     return new Response(null, { status: 404, headers: { "cache-control": "private, no-store" } });
   }
+  // Kept by the browser, and asked after each time: an install's module is never used past its install.
   const headers: Record<string, string> = {
-    "cache-control": "private, max-age=3600",
+    "cache-control": "private, no-cache",
     etag: found.tag,
     vary: "Accept-Encoding",
   };
-  if (request.headers.get("if-none-match") === found.tag) {
+  if (holdsTag(request.headers.get("if-none-match"), found.tag)) {
     return new Response(null, { status: 304, headers });
   }
   if (encoding !== "identity") {

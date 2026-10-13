@@ -9,12 +9,19 @@ import {
   BryntumScheduler,
   type BryntumSchedulerProps,
 } from "@bryntum/scheduler-react/lib/BryntumScheduler.js";
-import { type CSSProperties, useLayoutEffect, useMemo, useRef, useSyncExternalStore } from "react";
+import {
+  type CSSProperties,
+  type JSX,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useSyncExternalStore,
+} from "react";
 
 import { type BookingFace, boardOf, hourLabelAt } from "@/schedule/board";
 import type { DayView } from "@/schedule/day";
 
-import { NOW_CLASS } from "./board-marks";
+import { NOW_CLASS, PLAIN_SCROLLER_ID } from "./board-marks";
 import { BookingBlock } from "./BookingBlock";
 import styles from "./day.module.css";
 
@@ -142,12 +149,47 @@ function watchWidth(changed: () => void): () => void {
 /** The Scheduler's own notice that its trial has run out: its mask over the grid. */
 const EXPIRY_MASK = "[id^='masktrial']";
 
+/** The Scheduler's own Tab handling stays off: the page's Tab order reaches each booking's link. */
+const KEY_MAP = { Tab: null, "Shift+Tab": null } as const;
+
+/** Now is the day's own line (the practice's clock), never the Scheduler's reading of the browser's clock. */
+const TIME_RANGES = { showCurrentTimeLine: false, showHeaderElements: false } as const;
+
+/**
+ * An event's content: its booking's block, naming its room.
+ *
+ * @param context - The Scheduler's rendering of one event.
+ * @param context.eventRecord - The event's record.
+ * @returns The block.
+ */
+function renderEvent({
+  eventRecord,
+}: {
+  eventRecord: { getData(field: string): unknown };
+}): JSX.Element {
+  return (
+    <BookingBlock face={faceOfRecord(eventRecord)} room={String(eventRecord.getData("room"))} />
+  );
+}
+
+/**
+ * A room's name in its row, marked so a walk can find the rooms in order.
+ *
+ * @param context - The Scheduler's rendering of one cell.
+ * @param context.value - The room's name.
+ * @returns The name.
+ */
+function renderRoom({ value }: { value: unknown }): JSX.Element {
+  return <span data-room="">{String(value)}</span>;
+}
+
 /**
  * The board (U8b): the day on the Scheduler, rooms as its resources and
  * bookings as its events, each event the same block the plain timeline
  * draws. It is read only; the agent's proposals are answered by the buttons
- * above it. It reports when it has drawn, and when the Scheduler shows that
- * its trial has expired, so the day can fall back to the plain timeline.
+ * above it. It reports once the Scheduler has drawn every room and booking
+ * of the day, and when the Scheduler shows that its trial has expired, so
+ * the day can stay on, or go back to, the plain timeline.
  *
  * @param props - The day, where it opens, and what to tell the day.
  * @param props.view - The day.
@@ -168,32 +210,95 @@ export default function SchedulerBoard({
   onExpired: () => void;
 }) {
   const scroller = useRef<HTMLDivElement>(null);
-  const signature = JSON.stringify([view, openingLine]);
-  // The day is read again each minute; the same day keeps the same arrays, so the Scheduler is left alone.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  const board = useMemo(() => boardOf(view, openingLine), [signature]);
   const rem = useMemo(() => parseFloat(getComputedStyle(document.documentElement).fontSize), []);
   const wide = useSyncExternalStore(watchWidth, isWide);
   const labelPx = (wide ? LABEL_REM.wide : LABEL_REM.narrow) * rem;
   const hourPx = HOUR_REM * rem;
 
+  /*
+   * The day is read again each minute and on every change. Each part the
+   * Scheduler is given keeps its identity until what it says changes, so the
+   * Scheduler is handed only what is new (its wrapper applies again every
+   * property that is not the very object it had).
+   */
+  const signature = JSON.stringify([view, openingLine]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const board = useMemo(() => boardOf(view, openingLine), [signature]);
+  const hours = board.hours.join(" ");
+  const rooms = JSON.stringify(board.resources);
+  const now = board.now?.getTime() ?? null;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const axis = useMemo(() => ({ startDate: board.startDate, endDate: board.endDate }), [hours]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const resources = useMemo(() => board.resources as unknown as object[], [rooms]);
+  const events = board.events as unknown as object[];
+  const viewPreset = useMemo(
+    (): NonNullable<BryntumSchedulerProps["viewPreset"]> => ({
+      base: "hourAndDay",
+      tickWidth: hourPx,
+      headers: [
+        {
+          unit: "hour",
+          increment: 1,
+          align: "start",
+          renderer: (start: Date) =>
+            hourLabelAt({ startDate: axis.startDate, hours: hours.split(" ") }, start),
+        },
+      ],
+    }),
+    [axis, hours, hourPx],
+  );
+  const columns = useMemo(
+    () => [{ field: "name", text: "Room", width: labelPx, renderer: renderRoom }],
+    [labelPx],
+  );
+  const timeRanges = useMemo(
+    () =>
+      now === null
+        ? []
+        : [{ id: "now", startDate: new Date(now), cls: `${styles.boardNow} ${NOW_CLASS}` }],
+    [now],
+  );
+
+  // What "drawn" means for this day, for the watcher below: every room's name and every booking's block.
+  const expected = useRef({ rooms: 0, bookings: 0 });
+  useLayoutEffect(() => {
+    expected.current = { rooms: board.resources.length, bookings: board.events.length };
+  }, [board]);
+
   useLayoutEffect(() => {
     const root = scroller.current!;
-    const expired = () => root.querySelector(EXPIRY_MASK) != null;
-    if (expired()) {
-      onExpired();
-      return;
-    }
-    plainMarkup(root);
-    onShown();
-    // The Scheduler draws again as the day changes: each time, its markup is made plain, and its expiry looked for.
-    const watch = new MutationObserver(() => {
-      if (expired()) {
-        watch.disconnect();
+    let shown = false;
+    const look = (): boolean => {
+      if (root.querySelector(EXPIRY_MASK) != null) {
         onExpired();
-        return;
+        return true;
       }
       plainMarkup(root);
+      if (
+        !shown &&
+        root.querySelector(".b-scheduler") != null &&
+        root.querySelectorAll("[data-room]").length === expected.current.rooms &&
+        root.querySelectorAll("a[data-tone]").length === expected.current.bookings
+      ) {
+        shown = true;
+        // The board takes over where the plain timeline stood, if the practice has scrolled it.
+        const plain = document.getElementById(PLAIN_SCROLLER_ID);
+        if (plain) {
+          root.scrollLeft = plain.scrollLeft;
+        }
+        onShown();
+      }
+      return false;
+    };
+    if (look()) {
+      return;
+    }
+    // The Scheduler draws again as the day changes: each time, its markup is made plain, and its expiry looked for.
+    const watch = new MutationObserver(() => {
+      if (look()) {
+        watch.disconnect();
+      }
     });
     watch.observe(root, {
       childList: true,
@@ -225,54 +330,25 @@ export default function SchedulerBoard({
     >
       <div className={styles.boardSheet} style={{ width: labelPx + board.hours.length * hourPx }}>
         <BryntumScheduler
-          key={`${board.day} ${board.hours.join(" ")} ${labelPx}`}
+          key={`${board.day} ${hours} ${labelPx}`}
           {...OFF}
           readOnly
           autoHeight
-          startDate={board.startDate}
-          endDate={board.endDate}
-          viewPreset={{
-            base: "hourAndDay",
-            tickWidth: hourPx,
-            headers: [
-              {
-                unit: "hour",
-                increment: 1,
-                align: "start",
-                renderer: (start: Date) => hourLabelAt(board, start),
-              },
-            ],
-          }}
+          useInitialAnimation={false}
+          startDate={axis.startDate}
+          endDate={axis.endDate}
+          viewPreset={viewPreset}
           rowHeight={ROW_REM * rem}
           barMargin={4}
           eventColor={null}
           eventStyle={null}
-          columns={[
-            {
-              field: "name",
-              text: "Room",
-              width: labelPx,
-              renderer: ({ value }: { value: unknown }) => (
-                <span data-room="">{String(value)}</span>
-              ),
-            },
-          ]}
-          resources={board.resources as unknown as object[]}
-          events={board.events as unknown as object[]}
-          useInitialAnimation={false}
-          keyMap={{ Tab: null, "Shift+Tab": null }}
-          timeRangesFeature={{ showCurrentTimeLine: false, showHeaderElements: false }}
-          timeRanges={
-            board.now
-              ? [{ id: "now", startDate: board.now, cls: `${styles.boardNow} ${NOW_CLASS}` }]
-              : []
-          }
-          eventRenderer={({ eventRecord }) => (
-            <BookingBlock
-              face={faceOfRecord(eventRecord)}
-              room={String(eventRecord.getData("room"))}
-            />
-          )}
+          columns={columns}
+          resources={resources}
+          events={events}
+          keyMap={KEY_MAP}
+          timeRangesFeature={TIME_RANGES}
+          timeRanges={timeRanges}
+          eventRenderer={renderEvent}
         />
       </div>
     </div>
