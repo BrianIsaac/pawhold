@@ -8,6 +8,14 @@ import { ownerLink } from "@/owner/link";
 import { WALK_FINDING, WALK_PHOTO_PATH } from "../support/update-walk-words";
 import { expect, signInAsPractice, test, WIDTHS, type Width } from "./fixtures";
 import { browserSecret, openBrowserDatabase } from "./owner/support/cases";
+import {
+  DAY_STATES,
+  GRID_NAME,
+  openHeldDay,
+  prepareDay,
+  shownAs,
+  STATE_WORDS,
+} from "./support/day";
 import { DOUBLE_URL } from "./support/discharge";
 import { approveAtTheDouble } from "./support/double-approval";
 
@@ -188,24 +196,34 @@ for (const width of Object.keys(WIDTHS) as Width[]) {
       await expect(page.getByText(/^You said not to go ahead\./)).toBeVisible();
     });
 
-    test("the day: the agent's hold undone", async ({ page }) => {
-      await signInAsPractice(page);
-      const day = new Intl.DateTimeFormat("en-CA", {
-        timeZone: "Europe/London",
-        year: "numeric",
-        month: "2-digit",
-        day: "2-digit",
-      }).format(new Date(Date.now() + 30 * 60 * 1000));
-      await page.goto(`/day?day=${day}`);
-      const held = page.getByRole("region", { name: "Held by pawhold" });
-      await expect(held).toBeVisible();
-      await tabTo(page, held.getByRole("button", { name: /^Undo/ }));
-      await page.keyboard.press("Enter");
-      await expect(held).toHaveCount(0);
-      const grid = page.getByRole("region", { name: "The day's bookings, by room and time" });
-      await tabTo(page, grid);
-      await page.keyboard.press("ArrowRight");
-      await tabTo(page, grid.getByRole("link").first());
-    });
+    for (const state of DAY_STATES) {
+      test(`the day, ${STATE_WORDS[state]}: the agent's hold undone, and a booking opened`, async ({
+        page,
+      }) => {
+        await prepareDay(page, state);
+        await openHeldDay(page, state);
+        const held = page.getByRole("region", { name: "Held by pawhold" });
+        await tabTo(page, held.getByRole("button", { name: /^Undo/ }));
+        await page.keyboard.press("Enter");
+        await expect(held).toHaveCount(0);
+        await shownAs(page, state);
+        const grid = page.getByRole("region", { name: GRID_NAME });
+        await tabTo(page, grid);
+        const before = await grid.evaluate((element) => element.scrollLeft);
+        await page.keyboard.press("ArrowRight");
+        await expect
+          .poll(() => grid.evaluate((element) => element.scrollLeft))
+          .toBeGreaterThan(before);
+        const links = grid.getByRole("link");
+        await tabTo(page, links.first());
+        const last = links.last();
+        await tabTo(page, last);
+        const name = (await last.textContent()) ?? "";
+        await page.keyboard.press("Enter");
+        await expect(page).toHaveURL(/\/cases\/[0-9a-f-]{36}$/);
+        const patient = await page.getByRole("heading", { level: 1 }).textContent();
+        expect(name).toContain(patient);
+      });
+    }
   });
 }

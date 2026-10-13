@@ -18,6 +18,31 @@ import styles from "./discharge.module.css";
 const REVIEW_PAUSE_MS = 250;
 
 /**
+ * The id of a line's "Done" field.
+ *
+ * @param estimateLineId - The estimate's line.
+ * @returns The field's id.
+ */
+function doneFieldId(estimateLineId: string): string {
+  return `done-${estimateLineId}`;
+}
+
+/**
+ * What a line's "Done" field holds before the form has come alive: what the
+ * vet typed into the page as the server drew it, if anything.
+ *
+ * @param estimateLineId - The estimate's line.
+ * @returns The field's value, or null where there is no such field yet (on the server, and on a page made in the browser).
+ */
+function typedBeforeAlive(estimateLineId: string): string | null {
+  if (typeof document === "undefined") {
+    return null;
+  }
+  const field = document.getElementById(doneFieldId(estimateLineId));
+  return field instanceof HTMLInputElement ? field.value : null;
+}
+
+/**
  * The itemised bill being made (section 6): each approved line with the
  * quantity done, its price and its total; work no approved estimate covers,
  * noted and refused; the totals; and why the bill cannot be confirmed yet.
@@ -54,14 +79,30 @@ export function BillForm({
     shown: { billedPence: number; capturePence: readonly number[] },
   ) => Promise<DischargeAnswer>;
 }) {
+  /*
+   * The page is drawn by the server first, and a field can be typed in before
+   * its script arrives. A quantity typed then is in its field and not in the
+   * server's bill: the form starts from what the fields hold, and judges the
+   * bill at once when that is not what the server drew.
+   */
   const [input, setInput] = useState<BillInput>(() => ({
     quantities: Object.fromEntries(
       groups.flatMap((group) =>
-        group.lines.map((line) => [line.estimateLineId, String(line.quantityLow)]),
+        group.lines.map((line) => [
+          line.estimateLineId,
+          typedBeforeAlive(line.estimateLineId) ?? String(line.quantityLow),
+        ]),
       ),
     ),
     extras: [],
   }));
+  const [typedEarly] = useState(() =>
+    groups.some((group) =>
+      group.lines.some(
+        (line) => input.quantities[line.estimateLineId] !== String(line.quantityLow),
+      ),
+    ),
+  );
   const [answer, setAnswer] = useState<BillReview>(initial);
   const [message, setMessage] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
@@ -78,7 +119,9 @@ export function BillForm({
   useEffect(() => {
     if (first.current) {
       first.current = false;
-      return;
+      if (!typedEarly) {
+        return;
+      }
     }
     const ask = ++asked.current;
     setPending(true);
@@ -108,7 +151,7 @@ export function BillForm({
       );
     }, REVIEW_PAUSE_MS);
     return () => clearTimeout(timer);
-  }, [caseId, input, review, round, router]);
+  }, [caseId, input, review, round, router, typedEarly]);
 
   const reviewed = new Map(answer.lines.map((line) => [line.estimateLineId, line]));
   const setQuantity = (lineId: string, quantity: string) =>
@@ -128,7 +171,7 @@ export function BillForm({
           <ul className={styles.lines}>
             {group.lines.map((line) => {
               const done = reviewed.get(line.estimateLineId);
-              const fieldId = `done-${line.estimateLineId}`;
+              const fieldId = doneFieldId(line.estimateLineId);
               return (
                 <li key={line.estimateLineId} className={styles.line}>
                   <div className={styles.lineWhat}>

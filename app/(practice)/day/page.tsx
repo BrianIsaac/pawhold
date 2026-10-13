@@ -1,7 +1,6 @@
 import type { Metadata, Route } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { type CSSProperties, Fragment } from "react";
 
 import { type DayView, loadDay } from "@/schedule/day";
 import { ScheduleError } from "@/schedule/errors";
@@ -13,23 +12,27 @@ import practice from "../practice.module.css";
 import { SignedOut } from "../SignedOut";
 import { dismissMoveAction, moveItAction, undoHoldAction } from "./actions";
 import { DayActionButton } from "./DayActionButton";
+import { DayBoard } from "./DayBoard";
+import { DayLive } from "./DayLive";
 import { DayCheck } from "./DayCheck";
 import styles from "./day.module.css";
 import { LEAD_COLUMNS, openingLine } from "./opening";
-import { ScrollIntoDay } from "./ScrollIntoDay";
+import { PlainTimeline } from "./PlainTimeline";
+import { dayBoardSetting } from "./setting";
+import { dayStamp } from "./stamp";
 
 export const metadata: Metadata = { title: "The day" };
 
 export const dynamic = "force-dynamic";
 
-const SCROLLER_ID = "day-grid";
-
 /**
- * The practice's day (U8a, the plain view; U8b's Bryntum board replaces the
- * grid and keeps this data and these actions): the day's bookings by room on
- * a timeline, each coloured by its case's money state, the schedule agent's
- * holds and proposed moves marked, with Undo on a held slot and Move it and
- * Dismiss on a proposed move (section 6's words; D9 (a)).
+ * The practice's day (U8a, U8b): the day's bookings by room on a timeline,
+ * each coloured by its case's money state, the schedule agent's holds and
+ * proposed moves marked, with Undo on a held slot and Move it and Dismiss on
+ * a proposed move (section 6's words; D9 (a)). The bookings are drawn on the
+ * board, Bryntum's Scheduler, with the plain timeline under it as the floor
+ * (`DayBoard`); the open day follows its cases' money without a reload
+ * (`DayLive`).
  *
  * @param props - The route's search parameters.
  * @param props.searchParams - `day`, a calendar day ("2026-10-12"); today when absent.
@@ -45,6 +48,8 @@ export default async function DayPage({
     return <SignedOut />;
   }
   const { day } = await searchParams;
+  // Read before the day, so a change that lands between the two is asked after again, never missed.
+  const stamp = await dayStamp(database().db, session.practiceId);
   let view: DayView;
   try {
     view = await loadDay(database().db, session.practiceId, {
@@ -86,6 +91,7 @@ export default async function DayPage({
         </nav>
       </div>
       <DayCheck timeZone={view.timeZone} />
+      <DayLive stamp={stamp} />
 
       {view.proposals.length > 0 ? (
         <section aria-labelledby="held-heading" className={styles.held}>
@@ -148,88 +154,9 @@ export default async function DayPage({
         {view.bookingCount === 0 ? (
           <p className={styles.empty}>Nothing is booked on {view.label}.</p>
         ) : null}
-        <div
-          id={SCROLLER_ID}
-          className={styles.scroller}
-          role="region"
-          aria-label="The day's bookings, by room and time"
-          tabIndex={0}
-        >
-          <div
-            className={styles.grid}
-            style={{ "--slots": view.range.slots, "--rooms": view.rooms.length } as CSSProperties}
-          >
-            <div className={styles.corner} data-room-label="" aria-hidden="true" />
-            <ol className={styles.hours} aria-hidden="true">
-              {view.range.hours.slice(0, -1).map((hour) => (
-                <li key={hour.line} style={{ gridColumn: `${hour.line} / span 12` }}>
-                  <span className={styles.hour}>{hour.label}</span>
-                </li>
-              ))}
-            </ol>
-            {view.rooms.map((lane, index) => (
-              <Fragment key={lane.id}>
-                <h3 id={`room-${lane.id}`} className={styles.room} style={{ gridRow: index + 2 }}>
-                  {lane.name}
-                </h3>
-                <ol
-                  className={styles.lane}
-                  style={{ gridRow: index + 2 }}
-                  aria-labelledby={`room-${lane.id}`}
-                >
-                  {lane.bookings.map((one) => (
-                    <li
-                      key={one.id}
-                      className={styles.slot}
-                      style={{ gridColumn: `${one.column.start} / ${one.column.end}` }}
-                    >
-                      <Link
-                        href={`/cases/${one.caseId}`}
-                        className={styles.booking}
-                        data-tone={one.chip.tone}
-                        data-held={one.held ? "" : undefined}
-                        data-move={one.moveProposed ? "" : undefined}
-                        title={`${one.time}: ${one.patientName}, ${one.kind === "consult" ? "consult" : one.procedure}, ${one.vetName}. ${one.chip.label}.`}
-                      >
-                        <span className={styles.bookingBody}>
-                          <span className={styles.bookingStart} aria-hidden="true">
-                            {one.start}
-                          </span>
-                          <span className={styles.bookingTime}>{one.time}</span>
-                          <span className={styles.bookingPatient}>{one.patientName}</span>
-                          <span className={styles.bookingDetail}>
-                            {one.kind === "consult" ? "Consult" : one.procedure}
-                          </span>
-                          <span className={styles.bookingDetail}>{one.vetName}</span>
-                          <span className={styles.bookingMoney}>{one.chip.label}</span>
-                          {one.held ? <span className={styles.mark}>Held by pawhold</span> : null}
-                          {one.moveProposed ? (
-                            <span className={styles.mark}>
-                              Move to {one.moveProposed.to} proposed
-                            </span>
-                          ) : null}
-                        </span>
-                      </Link>
-                    </li>
-                  ))}
-                </ol>
-              </Fragment>
-            ))}
-            {view.now ? (
-              <div
-                className={styles.now}
-                style={{ gridColumn: `${view.now.line + 1} / span 1` }}
-                aria-hidden="true"
-              />
-            ) : null}
-          </div>
-        </div>
-        <ScrollIntoDay
-          scrollerId={SCROLLER_ID}
-          day={view.day}
-          line={scrollTo}
-          slots={view.range.slots}
-        />
+        <DayBoard view={view} openingLine={scrollTo} plain={dayBoardSetting() === "plain"}>
+          <PlainTimeline view={view} openingLine={scrollTo} />
+        </DayBoard>
       </section>
     </>
   );

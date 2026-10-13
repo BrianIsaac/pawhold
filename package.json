@@ -28,7 +28,10 @@
     "probes": "tsx probes/run.ts",
     "eval": "tsx evals/run.ts"
   },
+  "//@bryntum/scheduler": "Bryntum's Scheduler on its trial (owner's decision D5 (b)), installed 13 October 2026. The trial runs out on 12 November 2026 by the licence's 30 days and on 27 November 2026 by the download page's 45; the package itself counts 45 days in each browser from that browser's first sight of the board. The day page falls back to the plain timeline when the Scheduler fails or shows its expiry. A licensed package is one line: change the alias below.",
   "dependencies": {
+    "@bryntum/scheduler": "npm:@bryntum/scheduler-trial@7.3.7",
+    "@bryntum/scheduler-react": "7.3.7",
     "@paypal/paypal-js": "11.2.2",
     "drizzle-orm": "0.45.4",
     "next": "16.4.0",
