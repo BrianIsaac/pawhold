@@ -24,7 +24,7 @@ import type { DayView } from "@/schedule/day";
 import { NOW_CLASS, PLAIN_SCROLLER_ID } from "./board-marks";
 import { BookingBlock } from "./BookingBlock";
 import styles from "./day.module.css";
-import { takeOverScroll } from "./opening";
+import { bookingSpans, lastStartLine, reachableOpening, takeOverScroll } from "./opening";
 
 /** The plain timeline's measures, in rem, which the board keeps (U11): an hour, a room's row, the room names. */
 const HOUR_REM = 18;
@@ -319,8 +319,17 @@ export default function SchedulerBoard({
     if (opened.current === board.day || !scroller.current) {
       return;
     }
-    scroller.current.scrollLeft = ((openingLine - 1) * hourPx) / 12;
+    const slotPx = hourPx / 12;
+    const lastStart = lastStartLine({
+      scrollWidth: scroller.current.scrollWidth,
+      clientWidth: scroller.current.clientWidth,
+      slotPx,
+    });
+    scroller.current.scrollLeft =
+      (reachableOpening(openingLine, lastStart, bookingSpans(view)) - 1) * slotPx;
     opened.current = board.day;
+    // The day's bookings are read when it opens, as its opening line is; a later reading moves nothing.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [board.day, openingLine, hourPx]);
 
   return (

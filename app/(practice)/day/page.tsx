@@ -16,7 +16,7 @@ import { DayBoard } from "./DayBoard";
 import { DayLive } from "./DayLive";
 import { DayCheck } from "./DayCheck";
 import styles from "./day.module.css";
-import { LEAD_COLUMNS, openingLine } from "./opening";
+import { bookingSpans, LEAD_COLUMNS, openingLine } from "./opening";
 import { PlainTimeline } from "./PlainTimeline";
 import { dayBoardSetting } from "./setting";
 import { dayStamp } from "./stamp";
@@ -61,10 +61,7 @@ export default async function DayPage({
     }
     throw error;
   }
-  const scrollTo = openingLine(
-    firstLineInView(view),
-    view.rooms.flatMap((lane) => lane.bookings.map((one) => one.column)),
-  );
+  const scrollTo = openingLine(firstLineInView(view), bookingSpans(view));
 
   return (
     <>

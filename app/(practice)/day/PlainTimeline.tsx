@@ -6,6 +6,7 @@ import type { DayView } from "@/schedule/day";
 import { NOW_CLASS, PLAIN_SCROLLER_ID } from "./board-marks";
 import { BookingBlock } from "./BookingBlock";
 import styles from "./day.module.css";
+import { bookingSpans } from "./opening";
 import { ScrollIntoDay } from "./ScrollIntoDay";
 
 /**
@@ -83,6 +84,7 @@ export function PlainTimeline({ view, openingLine }: { view: DayView; openingLin
         day={view.day}
         line={openingLine}
         slots={view.range.slots}
+        bookings={bookingSpans(view)}
       />
     </>
   );

@@ -209,11 +209,13 @@ for (const width of Object.keys(WIDTHS) as Width[]) {
         await shownAs(page, state);
         const grid = page.getByRole("region", { name: GRID_NAME });
         await tabTo(page, grid);
-        const before = await grid.evaluate((element) => element.scrollLeft);
-        await page.keyboard.press("ArrowRight");
-        await expect
-          .poll(() => grid.evaluate((element) => element.scrollLeft))
-          .toBeGreaterThan(before);
+        // Late in the day the grid may open at its end: the arrow steps whichever way it can.
+        const { before, atEnd } = await grid.evaluate((element) => ({
+          before: element.scrollLeft,
+          atEnd: element.scrollLeft >= element.scrollWidth - element.clientWidth - 1,
+        }));
+        await page.keyboard.press(atEnd ? "ArrowLeft" : "ArrowRight");
+        await expect.poll(() => grid.evaluate((element) => element.scrollLeft)).not.toBe(before);
         const links = grid.getByRole("link");
         await tabTo(page, links.first());
         const last = links.last();
