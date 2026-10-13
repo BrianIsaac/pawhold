@@ -30,7 +30,9 @@
   /*
    * Colour: ink on surfaces. Espresso is 15.0:1 on white and 10.5:1 on mint;
    * taupe ink 6.9:1 on white and 4.8:1 on mint, never on sage. A field's edge
-   * is taupe, 4.2:1 on white (WCAG 1.4.11's 3:1); a card's edge is sage.
+   * is taupe, 4.2:1 on white (WCAG 1.4.11's 3:1); a card's edge is sage,
+   * and a panel set into a card (the vet's notes, a form within it) is edged
+   * in mint, the soft line: there is no sunk grey ground on the white canvas.
    */
   --colour-ink: var(--colour-espresso);
   --colour-ink-muted: var(--colour-taupe-ink);

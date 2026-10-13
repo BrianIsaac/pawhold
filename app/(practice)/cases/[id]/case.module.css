@@ -98,8 +98,8 @@
 .notes {
   margin: 0;
   padding: var(--space-4);
+  border: 1px solid var(--colour-line-soft);
   border-radius: var(--radius-2);
-  background: var(--colour-canvas);
   font-size: var(--font-size-1);
   line-height: 1.75;
   white-space: pre-wrap;
@@ -216,8 +216,8 @@
   display: grid;
   gap: var(--space-3);
   padding: var(--space-4);
+  border: 1px solid var(--colour-line-soft);
   border-radius: var(--radius-2);
-  background: var(--colour-canvas);
 }
 
 .quantities {
@@ -334,7 +334,6 @@
   margin: 0;
   padding: var(--space-4);
   border-radius: var(--radius-2);
-  background: var(--colour-canvas);
   border: 1px solid var(--colour-line);
 }
 

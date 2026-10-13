@@ -86,8 +86,8 @@
   gap: var(--space-3);
   align-items: end;
   padding: var(--space-4);
+  border: 1px solid var(--colour-line-soft);
   border-radius: var(--radius-2);
-  background: var(--colour-canvas);
 }
 
 .extraAction {
