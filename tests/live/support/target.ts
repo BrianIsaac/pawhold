@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import type { BuyerLogin } from "../../../probes/buyer";
+import { DEPLOYMENT_URL, liveOrigin } from "../../../src/jobs/live-probe";
 
 /*
  * What the live smoke (U10) walks and with what: the deployment's address,
@@ -10,19 +11,7 @@ import type { BuyerLogin } from "../../../probes/buyer";
  */
 
 /** The deployment the smoke walks (plan 7.3, README's "Try it"). */
-export const DEPLOYMENT_URL = "https://pawhold.onrender.com";
-
-const baseUrl = z.object({
-  PAWHOLD_LIVE_URL: z
-    .union([z.literal(""), z.url({ protocol: /^https?$/ })])
-    .optional()
-    .transform((value) => new URL(value || DEPLOYMENT_URL))
-    .refine(
-      (url) => url.pathname === "/" && url.search === "" && url.hash === "",
-      "must be an origin, with no path, query or fragment",
-    )
-    .transform((url) => url.origin),
-});
+export { DEPLOYMENT_URL };
 
 const buyer = z.object({
   PAWHOLD_SMOKE_BUYER_EMAIL: z.email(),
@@ -48,20 +37,14 @@ export type HealthAnswer = z.infer<typeof healthAnswer>;
 
 /**
  * The base URL the smoke walks: `PAWHOLD_LIVE_URL` when set and not empty,
- * else the deployment.
+ * else the deployment; the origin the hourly job's probe asks (U14).
  *
  * @param source - The environment; `process.env` by default.
  * @returns The origin, without a trailing slash.
  * @throws Error when `PAWHOLD_LIVE_URL` is not an http or https origin.
  */
 export function liveBaseUrl(source: Record<string, string | undefined> = process.env): string {
-  const parsed = baseUrl.safeParse(source);
-  if (!parsed.success) {
-    throw new Error(
-      `PAWHOLD_LIVE_URL must be an http or https origin: ${parsed.error.issues.map((issue) => issue.message).join("; ")}`,
-    );
-  }
-  return parsed.data.PAWHOLD_LIVE_URL;
+  return liveOrigin(source);
 }
 
 /**
