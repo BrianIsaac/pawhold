@@ -141,7 +141,7 @@ export function createPayPalClient(options: PayPalClientOptions): PayPalClient {
     });
     const text = await readText(answer, "POST", TOKEN_PATH);
     if (!answer.ok) {
-      throw PayPalError.fromResponse(answer.status, text);
+      throw PayPalError.fromResponse(answer.status, text, answer.headers);
     }
     const parsed = tokenResponse.safeParse(parseJson(text));
     if (!parsed.success) {
@@ -194,7 +194,7 @@ export function createPayPalClient(options: PayPalClientOptions): PayPalClient {
     const final = answer!;
     const text = await readText(final, method, path);
     if (!final.ok) {
-      throw PayPalError.fromResponse(final.status, text);
+      throw PayPalError.fromResponse(final.status, text, final.headers);
     }
     const parsed = schema.safeParse(text.length === 0 ? null : parseJson(text));
     if (!parsed.success) {

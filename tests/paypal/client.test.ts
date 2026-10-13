@@ -8,8 +8,9 @@ import {
   PayPalTransportError,
 } from "@/paypal/client";
 
-import { paypalFixture } from "../support/fixtures";
+import { paypalFixture, paypalFixtureText } from "../support/fixtures";
 import { startMockPayPal } from "../support/mock-paypal";
+import { recordedAnswer } from "../support/recorded";
 
 const paypal = startMockPayPal();
 
@@ -36,6 +37,42 @@ function client(clock: { now: number } = { now: Date.UTC(2026, 9, 12) }) {
 }
 
 const tokenCalls = () => paypal.requests.filter((r) => r.path === "/v1/oauth2/token");
+
+/**
+ * A client over a fetch that answers by path, for what the mock server cannot
+ * give: a response header, a body that is not JSON, an answer that is late.
+ * Every request is kept, in order, as `METHOD /path`.
+ *
+ * @param routes - The answer to each path, built afresh for every request.
+ * @param timeoutMs - How long the client waits on each request.
+ * @returns The client and the requests it sent.
+ */
+function stubbed(
+  routes: Record<string, (signal: AbortSignal) => Response | Promise<Response>>,
+  timeoutMs?: number,
+) {
+  const sent: string[] = [];
+  const answering = async (input: string | URL | Request, init?: RequestInit) => {
+    const path = new URL(String(input)).pathname;
+    sent.push(`${init?.method} ${path}`);
+    const route = routes[path];
+    if (!route) {
+      throw new Error(`no stubbed answer for ${path}`);
+    }
+    return route(init!.signal!);
+  };
+  const paypalClient = createPayPalClient({
+    clientId: CLIENT_ID,
+    clientSecret: CLIENT_SECRET,
+    environment: "sandbox",
+    baseUrl: "https://paypal.invalid",
+    fetch: answering as typeof fetch,
+    ...(timeoutMs === undefined ? {} : { timeoutMs }),
+  });
+  return { client: paypalClient, sent };
+}
+
+const AUTHORIZATION_PATH = "/v2/payments/authorizations/91T13242G72341823";
 
 describe("the PayPal client's OAuth token", () => {
   it("asks for a client-credentials token with basic auth, as the docs' cURL does", async () => {
@@ -295,5 +332,118 @@ describe("the PayPal client's errors", () => {
       amount: { value: "10.00", currency_code: "GBP" },
       final_capture: true,
     });
+  });
+});
+
+describe("PayPal's debug id on an error (the sandbox sent `Paypal-Debug-Id` on every recorded answer)", () => {
+  const recordedToken = recordedAnswer("P4", "POST", /^\/v1\/oauth2\/token$/);
+  const HEADER_ID = recordedToken.debugId!;
+  const withDebugId = { "content-type": "application/json", "paypal-debug-id": HEADER_ID };
+
+  it("was sent on the token answer itself, whose body carries none", () => {
+    expect(recordedToken.status).toBe(200);
+    expect(HEADER_ID).toMatch(/^[0-9a-f]{10,}$/);
+  });
+
+  it("is kept from the header when the credentials are refused: the identity body has none", async () => {
+    const { client: paypalClient } = stubbed({
+      "/v1/oauth2/token": () =>
+        new Response(paypalFixtureText("api/oauth-401-invalid-client.json"), {
+          status: 401,
+          headers: withDebugId,
+        }),
+    });
+
+    const error = await paypalClient
+      .get(AUTHORIZATION_PATH, { response: authorization })
+      .catch((caught: unknown) => caught);
+
+    expect(error).toBeInstanceOf(PayPalError);
+    expect(error).toMatchObject({ status: 401, name: "invalid_client", debugId: HEADER_ID });
+  });
+
+  it("is kept from the header when the token is refused on the call and again after the refresh", async () => {
+    const { client: paypalClient, sent } = stubbed({
+      "/v1/oauth2/token": () => Response.json(TOKEN),
+      [AUTHORIZATION_PATH]: () =>
+        new Response(paypalFixtureText("api/api-401-invalid-token.json"), {
+          status: 401,
+          headers: withDebugId,
+        }),
+    });
+
+    const error = await paypalClient
+      .get(AUTHORIZATION_PATH, { response: authorization })
+      .catch((caught: unknown) => caught);
+
+    expect(error).toMatchObject({ status: 401, name: "invalid_token", debugId: HEADER_ID });
+    expect(sent.filter((request) => request.endsWith(AUTHORIZATION_PATH))).toHaveLength(2);
+  });
+
+  it("is kept from the header on an answer that is not JSON, named by its status", async () => {
+    const { client: paypalClient } = stubbed({
+      "/v1/oauth2/token": () => Response.json(TOKEN),
+      [`${AUTHORIZATION_PATH}/capture`]: () =>
+        new Response("<html><body>Service Unavailable</body></html>", {
+          status: 503,
+          headers: { "content-type": "text/html", "paypal-debug-id": HEADER_ID },
+        }),
+    });
+
+    const error = await paypalClient
+      .post(`${AUTHORIZATION_PATH}/capture`, {
+        requestId: "8f0f8a3e-0000-8000-8000-000000000006",
+        body: {},
+        response: authorization,
+      })
+      .catch((caught: unknown) => caught);
+
+    expect(error).toBeInstanceOf(PayPalError);
+    expect(error).toMatchObject({ status: 503, name: "HTTP_503", debugId: HEADER_ID, details: [] });
+  });
+
+  it("is the body's where PayPal gives both: negative testing's recorded refusal carries two", async () => {
+    const refusal = recordedAnswer("P5A", "POST", /\/capture$/);
+    const inBody = (refusal.responseBody as { debug_id: string }).debug_id;
+    expect(refusal.debugId).not.toBe(inBody);
+    const { client: paypalClient } = stubbed({
+      "/v1/oauth2/token": () => Response.json(TOKEN),
+      [`${AUTHORIZATION_PATH}/capture`]: () =>
+        Response.json(refusal.responseBody, {
+          status: refusal.status!,
+          headers: { "paypal-debug-id": refusal.debugId! },
+        }),
+    });
+
+    const error = await paypalClient
+      .post(`${AUTHORIZATION_PATH}/capture`, {
+        requestId: "8f0f8a3e-0000-8000-8000-000000000007",
+        body: {},
+        response: authorization,
+      })
+      .catch((caught: unknown) => caught);
+
+    expect(error).toMatchObject({ status: 422, debugId: inBody });
+    expect((error as PayPalError).hasIssue("AUTHORIZATION_EXPIRED")).toBe(true);
+  });
+
+  it.each([
+    ["no header", undefined],
+    ["an empty header", "  "],
+    ["a header longer than any id the audit trail keeps", "f".repeat(256)],
+  ])("is null when the body has none and there is %s", async (_case, header) => {
+    const { client: paypalClient } = stubbed({
+      "/v1/oauth2/token": () =>
+        new Response(paypalFixtureText("api/oauth-401-invalid-client.json"), {
+          status: 401,
+          headers: header === undefined ? {} : { "paypal-debug-id": header },
+        }),
+    });
+
+    const error = await paypalClient
+      .get(AUTHORIZATION_PATH, { response: authorization })
+      .catch((caught: unknown) => caught);
+
+    expect(error).toMatchObject({ status: 401, name: "invalid_client", debugId: null });
   });
 });
