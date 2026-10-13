@@ -17,7 +17,7 @@ import {
 } from "@/owner/wording";
 
 import styles from "./authorise.module.css";
-import { HeldStatus, type HoldState } from "./held";
+import { type HeldPatient, HeldStatus, type HoldState } from "./held";
 
 export type { HoldState };
 
@@ -32,6 +32,8 @@ export interface AuthoriseProps {
   readonly amount: string;
   /** The card button's label ("Authorise £927.00", or "Approve £155.00" on an update). */
   readonly cardLabel: string;
+  /** The animal the hold is for, drawn beside it once held. */
+  readonly patient: HeldPatient;
 }
 
 /** How many times an authorisation PayPal did not answer is asked again (U3: ask again). */
@@ -348,6 +350,7 @@ export function Authorise(props: AuthoriseProps) {
         token={token}
         amount={props.amount}
         hold={{ ...hold, paymentKind: hold.paymentKind }}
+        patient={props.patient}
       />
     );
   }

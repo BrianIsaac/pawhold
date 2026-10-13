@@ -4,10 +4,11 @@ import { eq } from "drizzle-orm";
 import { patientCase } from "@/db/schema";
 import type { Species } from "@/practice/species";
 
-import { expectNoSeriousViolations } from "../support/checks";
+import { expectNoSeriousViolations, expectTargetsAtLeast44 } from "../support/checks";
 import { expectFraunces } from "../support/type";
 import {
   brambleUpdate,
+  heldBrambleEstimate,
   openBrowserDatabase,
   refundedBramble,
   sentBrambleEstimate,
@@ -15,9 +16,11 @@ import {
 import { saveShot } from "./support/shots";
 
 /*
- * The owner's head panel (U18, the restyle's
+ * The owner's head panel and the "Held" moment (U18, the restyle's
  * mock-ups): the animal drawn by its species on a mint panel at the panel's
- * radius, its name and species set large in Fraunces.
+ * radius, its name and species set large in Fraunces; at "Held", the animal
+ * drawn content on its disc beside the hold and the thanks in Fraunces, the
+ * card's edge pine.
  */
 
 const database = openBrowserDatabase();
@@ -26,9 +29,10 @@ test.afterAll(async () => {
   await database.close();
 });
 
-/** Mint and saddle as the browser reports them. */
+/** Mint, saddle and pine as the browser reports them. */
 const MINT = "rgb(187, 225, 195)";
 const SADDLE = "rgb(139, 93, 51)";
+const PINE = "rgb(40, 72, 59)";
 
 /**
  * Holds the head panel as drawn: mint at 24 px, the animal's drawing named,
@@ -133,5 +137,39 @@ test.describe("the owner's head panel", () => {
     await expectHeadPanel(page, "Bramble, dog", "A line drawing of Bramble, a dog, sitting");
     await expectNoSeriousViolations(page);
     await expectNoOverflow(page);
+  });
+});
+
+test.describe("the Held moment", () => {
+  test("Bramble drawn content beside the hold, the thanks in Fraunces, the card edged in pine", async ({
+    page,
+  }) => {
+    const held = await heldBrambleEstimate(database.db);
+    await page.goto(held.path);
+
+    const status = page.getByRole("status").filter({ hasText: "Held" });
+    await expect(status).toHaveCSS("border-top-color", PINE);
+    await expect(status).toHaveCSS("background-color", "rgb(255, 255, 255)");
+    await expect(
+      status.getByRole("img", {
+        name: "A line drawing of Bramble, a dog, sitting happily",
+        exact: true,
+      }),
+    ).toBeVisible();
+    const thanks = status.getByText("Thank you. Bramble is in good hands with Rowan Hale.", {
+      exact: true,
+    });
+    await expect(thanks).toBeVisible();
+    await expect(thanks).toHaveCSS("color", SADDLE);
+    await expectFraunces(thanks);
+    // The words sit beside the drawing, never under it.
+    const disc = await status.getByRole("img").boundingBox();
+    const words = await thanks.boundingBox();
+    expect(words!.x).toBeGreaterThan(disc!.x + disc!.width);
+
+    await expectNoSeriousViolations(page);
+    await expectTargetsAtLeast44(page);
+    await expectNoOverflow(page);
+    await saveShot(page, "held");
   });
 });

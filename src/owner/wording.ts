@@ -154,6 +154,18 @@ export function heldDone(amount: string, kind: "paypal" | "card"): string {
 /** The hold's state once PayPal answered the authorisation (the brief's "Held"). */
 export const HELD = "Held";
 
+/**
+ * Beside the hold, under the drawing of the animal content (the restyle's
+ * mock-ups: proposed, the operator's to keep, reword or strike).
+ *
+ * @param patient - The patient's name.
+ * @param vet - Who the vet is, as the page names them.
+ * @returns The sentence.
+ */
+export function heldThanks(patient: string, vet: string): string {
+  return `Thank you. ${patient} is in good hands with ${vet}.`;
+}
+
 /** Each species as the drawing of it is named, after "A line drawing of {name}, ". */
 const DRAWN_AS: Readonly<Record<Species, string>> = {
   dog: "a dog",

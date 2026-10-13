@@ -14,6 +14,7 @@ import {
   updateDeclined,
   UPDATE_WITHDRAWN_HEADING,
   updateWithdrawn,
+  vetCalled,
 } from "@/owner/wording";
 import { readSandboxBuyer } from "@/owner/sandbox";
 import { database, paypalBrowserClientId, sessionSecret } from "@/server/runtime";
@@ -92,6 +93,11 @@ export default async function OwnerLinkPage({ params }: PageProps<"/e/[token]">)
   }
 
   const money = (pence: number) => formatPence(pence, page.currency);
+  const patient = {
+    name: page.header.patientName,
+    species: page.header.species,
+    vet: vetCalled(page.header.vetName),
+  };
   const sandbox = awaiting && !held ? <SandboxDetails login={readSandboxBuyer()} /> : null;
   const authorise = (amount: string, cardLabel: string) => {
     if (page.hold?.status === "authorised" && page.hold.paymentKind) {
@@ -105,6 +111,7 @@ export default async function OwnerLinkPage({ params }: PageProps<"/e/[token]">)
             amountPence: page.hold.amount.pence,
             confirmedAt: page.hold.confirmedAt?.toISOString() ?? null,
           }}
+          patient={patient}
         />
       );
     }
@@ -116,6 +123,7 @@ export default async function OwnerLinkPage({ params }: PageProps<"/e/[token]">)
         currency={page.currency}
         amount={amount}
         cardLabel={cardLabel}
+        patient={patient}
       />
     ) : (
       <p className={styles.unavailable} role="alert">

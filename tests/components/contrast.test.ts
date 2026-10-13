@@ -167,6 +167,12 @@ const RESTYLE: readonly (readonly [string, string, string, number])[] = [
     4.5,
   ],
   [
+    "the thanks at Held (18 px, on the white card)",
+    token("colour-saddle"),
+    token("colour-surface"),
+    4.5,
+  ],
+  [
     "a drawing's line on a mint disc or panel (a graphic)",
     token("colour-saddle"),
     token("colour-mint"),

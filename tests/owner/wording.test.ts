@@ -8,6 +8,7 @@ import {
   estimateHeading,
   estimateIntro,
   heldDone,
+  heldThanks,
   linePrice,
   patientDrawn,
   askToSendAgain,
@@ -187,7 +188,7 @@ describe("the owner's words the pixel pass changed (U11)", () => {
   });
 });
 
-describe("the drawings' words (U18)", () => {
+describe("the drawings' words and the thanks at Held (U18)", () => {
   it("names the drawing as U17 names the animal", () => {
     expect(patientDrawn("Otis", "dog")).toBe("A line drawing of Otis, a dog, sitting");
     expect(patientDrawn("Luna", "cat")).toBe("A line drawing of Luna, a cat, sitting");
@@ -201,5 +202,12 @@ describe("the drawings' words (U18)", () => {
       "A line drawing of a paw print, for Moss, another animal",
     );
     expect(patientDrawn("Moss", "other", true)).toBe(patientDrawn("Moss", "other"));
+  });
+
+  it("thanks the owner by the animal's name and its vet's", () => {
+    expect(heldThanks("Otis", "Imogen Shaw")).toBe(
+      "Thank you. Otis is in good hands with Imogen Shaw.",
+    );
+    expect(heldThanks("Otis", "your vet")).toBe("Thank you. Otis is in good hands with your vet.");
   });
 });
