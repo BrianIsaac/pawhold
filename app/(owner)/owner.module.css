@@ -1,46 +1,21 @@
 /*
- * The owner's pages. Their own tokens, scoped to the owner's shell: the
- * practice's tokens are U5's (app/tokens.css), and the cockpit reconciles
- * the two when both land.
+ * The owner's pages, on the one set of tokens (app/tokens.css). Their own
+ * colours are only those the practice's screens have no use for: the
+ * sandbox panel's warning, a refusal's error, and the focus ring as it was
+ * drawn here before the two sets were merged.
  */
 .owner {
-  --owner-paper: #f7f5f0;
-  --owner-card: #ffffff;
-  --owner-ink: #1d2327;
-  --owner-ink-soft: #4a5258;
-  --owner-rule: #d9d4ca;
-  /* A field's edge: 4.1:1 on the card, above WCAG 1.4.11's 3:1. */
-  --owner-field: #847d72;
-  --owner-accent: #0b5d5b;
-  --owner-accent-ink: #ffffff;
-  --owner-held: #0b5d5b;
-  --owner-held-wash: #e3f1ef;
   --owner-warn: #8a4b00;
   --owner-warn-wash: #fdf1e1;
   --owner-error: #a1261b;
   --owner-error-wash: #fbe9e7;
   --owner-focus: #1f5fbf;
-  --owner-radius: 12px;
-  --owner-space-1: 4px;
-  --owner-space-2: 8px;
-  --owner-space-3: 12px;
-  --owner-space-4: 16px;
-  --owner-space-5: 24px;
-  --owner-space-6: 32px;
-  --owner-target: 44px;
 
   color-scheme: light;
   min-height: 100dvh;
-  background: var(--owner-paper);
-  color: var(--owner-ink);
-  font-family:
-    system-ui,
-    -apple-system,
-    "Segoe UI",
-    Roboto,
-    "Helvetica Neue",
-    Arial,
-    sans-serif;
+  background: var(--colour-canvas);
+  color: var(--colour-ink);
+  font-family: var(--font-sans);
   font-size: 1rem;
   line-height: 1.5;
   -webkit-text-size-adjust: 100%;
@@ -55,5 +30,5 @@
   box-sizing: border-box;
   max-width: 36rem;
   margin: 0 auto;
-  padding: var(--owner-space-5) var(--owner-space-4) var(--owner-space-6);
+  padding: var(--space-5) var(--space-4) var(--space-6);
 }

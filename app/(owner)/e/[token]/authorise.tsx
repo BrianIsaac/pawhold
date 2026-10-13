@@ -48,11 +48,14 @@ type Phase = "loading" | "ready" | "working" | "held" | "unavailable";
 
 const CARD_FIELDS = ["name", "number", "expiry", "cvv"] as const;
 
-/** The card fields' edge, as `--owner-field` (PayPal's frames cannot read the page's CSS). */
-const FIELD_EDGE = "#847d72";
+/** The card fields' edge, as `--colour-line`, taupe (PayPal's frames cannot read the page's CSS): 4.2:1 on white. */
+const FIELD_EDGE = "#91785d";
 
-/** The card fields' placeholder text: 5.8:1 on white, where PayPal's default is faint. */
-const PLACEHOLDER = "#6b655d";
+/** The card fields' placeholder text, as `--colour-ink-muted`, taupe ink: 6.9:1 on white, where PayPal's default is faint. */
+const PLACEHOLDER = "#6a5744";
+
+/** The card fields' words, as `--colour-ink`, espresso. */
+const FIELD_INK = "#342313";
 
 /** A refusal from the owner's endpoints. */
 class OwnerRequestError extends Error {
@@ -281,7 +284,7 @@ export function Authorise(props: AuthoriseProps) {
             input: {
               fontSize: "16px",
               fontFamily: "system-ui, sans-serif",
-              color: "#1d2327",
+              color: FIELD_INK,
               border: `1px solid ${FIELD_EDGE}`,
               borderRadius: "4px",
             },

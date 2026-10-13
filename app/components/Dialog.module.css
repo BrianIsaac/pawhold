@@ -10,7 +10,7 @@
 }
 
 .dialog::backdrop {
-  background: rgb(26 31 36 / 0.45);
+  background: var(--colour-backdrop);
 }
 
 .body {

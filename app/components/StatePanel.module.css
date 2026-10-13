@@ -3,7 +3,7 @@
   gap: var(--space-4);
   max-width: 36rem;
   padding: var(--space-5);
-  border: 1px solid var(--colour-line-soft);
+  border: 1px solid var(--colour-edge);
   border-radius: var(--radius-3);
   background: var(--colour-surface);
   box-shadow: var(--shadow-1);

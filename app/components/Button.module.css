@@ -8,7 +8,7 @@
   min-width: var(--target-min);
   padding: var(--space-2) var(--space-4);
   border: 2px solid transparent;
-  border-radius: var(--radius-2);
+  border-radius: var(--radius-button);
   font: inherit;
   font-weight: var(--font-weight-medium);
   line-height: var(--line-height-tight);
@@ -19,14 +19,16 @@
 
 /*
  * A button that cannot be pressed (refused, or pending) reads as such and
- * stays legible: muted ink on a grey ground, AA, never faded to illegible.
+ * stays legible: muted ink on white inside a dashed taupe edge, AA (6.9:1),
+ * never faded to illegible, and never on mint, which never means a state.
  */
 .button:disabled,
 .button[aria-disabled="true"],
 .button[data-variant]:disabled,
 .button[data-variant][aria-disabled="true"] {
   border-color: var(--colour-line);
-  background: var(--colour-line-soft);
+  border-style: dashed;
+  background: var(--colour-surface);
   color: var(--colour-ink-muted);
   text-decoration: none;
   cursor: not-allowed;
@@ -41,14 +43,16 @@
   background: var(--colour-accent-strong);
 }
 
+/* Saddle beside the main button's pine: 5.7:1 on white, its hover's deep saddle 5.4:1 on mint. */
 .button[data-variant="secondary"] {
   background: var(--colour-surface);
-  border-color: var(--colour-accent);
-  color: var(--colour-accent-strong);
+  border-color: var(--colour-saddle);
+  color: var(--colour-saddle);
 }
 
 .button[data-variant="secondary"]:hover:not(:disabled, [aria-disabled="true"]) {
   background: var(--colour-accent-soft);
+  color: var(--colour-deep-saddle);
 }
 
 .button[data-variant="quiet"] {

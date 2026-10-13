@@ -59,6 +59,17 @@ describe("where the day's grid opens when the grid ends before the opening line 
     expect(reachableOpening(70, 50, [])).toBe(50);
   });
 
+  it("moves back past a booking that cuts the booking it moved back to, and keeps one starting at the end whole (U16)", () => {
+    expect(
+      reachableOpening(130, 120, [
+        { start: 111, end: 126 },
+        { start: 104, end: 113 },
+      ]),
+    ).toBe(104);
+    // A booking from the last line is whole; the opening steps back to leave the hour's label room.
+    expect(reachableOpening(130, 120, [{ start: 120, end: 126 }])).toBe(118);
+  });
+
   it("opens at the grid's first line when the whole grid fits the view", () => {
     expect(reachableOpening(20, 0, [])).toBe(1);
   });

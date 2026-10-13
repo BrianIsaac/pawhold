@@ -3,23 +3,50 @@
  * money-state colours of plan 3.2's diagram, which the practice's board and
  * the chips share. Every text colour below is AA on the background it is
  * paired with (4.5:1 or better); the pairs are named together.
+ *
+ * The palette is the owner's five (mint, sage, moss, taupe, saddle) and inks
+ * derived from them, each one of the five with its hue and saturation kept
+ * and its lightness lowered until words on it, or it on its ground, reach AA
+ * (the restyle's mock-ups, 13 October 2026). Every other token names one of
+ * these; the money states, the focus ring and feedback keep their own.
  */
 :root {
   color-scheme: light;
 
-  /* Colour: ink on surfaces. */
-  --colour-ink: #1a1f24;
-  --colour-ink-muted: #4a5560;
-  --colour-surface: #ffffff;
-  --colour-canvas: #f4f5f2;
-  --colour-line: #c9cfd4;
-  --colour-line-soft: #e3e6e8;
+  /* Colour: the owner's five, at their own values. */
+  --colour-mint: #bbe1c3;
+  --colour-sage: #a7cdbd;
+  --colour-moss: #869d7a;
+  --colour-taupe: #91785d;
+  --colour-saddle: #8b5d33;
 
-  /* Colour: the brand and its actions. */
-  --colour-accent: #0b6560;
-  --colour-accent-strong: #074944;
+  /* Colour: inks derived from them, for words and the one fill white words sit on. */
+  --colour-espresso: #342313;
+  --colour-taupe-ink: #6a5744;
+  --colour-deep-saddle: #704b29;
+  --colour-pine: #28483b;
+  --colour-deep-pine: #213b30;
+
+  /*
+   * Colour: ink on surfaces. Espresso is 15.0:1 on white and 10.5:1 on mint;
+   * taupe ink 6.9:1 on white and 4.8:1 on mint, never on sage. A field's edge
+   * is taupe, 4.2:1 on white (WCAG 1.4.11's 3:1); a card's edge is sage,
+   * and a panel set into a card (the vet's notes, a form within it) is edged
+   * in mint, the soft line: there is no sunk grey ground on the white canvas.
+   */
+  --colour-ink: var(--colour-espresso);
+  --colour-ink-muted: var(--colour-taupe-ink);
+  --colour-surface: #ffffff;
+  --colour-canvas: #ffffff;
+  --colour-line: var(--colour-taupe);
+  --colour-line-soft: var(--colour-mint);
+  --colour-edge: var(--colour-sage);
+
+  /* Colour: the brand and its actions. White on pine is 10.1:1. */
+  --colour-accent: var(--colour-pine);
+  --colour-accent-strong: var(--colour-deep-pine);
   --colour-accent-ink: #ffffff;
-  --colour-accent-soft: #e2f1ef;
+  --colour-accent-soft: var(--colour-mint);
 
   /* Colour: feedback. */
   --colour-danger: #a12a1f;
@@ -32,7 +59,7 @@
 
   /* Colour: a span of the vet's notes a line came from. */
   --colour-mark: #ffe9a8;
-  --colour-mark-ink: #1a1f24;
+  --colour-mark-ink: var(--colour-espresso);
 
   /* Colour: the focus ring, drawn outside the element on any background. */
   --colour-focus: #1d5fbf;
@@ -66,6 +93,14 @@
   --font-sans:
     system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif;
   --font-mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, "Liberation Mono", monospace;
+  /*
+   * The display face, Fraunces, for the landing heading, the owner's headings
+   * and the words at "Held" only: soft, never wonky, at 600. Money is never
+   * set in it. `--font-display` itself is set by app/fonts.ts on the landing
+   * page's and the owner's layouts, the only places it is drawn.
+   */
+  --font-display-settings: "SOFT" 100, "WONK" 0;
+  --font-weight-display: 600;
   --font-size-0: 0.875rem;
   --font-size-1: 1rem;
   --font-size-2: 1.125rem;
@@ -91,7 +126,11 @@
   /* Radius. */
   --radius-1: 0.25rem;
   --radius-2: 0.5rem;
-  --radius-3: 0.75rem;
+  --radius-3: 1rem;
+  /* A button is a rounded rectangle, never a pill (chips are pills). */
+  --radius-button: 0.75rem;
+  /* The largest panels: the landing's doors, the owner's head panel. */
+  --radius-panel: 1.5rem;
   --radius-pill: 999px;
 
   /* Every tap target is at least this tall and wide. */
@@ -101,9 +140,10 @@
   --page-max: 80rem;
   --gutter: var(--space-4);
 
-  /* Elevation. */
-  --shadow-1: 0 1px 2px rgb(26 31 36 / 0.08);
-  --shadow-dialog: 0 12px 40px rgb(26 31 36 / 0.25);
+  /* Elevation: cards carry an edge, not a shadow; a dialog lifts off an espresso veil. */
+  --shadow-1: none;
+  --shadow-dialog: 0 12px 40px rgb(52 35 19 / 0.25);
+  --colour-backdrop: rgb(52 35 19 / 0.45);
 }
 
 @media (min-width: 48rem) {

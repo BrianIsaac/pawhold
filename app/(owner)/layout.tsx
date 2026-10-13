@@ -1,7 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
 
-import "./owner-document.css";
+import { fraunces } from "../fonts";
 import styles from "./owner.module.css";
 
 export const metadata: Metadata = {
@@ -14,7 +14,8 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  themeColor: "#f7f5f0",
+  // The owner's mint (--colour-mint): the phone's own bar meets the head of the page.
+  themeColor: "#bbe1c3",
 };
 
 /**
@@ -27,7 +28,7 @@ export const viewport: Viewport = {
  */
 export default function OwnerLayout({ children }: Readonly<{ children: ReactNode }>) {
   return (
-    <div className={styles.owner} data-owner-shell="">
+    <div className={`${styles.owner} ${fraunces.variable}`} data-owner-shell="">
       <main className={styles.column}>{children}</main>
     </div>
   );

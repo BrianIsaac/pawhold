@@ -56,8 +56,8 @@
   gap: var(--space-1);
   margin: 0 0 var(--space-2);
   padding: var(--space-3);
+  border: 1px solid var(--colour-line-soft);
   border-radius: var(--radius-2);
-  background: var(--colour-canvas);
 }
 
 .fact {
