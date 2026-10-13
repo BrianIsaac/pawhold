@@ -1,26 +1,38 @@
 .notice {
-  margin-top: var(--owner-space-6);
-  padding: var(--owner-space-5) var(--owner-space-4);
-  border: 1px solid var(--owner-rule);
-  border-radius: var(--owner-radius);
-  background: var(--owner-card);
+  margin-top: var(--space-6);
+  padding: var(--space-5) var(--space-4);
+  border: 1px solid var(--colour-edge);
+  border-radius: var(--radius-3);
+  background: var(--colour-surface);
+}
+
+/* The owner's headings: Fraunces in saddle, 5.7:1 on white. */
+.notice h1,
+.header h1,
+.sectionHeading,
+.finding h2 {
+  color: var(--colour-saddle);
+  font-family: var(--font-display);
+  font-variation-settings: var(--font-display-settings);
+  font-weight: var(--font-weight-display);
+  letter-spacing: -0.01em;
 }
 
 .notice h1 {
-  margin: 0 0 var(--owner-space-2);
+  margin: 0 0 var(--space-2);
   font-size: 1.375rem;
   line-height: 1.3;
 }
 
 .notice p {
   margin: 0;
-  color: var(--owner-ink-soft);
+  color: var(--colour-ink-muted);
 }
 
 .page {
   display: flex;
   flex-direction: column;
-  gap: var(--owner-space-5);
+  gap: var(--space-5);
 }
 
 /*
@@ -28,24 +40,23 @@
  * ("Hollins / Lane Veterinary Surgery"), so they only avoid a word alone.
  */
 .header h1 {
-  margin: 0 0 var(--owner-space-3);
+  margin: 0 0 var(--space-3);
   text-wrap: pretty;
   font-size: 1.5rem;
   line-height: 1.25;
-  letter-spacing: -0.01em;
 }
 
 .intro {
   margin: 0;
-  color: var(--owner-ink-soft);
+  color: var(--colour-ink-muted);
 }
 
 .range {
   margin: 0;
-  padding: var(--owner-space-4);
-  border-radius: var(--owner-radius);
-  background: var(--owner-held-wash);
-  color: var(--owner-held);
+  padding: var(--space-4);
+  border-radius: var(--radius-3);
+  background: var(--colour-sage);
+  color: var(--colour-accent);
   font-size: 1.125rem;
   font-weight: 600;
   line-height: 1.4;
@@ -55,38 +66,36 @@
 .section {
   display: flex;
   flex-direction: column;
-  gap: var(--owner-space-3);
+  gap: var(--space-3);
 }
 
 .sectionHeading {
   margin: 0;
-  font-size: 1rem;
-  font-weight: 600;
-  color: var(--owner-ink-soft);
+  font-size: 1.125rem;
 }
 
 .lines {
   margin: 0;
   padding: 0;
   list-style: none;
-  border: 1px solid var(--owner-rule);
-  border-radius: var(--owner-radius);
-  background: var(--owner-card);
+  border: 1px solid var(--colour-edge);
+  border-radius: var(--radius-3);
+  background: var(--colour-surface);
 }
 
 .line {
-  padding: var(--owner-space-3) var(--owner-space-4);
+  padding: var(--space-3) var(--space-4);
 }
 
 .line + .line {
-  border-top: 1px solid var(--owner-rule);
+  border-top: 1px solid var(--colour-edge);
 }
 
 .lineRow {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
-  gap: var(--owner-space-3);
+  gap: var(--space-3);
 }
 
 .lineWording {
@@ -101,23 +110,23 @@
 }
 
 .onlyIf {
-  margin: var(--owner-space-1) 0 0;
-  color: var(--owner-ink-soft);
+  margin: var(--space-1) 0 0;
+  color: var(--colour-ink-muted);
   font-size: 0.9375rem;
 }
 
 .notes {
-  margin-top: var(--owner-space-1);
+  margin-top: var(--space-1);
 }
 
 .notes summary {
   display: inline-flex;
   align-items: center;
-  gap: var(--owner-space-2);
-  min-height: var(--owner-target);
-  min-width: var(--owner-target);
-  padding-right: var(--owner-space-2);
-  color: var(--owner-accent);
+  gap: var(--space-2);
+  min-height: var(--target-min);
+  min-width: var(--target-min);
+  padding-right: var(--space-2);
+  color: var(--colour-accent);
   font-size: 0.9375rem;
   font-weight: 500;
   cursor: pointer;
@@ -143,36 +152,36 @@
 }
 
 .notes blockquote {
-  margin: 0 0 var(--owner-space-2);
-  padding: var(--owner-space-2) var(--owner-space-3);
-  border-left: 3px solid var(--owner-rule);
-  color: var(--owner-ink-soft);
+  margin: 0 0 var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-left: 3px solid var(--colour-line);
+  color: var(--colour-ink-muted);
   font-size: 0.9375rem;
 }
 
 .authorise {
   display: flex;
   flex-direction: column;
-  gap: var(--owner-space-4);
+  gap: var(--space-4);
 }
 
 .askFirst {
   margin: 0;
-  color: var(--owner-ink-soft);
+  color: var(--colour-ink-muted);
   font-size: 0.9375rem;
 }
 
 .unavailable {
   margin: 0;
-  padding: var(--owner-space-3) var(--owner-space-4);
-  border-radius: var(--owner-radius);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-3);
   background: var(--owner-warn-wash);
   color: var(--owner-warn);
 }
 
 .eyebrow {
-  margin: 0 0 var(--owner-space-2);
-  color: var(--owner-ink-soft);
+  margin: 0 0 var(--space-2);
+  color: var(--colour-ink-muted);
   font-size: 0.9375rem;
   font-weight: 500;
 }
@@ -184,10 +193,10 @@
 
 .declined {
   margin: 0;
-  padding: var(--owner-space-4);
-  border: 1px solid var(--owner-rule);
-  border-radius: var(--owner-radius);
-  background: var(--owner-card);
+  padding: var(--space-4);
+  border: 1px solid var(--colour-edge);
+  border-radius: var(--radius-3);
+  background: var(--colour-surface);
 }
 
 .range p {
@@ -195,7 +204,7 @@
 }
 
 .range .rangeNote {
-  margin-top: var(--owner-space-2);
+  margin-top: var(--space-2);
   font-size: 0.9375rem;
   font-weight: 500;
 }
@@ -206,27 +215,27 @@
 }
 
 .sandbox {
-  padding: var(--owner-space-4);
+  padding: var(--space-4);
   border: 1px dashed var(--owner-warn);
-  border-radius: var(--owner-radius);
+  border-radius: var(--radius-3);
   background: var(--owner-warn-wash);
 }
 
 .sandbox h2 {
-  margin: 0 0 var(--owner-space-2);
+  margin: 0 0 var(--space-2);
   font-size: 1rem;
   font-weight: 600;
 }
 
 .sandbox p {
-  margin: 0 0 var(--owner-space-3);
-  color: var(--owner-ink);
+  margin: 0 0 var(--space-3);
+  color: var(--colour-ink);
 }
 
 .sandbox dl {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--owner-space-3);
+  gap: var(--space-3);
   margin: 0;
 }
 
@@ -239,7 +248,7 @@
 }
 
 .sandbox dt {
-  color: var(--owner-ink-soft);
+  color: var(--colour-ink-muted);
   font-size: 0.875rem;
 }
 
@@ -249,7 +258,7 @@
 }
 
 .sandbox code {
-  font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 0.875rem;
   user-select: all;
 }
@@ -258,12 +267,12 @@
 .retry {
   justify-self: start;
   min-height: 48px;
-  margin-top: var(--owner-space-4);
-  padding: var(--owner-space-3) var(--owner-space-4);
-  border: 2px solid var(--owner-ink-soft);
-  border-radius: var(--owner-radius);
+  margin-top: var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  border: 2px solid var(--colour-ink-muted);
+  border-radius: var(--radius-button);
   background: transparent;
-  color: var(--owner-ink);
+  color: var(--colour-ink);
   font: inherit;
   font-weight: 600;
   cursor: pointer;
@@ -272,21 +281,20 @@
 /* An update's finding: the vet's own words in full, and the photo if shared (section 6). */
 .finding {
   display: grid;
-  gap: var(--owner-space-3);
+  gap: var(--space-3);
 }
 
 .finding h2 {
   margin: 0;
-  color: var(--owner-ink-soft);
-  font-size: 1rem;
+  font-size: 1.125rem;
 }
 
 .finding blockquote {
   margin: 0;
-  padding: var(--owner-space-3) var(--owner-space-4);
-  border-left: 3px solid var(--owner-rule);
-  border-radius: var(--owner-radius);
-  background: var(--owner-card);
+  padding: var(--space-3) var(--space-4);
+  border-left: 3px solid var(--colour-line);
+  border-radius: var(--radius-3);
+  background: var(--colour-surface);
 }
 
 .photo {
@@ -297,5 +305,5 @@
   display: block;
   max-width: 100%;
   height: auto;
-  border-radius: var(--owner-radius);
+  border-radius: var(--radius-3);
 }

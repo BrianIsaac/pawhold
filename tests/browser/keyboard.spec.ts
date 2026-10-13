@@ -239,7 +239,8 @@ for (const width of Object.keys(WIDTHS) as Width[]) {
           atEnd: element.scrollLeft >= element.scrollWidth - element.clientWidth - 1,
         }));
         await page.keyboard.press(atEnd ? "ArrowLeft" : "ArrowRight");
-        await expect.poll(() => grid.evaluate((element) => element.scrollLeft)).not.toBe(before);
+        const moved = expect.poll(() => grid.evaluate((element) => element.scrollLeft));
+        await (atEnd ? moved.toBeLessThan(before) : moved.toBeGreaterThan(before));
         const links = grid.getByRole("link");
         await tabTo(page, links.first());
         const last = links.last();

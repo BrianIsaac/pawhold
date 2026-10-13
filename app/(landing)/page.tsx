@@ -1,5 +1,6 @@
-import buttons from "./components/Button.module.css";
-import styles from "./landing.module.css";
+import buttons from "../components/Button.module.css";
+import { Wordmark } from "../components/Wordmark";
+import styles from "../landing.module.css";
 
 /**
  * The landing page (judge mode): section 6's heading, its line, the two
@@ -14,7 +15,9 @@ export default function HomePage() {
   return (
     <main className={styles.landing}>
       <div className={styles.inner}>
-        <p className={styles.brand}>pawhold</p>
+        <p className={styles.brand}>
+          <Wordmark />
+        </p>
         <h1 className={styles.heading}>Estimates your clients can say yes to.</h1>
         <p className={styles.lede}>
           pawhold turns a vet&apos;s notes into an itemised estimate, holds it on the owner&apos;s

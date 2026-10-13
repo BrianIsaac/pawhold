@@ -23,9 +23,10 @@
   top: var(--space-2);
 }
 
+/* A mint band with a moss line under it; no chip is ever drawn on it. */
 .header {
-  border-bottom: 1px solid var(--colour-line-soft);
-  background: var(--colour-surface);
+  border-bottom: 3px solid var(--colour-moss);
+  background: var(--colour-mint);
 }
 
 /* As tall signed out, with the brand alone, as with the practice's name and navigation. */
@@ -46,12 +47,9 @@
   line-height: var(--line-height-tight);
 }
 
-.product {
-  font-weight: var(--font-weight-bold);
-  color: var(--colour-accent-strong);
-}
-
+/* The practice's name lines up under the wordmark's word, past its paw tile. */
 .practiceName {
+  padding-left: 2.25rem;
   color: var(--colour-ink-muted);
   font-size: var(--font-size-0);
 }
@@ -77,12 +75,11 @@
 }
 
 .navLink:hover {
-  background: var(--colour-accent-soft);
+  background: var(--colour-surface);
 }
 
 .navLink[aria-current="page"] {
-  color: var(--colour-accent-strong);
-  box-shadow: inset 0 -3px 0 var(--colour-accent);
+  box-shadow: inset 0 -3px 0 var(--colour-saddle);
 }
 
 .main {
@@ -103,12 +100,13 @@
 
 .title {
   margin: 0;
+  color: var(--colour-saddle);
   font-size: var(--font-size-4);
 }
 
 .panel {
   padding: var(--space-5);
-  border: 1px solid var(--colour-line-soft);
+  border: 1px solid var(--colour-edge);
   border-radius: var(--radius-3);
   background: var(--colour-surface);
   box-shadow: var(--shadow-1);
