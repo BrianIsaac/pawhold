@@ -10,8 +10,8 @@ import {
   rangeLine,
   vetCalled,
 } from "@/owner/wording";
-import { withSpecies } from "@/practice/species";
 
+import { OwnerHead } from "./head";
 import { OwnerLines } from "./lines";
 import styles from "./page.module.css";
 
@@ -37,15 +37,12 @@ export function Estimate({
   const vet = vetCalled(page.header.vetName);
   return (
     <article className={styles.page} aria-labelledby="estimate-heading">
-      <header className={styles.header}>
-        <p className={styles.eyebrow}>
-          {withSpecies(page.header.patientName, page.header.species)}
-        </p>
+      <OwnerHead header={page.header}>
         <h1 id="estimate-heading">
           {estimateHeading(page.header.patientName, page.header.practiceName)}
         </h1>
         <p className={styles.intro}>{estimateIntro(vet, page.header.patientName, high)}</p>
-      </header>
+      </OwnerHead>
 
       <p className={styles.range}>{rangeLine(vet, money(page.totals.lowPence), high)}</p>
 

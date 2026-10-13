@@ -9,6 +9,7 @@ import {
   estimateIntro,
   heldDone,
   linePrice,
+  patientDrawn,
   askToSendAgain,
   LINK_EXPIRED,
   PAYPAL_ERROR,
@@ -183,5 +184,22 @@ describe("the owner's words the pixel pass changed (U11)", () => {
     expect(paidFromApprovals(["£927.00", "£130.00"])).toBe(
       "Paid from your first approval: £927.00. Paid from your second approval: £130.00.",
     );
+  });
+});
+
+describe("the drawings' words (U18)", () => {
+  it("names the drawing as U17 names the animal", () => {
+    expect(patientDrawn("Otis", "dog")).toBe("A line drawing of Otis, a dog, sitting");
+    expect(patientDrawn("Luna", "cat")).toBe("A line drawing of Luna, a cat, sitting");
+    expect(patientDrawn("Otis", "dog", true)).toBe(
+      "A line drawing of Otis, a dog, sitting happily",
+    );
+  });
+
+  it("says a paw print is drawn for another animal, content or not", () => {
+    expect(patientDrawn("Moss", "other")).toBe(
+      "A line drawing of a paw print, for Moss, another animal",
+    );
+    expect(patientDrawn("Moss", "other", true)).toBe(patientDrawn("Moss", "other"));
   });
 });

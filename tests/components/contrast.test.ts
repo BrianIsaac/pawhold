@@ -148,6 +148,25 @@ const RESTYLE: readonly (readonly [string, string, string, number])[] = [
   ["the owner's focus ring on mint", owner.get("--owner-focus")!, token("colour-mint"), 3],
   // U18: the drawings, the owner's head panel, the thanks at "Held", the landing's band.
   [
+    "the animal's name and species on the head panel (36 px and over, large)",
+    token("colour-saddle"),
+    token("colour-mint"),
+    3,
+  ],
+  [
+    "the owner's heading on the head panel (24 px, large)",
+    token("colour-saddle"),
+    token("colour-mint"),
+    3,
+  ],
+  ["the head panel's sentence under the heading", token("colour-ink"), token("colour-mint"), 4.5],
+  [
+    "the practice's name on an update's head panel",
+    token("colour-ink-muted"),
+    token("colour-mint"),
+    4.5,
+  ],
+  [
     "a drawing's line on a mint disc or panel (a graphic)",
     token("colour-saddle"),
     token("colour-mint"),
