@@ -5,6 +5,7 @@ import {
   approvalUrl,
   authorizeOrder,
   createAuthorizeOrder,
+  getOrder,
   onlyAuthorization,
   order,
   OrderRequestError,
@@ -241,5 +242,24 @@ describe("an order to authorise", () => {
     const sent = paypal.requests.find((r) => r.path.endsWith("/authorize"))!;
     expect(sent.headers["paypal-request-id"]).toBe(REQUEST_ID);
     expect(JSON.parse(sent.body)).toEqual({});
+  });
+});
+
+describe("an order's id and status as pawhold reads and sends them (pinned)", () => {
+  it("refuses an order in a status the published schema does not list", () => {
+    expect(order.safeParse({ id: "4SJ22740VK065702B", status: "CREATED" }).success).toBe(true);
+    expect(order.safeParse({ id: "4SJ22740VK065702B", status: "CREATED_LATER" }).success).toBe(
+      false,
+    );
+  });
+
+  it("puts an id into the path as it was given: a slash in one is a path separator", async () => {
+    await expect(getOrder(client(), "4SJ22740VK065702B/authorize")).rejects.toMatchObject({
+      status: 404,
+    });
+
+    expect(paypal.requests.map((r) => `${r.method} ${r.path}`)).toContain(
+      "GET /v2/checkout/orders/4SJ22740VK065702B/authorize",
+    );
   });
 });

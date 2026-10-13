@@ -103,6 +103,43 @@ describe("the Payments v2 answers, as the sandbox gave them (U0's recordings)", 
   });
 });
 
+describe("the Payments v2 answers read more strictly than PayPal's own SDK reads them (pinned)", () => {
+  const recorded = () =>
+    recordedAnswer("P2", "GET", /^\/v2\/payments\/authorizations\/[^/]+$/).responseBody as Record<
+      string,
+      unknown
+    >;
+
+  it.each([
+    ["an authorisation", authorization],
+    ["a capture", capture],
+    ["a refund", refund],
+  ])("refuses %s in a status the published schema does not list", (_what, schema) => {
+    expect(schema.safeParse({ id: "91T13242G72341823", status: "PENDING" }).success).toBe(true);
+    expect(schema.safeParse({ id: "91T13242G72341823", status: "PENDING_LATER" }).success).toBe(
+      false,
+    );
+  });
+
+  it.each(["status_details", "amount", "expiration_time", "links"])(
+    "refuses an explicit null for %s, which may be absent",
+    (field) => {
+      expect(authorization.safeParse(recorded()).success).toBe(true);
+      expect(authorization.safeParse({ ...recorded(), [field]: null }).success).toBe(false);
+    },
+  );
+
+  it("keeps the fields it does not name, as the sandbox sent them", () => {
+    const sent = recorded();
+    const read = authorization.parse(sent) as Record<string, unknown>;
+
+    expect(sent.seller_protection).toBeDefined();
+    expect(sent.supplementary_data).toBeDefined();
+    expect(read.seller_protection).toEqual(sent.seller_protection);
+    expect(read.supplementary_data).toEqual(sent.supplementary_data);
+  });
+});
+
 describe("the Payments v2 requests", () => {
   it("captures with its request id, the representation asked for and the amount in PayPal's value", async () => {
     paypal.on("POST /v2/payments/authorizations/86E59591GJ353572T/capture", {
