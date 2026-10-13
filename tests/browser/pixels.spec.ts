@@ -176,6 +176,28 @@ for (const width of Object.keys(WIDTHS) as Width[]) {
         }
       });
 
+      test(`the day keeps its place when the window is resized across the width where the room names change, ${STATE_WORDS[state]}`, async ({
+        page,
+      }) => {
+        await prepareDay(page, state);
+        await signInAsPractice(page);
+        await page.goto("/day");
+        await shownAs(page, state);
+        const grid = page.getByRole("region", { name: GRID_NAME });
+        const place = () => grid.evaluate((element) => element.scrollLeft);
+        await grid.evaluate((element) => {
+          element.scrollLeft = 432;
+        });
+        expect(await place()).toBe(432);
+
+        for (const across of [1000, 700, 1000, 390, WIDTHS[width].width]) {
+          await page.setViewportSize({ width: across, height: WIDTHS[width].height });
+          await shownAs(page, state);
+          await expect(grid.getByRole("link").first()).toBeAttached();
+          await expect.poll(place, { message: `at ${across} px` }).toBe(432);
+        }
+      });
+
       test(`no booking on the day is under 44 px either way, and the room names stay put as the day scrolls, ${STATE_WORDS[state]}`, async ({
         page,
       }) => {

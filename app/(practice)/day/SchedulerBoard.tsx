@@ -24,6 +24,7 @@ import type { DayView } from "@/schedule/day";
 import { NOW_CLASS, PLAIN_SCROLLER_ID } from "./board-marks";
 import { BookingBlock } from "./BookingBlock";
 import styles from "./day.module.css";
+import { takeOverScroll } from "./opening";
 
 /** The plain timeline's measures, in rem, which the board keeps (U11): an hour, a room's row, the room names. */
 const HOUR_REM = 18;
@@ -282,10 +283,13 @@ export default function SchedulerBoard({
         root.querySelectorAll("a[data-tone]").length === expected.current.bookings
       ) {
         shown = true;
-        // The board takes over where the plain timeline stood, if the practice has scrolled it.
         const plain = document.getElementById(PLAIN_SCROLLER_ID);
         if (plain) {
-          root.scrollLeft = plain.scrollLeft;
+          root.scrollLeft = takeOverScroll({
+            plainScroll: plain.scrollLeft,
+            plainOpenedAt: plain.dataset.openedAt ? Number(plain.dataset.openedAt) : null,
+            ownOpening: root.scrollLeft,
+          });
         }
         onShown();
       }

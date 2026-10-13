@@ -430,11 +430,24 @@
  * a booking's words stay in view by the same rules as the plain timeline's.
  * So nothing inside the Scheduler scrolls or clips on its own.
  */
+/*
+ * The sheet the Scheduler is laid on, as wide as the day. It keeps a height
+ * of its own: while the Scheduler is rebuilt (the window crossing the width
+ * where the room names change) the sheet is empty, and an empty box of no
+ * height gives the board nothing to scroll, so the browser would send it
+ * back to the day's start.
+ */
+.boardSheet {
+  min-height: 1px;
+}
+
 .board :global(.b-scheduler) {
   --b-grid-cell-border-color: var(--colour-line-soft);
   --b-grid-header-border-color: var(--colour-line-soft);
   --b-grid-cell-background: transparent;
   --b-grid-header-background: transparent;
+  --b-grid-header-hover-background: transparent;
+  --b-grid-header-hover-color: var(--colour-ink-muted);
   --b-grid-cell-hover-background: transparent;
   --b-grid-cell-selected-background: transparent;
   --b-grid-cell-hover-selected-background: transparent;

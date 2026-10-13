@@ -43,3 +43,27 @@ export function openingLine(line: number, bookings: readonly Span[]): number {
   const roomy = start - Math.max(0, intoHour - (HOUR_COLUMNS - LABEL_COLUMNS));
   return bookings.some((one) => one.start < roomy && one.end > roomy) ? start : roomy;
 }
+
+/**
+ * Where the board stands, scrolled, when it takes over from the plain
+ * timeline (U8b): its own opening, unless the practice has scrolled the
+ * plain timeline, whose place it then takes. The plain timeline says where
+ * it opened itself (`ScrollIntoDay`'s mark); it may not have opened at all
+ * when the Scheduler is the first to arrive, and then stands at the day's
+ * start, which is no place the practice chose.
+ *
+ * @param places - The plain timeline's scroll, where it opened itself, and the board's own opening.
+ * @param places.plainScroll - The plain timeline's scroll, in pixels.
+ * @param places.plainOpenedAt - The scroll the plain timeline opened itself at, or null when it has not opened.
+ * @param places.ownOpening - The board's own opening scroll.
+ * @returns The scroll the board takes.
+ */
+export function takeOverScroll(places: {
+  plainScroll: number;
+  plainOpenedAt: number | null;
+  ownOpening: number;
+}): number {
+  return places.plainScroll === (places.plainOpenedAt ?? 0)
+    ? places.ownOpening
+    : places.plainScroll;
+}

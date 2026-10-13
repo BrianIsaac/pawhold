@@ -38,6 +38,8 @@ export function ScrollIntoDay({
     }
     const slot = (scroller.scrollWidth - label.offsetWidth) / slots;
     scroller.scrollLeft = Math.max(0, (line - 1) * slot);
+    // Where it opened, for the board: a scroll that differs from this is the practice's own.
+    scroller.dataset.openedAt = String(scroller.scrollLeft);
     scrolledDay.current = day;
   }, [scrollerId, day, line, slots]);
   return null;

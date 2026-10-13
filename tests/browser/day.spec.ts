@@ -16,6 +16,7 @@ import { checkScreen } from "./support/checks";
 import {
   bookingOf,
   DAY_STATES,
+  failTheScheduler,
   GRID_NAME,
   londonDay,
   londonDayOf,
@@ -390,6 +391,38 @@ for (const width of Object.keys(WIDTHS) as Width[]) {
       await expect(page.locator(".b-scheduler")).toHaveCount(0);
       await expect(page.getByRole("heading", { name: "Something went wrong" })).toHaveCount(0);
       await expect(page.getByRole("heading", { level: 1, name: "The day" })).toBeVisible();
+    });
+
+    test("the board opens where the plain timeline opens: on the first booking not yet over, not at the day's start", async ({
+      page,
+    }) => {
+      const opened = (element: Element) => element.scrollLeft;
+      await signInAsPractice(page);
+      // First in a browser that holds nothing yet, where the Scheduler may draw before the plain timeline has opened.
+      await page.goto("/day");
+      await shownAs(page, "board");
+      const cold = await page.getByRole("region", { name: GRID_NAME }).evaluate(opened);
+
+      // A second tab of the same practice, in which the Scheduler fails to load.
+      const plain = await page.context().newPage();
+      await failTheScheduler(plain);
+      await plain.goto("/day");
+      await shownAs(plain, "plain");
+      const plainGrid = plain.getByRole("region", { name: GRID_NAME });
+      await expect.poll(() => plainGrid.evaluate(opened)).toBeGreaterThan(0);
+      const plainOpens = await plainGrid.evaluate(opened);
+      await plain.close();
+
+      expect(
+        Math.abs(cold - plainOpens),
+        `cold: ${cold}, plain: ${plainOpens}`,
+      ).toBeLessThanOrEqual(1);
+      for (let visit = 0; visit < 2; visit += 1) {
+        await page.goto("/day");
+        await shownAs(page, "board");
+        const warm = await page.getByRole("region", { name: GRID_NAME }).evaluate(opened);
+        expect(Math.abs(warm - plainOpens), `visit ${visit}: ${warm}`).toBeLessThanOrEqual(1);
+      }
     });
 
     test("the board takes over from the plain timeline under the keyboard: the booking in focus and the scroll are kept", async ({
