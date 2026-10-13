@@ -1,12 +1,17 @@
 import { join } from "node:path";
 
+import type { Page } from "@playwright/test";
 import { and, asc, eq, inArray } from "drizzle-orm";
 
-import { auditEvent, booking, patientCase } from "@/db/schema";
+import { auditEvent, booking, hold, patientCase } from "@/db/schema";
+import { caseEstimateVersions } from "@/estimate/version";
+import { reconcileWebhookEvent } from "@/money/reconcile";
+import { ownerLink } from "@/owner/link";
 
 import { DAY_ROOMS } from "../../seed/practice/day";
+import { storeDelivery } from "../support/webhook-delivery";
 import { expect, signInAsPractice, test, WIDTHS, type Width } from "./fixtures";
-import { openBrowserDatabase } from "./owner/support/cases";
+import { browserSecret, openBrowserDatabase } from "./owner/support/cases";
 import { checkScreen } from "./support/checks";
 import {
   bookingOf,
@@ -20,11 +25,14 @@ import {
   shownAs,
   STATE_WORDS,
 } from "./support/day";
+import { DOUBLE_URL } from "./support/discharge";
+import { approveAtTheDouble } from "./support/double-approval";
 
 /*
  * The practice's day (U8a, U8b): the seeded day on the board, Bryntum's
  * Scheduler, and on the plain timeline under it, at 1440 and 390 px; the
- * agent's hold and its move answered by the practice's clicks; and the day staying on the
+ * agent's hold and its move answered by the practice's clicks; a case's
+ * colour following its money without a reload; and the day staying on the
  * plain timeline whenever the Scheduler fails, throws, takes too long or
  * shows that its trial has expired.
  */
@@ -69,6 +77,57 @@ async function procedureOf(
 }
 
 /**
+ * The owner's link to a case's latest sent estimate, as the practice sends it.
+ *
+ * @param practiceId - The practice.
+ * @param caseId - The case.
+ * @returns The link's path.
+ */
+async function ownerPathOf(practiceId: string, caseId: string): Promise<string> {
+  const database = openBrowserDatabase();
+  try {
+    const sent = (await caseEstimateVersions(database.db, practiceId, caseId)).filter(
+      (version) => version.sentAt !== null,
+    );
+    const link = await ownerLink(
+      database.db,
+      { practiceId, caseId, versionId: sent.at(-1)!.id },
+      { secret: browserSecret(), now: new Date() },
+    );
+    return link.path;
+  } finally {
+    await database.close();
+  }
+}
+
+/**
+ * PayPal's webhook for a case's authorised hold, stored as the listener
+ * stores it and reconciled as it reconciles it (a walk cannot post a signed
+ * delivery: its certificate must come from PayPal's own host).
+ *
+ * @param caseId - The case.
+ * @returns What the reconciliation did.
+ */
+async function deliverAuthorisationWebhook(caseId: string): Promise<string> {
+  const database = openBrowserDatabase();
+  try {
+    const [held] = await database.db
+      .select()
+      .from(hold)
+      .where(and(eq(hold.caseId, caseId), eq(hold.status, "authorised")))
+      .orderBy(asc(hold.versionNumber));
+    const event = await storeDelivery(
+      database.db,
+      "PAYMENT.AUTHORIZATION.CREATED",
+      held!.authorizationId!,
+    );
+    return (await reconcileWebhookEvent(database.db, event)).outcome;
+  } finally {
+    await database.close();
+  }
+}
+
+/**
  * The schedule's audit events on some cases, oldest first.
  *
  * @param caseIds - The cases.
@@ -91,6 +150,23 @@ async function scheduleEvents(
   } finally {
     await database.close();
   }
+}
+
+/**
+ * Marks the document a page is showing, so a walk can tell that what it sees
+ * later is the same document changed in place, not one loaded again.
+ *
+ * @param page - The page.
+ * @returns Reads whether the mark still stands.
+ */
+async function markDocument(page: Page): Promise<() => Promise<boolean>> {
+  await page.evaluate(() => {
+    (window as unknown as { pawholdWalkMark?: boolean }).pawholdWalkMark = true;
+  });
+  return () =>
+    page.evaluate(
+      () => (window as unknown as { pawholdWalkMark?: boolean }).pawholdWalkMark === true,
+    );
 }
 
 for (const width of Object.keys(WIDTHS) as Width[]) {
@@ -236,6 +312,31 @@ for (const width of Object.keys(WIDTHS) as Width[]) {
         await expect(held.getByRole("button", { name: "Undo" })).toBeVisible();
         await expect(bookingOf(page, "Juno")).toContainText("Held by pawhold");
         await expect(bookingOf(page, "Biscuit")).not.toContainText("proposed");
+      });
+
+      test("a case turning held by PayPal's answer, confirmed by its webhook, recolours without a reload", async ({
+        page,
+        context,
+      }) => {
+        test.skip(!DOUBLE_URL, "the run talks to PayPal's sandbox: the double's walk is skipped");
+        const practiceId = await signInAsPractice(page);
+        const archie = await procedureOf(practiceId, "Archie");
+        await page.goto(`/day?day=${archie.day}`);
+        await shownAs(page, state);
+        await expect(bookingOf(page, "Archie")).toHaveAttribute("data-tone", "awaiting_owner");
+        await expect(bookingOf(page, "Archie")).toContainText("Waiting for owner");
+        const sameDocument = await markDocument(page);
+
+        const owner = await context.newPage();
+        await owner.goto(await ownerPathOf(practiceId, archie.caseId));
+        await approveAtTheDouble(owner);
+        expect(await deliverAuthorisationWebhook(archie.caseId)).toBe("reconciled");
+        await owner.close();
+
+        await expect(bookingOf(page, "Archie")).toHaveAttribute("data-tone", "held");
+        await expect(bookingOf(page, "Archie")).toContainText(/Held £\d/);
+        expect(await sameDocument()).toBe(true);
+        await shownAs(page, state);
       });
 
       test("axe finds no serious violation and every target is at least 44 px: the day with a hold", async ({

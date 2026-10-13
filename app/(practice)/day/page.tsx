@@ -13,11 +13,13 @@ import { SignedOut } from "../SignedOut";
 import { dismissMoveAction, moveItAction, undoHoldAction } from "./actions";
 import { DayActionButton } from "./DayActionButton";
 import { DayBoard } from "./DayBoard";
+import { DayLive } from "./DayLive";
 import { DayCheck } from "./DayCheck";
 import styles from "./day.module.css";
 import { LEAD_COLUMNS, openingLine } from "./opening";
 import { PlainTimeline } from "./PlainTimeline";
 import { dayBoardSetting } from "./setting";
+import { dayStamp } from "./stamp";
 
 export const metadata: Metadata = { title: "The day" };
 
@@ -29,7 +31,8 @@ export const dynamic = "force-dynamic";
  * proposed moves marked, with Undo on a held slot and Move it and Dismiss on
  * a proposed move (section 6's words; D9 (a)). The bookings are drawn on the
  * board, Bryntum's Scheduler, with the plain timeline under it as the floor
- * (`DayBoard`).
+ * (`DayBoard`); the open day follows its cases' money without a reload
+ * (`DayLive`).
  *
  * @param props - The route's search parameters.
  * @param props.searchParams - `day`, a calendar day ("2026-10-12"); today when absent.
@@ -45,6 +48,8 @@ export default async function DayPage({
     return <SignedOut />;
   }
   const { day } = await searchParams;
+  // Read before the day, so a change that lands between the two is asked after again, never missed.
+  const stamp = await dayStamp(database().db, session.practiceId);
   let view: DayView;
   try {
     view = await loadDay(database().db, session.practiceId, {
@@ -86,6 +91,7 @@ export default async function DayPage({
         </nav>
       </div>
       <DayCheck timeZone={view.timeZone} />
+      <DayLive stamp={stamp} />
 
       {view.proposals.length > 0 ? (
         <section aria-labelledby="held-heading" className={styles.held}>
