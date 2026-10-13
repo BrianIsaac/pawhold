@@ -447,3 +447,179 @@ describe("PayPal's debug id on an error (the sandbox sent `Paypal-Debug-Id` on e
     expect(error).toMatchObject({ status: 401, name: "invalid_client", debugId: null });
   });
 });
+
+describe("the token cache when a token cannot be had (pinned against what the SDK's skills warn of)", () => {
+  it("asks again after a token request PayPal failed: a failure is never kept", async () => {
+    paypal.on(
+      "POST /v1/oauth2/token",
+      { status: 503, body: { name: "SERVICE_UNAVAILABLE", debug_id: "tok503" } },
+      { status: 200, body: TOKEN },
+    );
+    paypal.on(`GET ${AUTHORIZATION_PATH}`, { status: 200, body: AUTHORIZATION });
+    const paypalClient = client();
+
+    await expect(
+      paypalClient.get(AUTHORIZATION_PATH, { response: authorization }),
+    ).rejects.toMatchObject({ status: 503, debugId: "tok503" });
+    const answer = await paypalClient.get(AUTHORIZATION_PATH, { response: authorization });
+
+    expect(answer.body).toEqual(AUTHORIZATION);
+    expect(tokenCalls()).toHaveLength(2);
+  });
+
+  it("asks again after a token request that got no answer", async () => {
+    let tokenRequests = 0;
+    const { client: paypalClient, sent } = stubbed({
+      "/v1/oauth2/token": () => {
+        tokenRequests += 1;
+        if (tokenRequests === 1) {
+          throw new TypeError("fetch failed");
+        }
+        return Response.json(TOKEN);
+      },
+      [AUTHORIZATION_PATH]: () => Response.json(AUTHORIZATION),
+    });
+
+    await expect(
+      paypalClient.get(AUTHORIZATION_PATH, { response: authorization }),
+    ).rejects.toBeInstanceOf(PayPalTransportError);
+    await paypalClient.get(AUTHORIZATION_PATH, { response: authorization });
+
+    expect(sent).toEqual([
+      "POST /v1/oauth2/token",
+      "POST /v1/oauth2/token",
+      `GET ${AUTHORIZATION_PATH}`,
+    ]);
+  });
+
+  it("refuses a token that names no lifetime, and sends nothing with it", async () => {
+    paypal.on("POST /v1/oauth2/token", { status: 200, body: { ...TOKEN, expires_in: undefined } });
+    paypal.on(`GET ${AUTHORIZATION_PATH}`, { status: 200, body: AUTHORIZATION });
+
+    await expect(
+      client().get(AUTHORIZATION_PATH, { response: authorization }),
+    ).rejects.toBeInstanceOf(PayPalContractError);
+    expect(paypal.requests.map((r) => r.path)).toEqual(["/v1/oauth2/token"]);
+  });
+});
+
+describe("the client's waiting and asking again (pinned: its own timeout, no retry of its own)", () => {
+  /**
+   * An answer that comes after a delay, or fails as fetch does when the
+   * request's signal aborts first.
+   *
+   * @param delayMs - How long the answer takes.
+   * @param body - The JSON body.
+   * @returns The route.
+   */
+  const after =
+    (delayMs: number, body: unknown) =>
+    (signal: AbortSignal): Promise<Response> =>
+      new Promise((resolve, reject) => {
+        const timer = setTimeout(() => resolve(Response.json(body)), delayMs);
+        signal.addEventListener("abort", () => {
+          clearTimeout(timer);
+          reject(signal.reason as Error);
+        });
+      });
+
+  it("gives up on a request that outlasts its timeout, as no answer", async () => {
+    const { client: paypalClient, sent } = stubbed(
+      {
+        "/v1/oauth2/token": () => Response.json(TOKEN),
+        [AUTHORIZATION_PATH]: after(60_000, AUTHORIZATION),
+      },
+      50,
+    );
+
+    const error = await paypalClient
+      .get(AUTHORIZATION_PATH, { response: authorization })
+      .catch((caught: unknown) => caught);
+
+    expect(error).toBeInstanceOf(PayPalTransportError);
+    expect((error as Error).cause).toMatchObject({ name: "TimeoutError" });
+    expect(sent).toEqual(["POST /v1/oauth2/token", `GET ${AUTHORIZATION_PATH}`]);
+  });
+
+  it("bounds each request, not the call: a slow token and a slow answer together outlast it", async () => {
+    const timeoutMs = 300;
+    const { client: paypalClient } = stubbed(
+      {
+        "/v1/oauth2/token": after(200, TOKEN),
+        [AUTHORIZATION_PATH]: after(200, AUTHORIZATION),
+      },
+      timeoutMs,
+    );
+    const startedAt = performance.now();
+
+    const answer = await paypalClient.get(AUTHORIZATION_PATH, { response: authorization });
+
+    expect(answer.body).toEqual(AUTHORIZATION);
+    expect(performance.now() - startedAt).toBeGreaterThan(timeoutMs);
+  });
+
+  it.each(["GET", "POST"] as const)(
+    "asks once when PayPal answers a %s with 503",
+    async (method) => {
+      const path =
+        method === "GET" ? AUTHORIZATION_PATH : (`${AUTHORIZATION_PATH}/capture` as const);
+      paypal.on("POST /v1/oauth2/token", { status: 200, body: TOKEN });
+      paypal.on(`${method} ${path}`, {
+        status: 503,
+        body: { name: "SERVICE_UNAVAILABLE", message: "Service Unavailable.", debug_id: "once503" },
+      });
+
+      const asked =
+        method === "GET"
+          ? client().get(path, { response: authorization })
+          : client().post(path, {
+              requestId: "8f0f8a3e-0000-8000-8000-000000000008",
+              body: {},
+              response: authorization,
+            });
+
+      await expect(asked).rejects.toMatchObject({ status: 503, name: "SERVICE_UNAVAILABLE" });
+      expect(paypal.requests.filter((r) => r.path === path)).toHaveLength(1);
+    },
+  );
+
+  it("asks once when a request gets no answer", async () => {
+    const { client: paypalClient, sent } = stubbed({
+      "/v1/oauth2/token": () => Response.json(TOKEN),
+      [AUTHORIZATION_PATH]: () => {
+        throw new TypeError("fetch failed");
+      },
+    });
+
+    await expect(
+      paypalClient.get(AUTHORIZATION_PATH, { response: authorization }),
+    ).rejects.toBeInstanceOf(PayPalTransportError);
+    expect(sent).toEqual(["POST /v1/oauth2/token", `GET ${AUTHORIZATION_PATH}`]);
+  });
+});
+
+describe("an error body PayPal's documents do not describe (pinned)", () => {
+  it("is read whole or not at all: one detail without an issue leaves only the status", async () => {
+    paypal.on("POST /v1/oauth2/token", { status: 200, body: TOKEN });
+    paypal.on(`POST ${AUTHORIZATION_PATH}/capture`, {
+      status: 422,
+      body: {
+        name: "UNPROCESSABLE_ENTITY",
+        debug_id: "whole422",
+        details: [{ issue: "AUTHORIZATION_EXPIRED" }, { description: "a detail with no issue" }],
+      },
+    });
+
+    const error = (await client()
+      .post(`${AUTHORIZATION_PATH}/capture`, {
+        requestId: "8f0f8a3e-0000-8000-8000-000000000009",
+        body: {},
+        response: authorization,
+      })
+      .catch((caught: unknown) => caught)) as PayPalError;
+
+    expect(error).toBeInstanceOf(PayPalError);
+    expect(error).toMatchObject({ status: 422, name: "HTTP_422", debugId: null, details: [] });
+    expect(error.hasIssue("AUTHORIZATION_EXPIRED")).toBe(false);
+  });
+});
