@@ -413,6 +413,40 @@ describe("the case's money state machine (plan 3.2): draft estimate, awaiting ow
     });
   });
 
+  it.each([408, 409, 429])(
+    "reads PayPal's %i to an authorise as not now: unavailable, and nothing written as refused",
+    async (status) => {
+      const versionId = await sentEstimate();
+      const { hold: ordered } = await orderHold(deps(), {
+        practiceId: fixture.practiceId,
+        caseId: fixture.caseId,
+        versionId,
+      });
+      paypal.approve(ordered.paypalOrderId);
+      // A synthetic answer: no recording holds a 408, 409 or 429.
+      paypal.inject({
+        method: "POST",
+        path: /\/authorize$/,
+        status,
+        body: { name: `HTTP_${status}`, debug_id: `double${status}` },
+      });
+      const before = await lastEventId();
+
+      const stopped = await refusal(
+        authoriseHold(deps(), {
+          practiceId: fixture.practiceId,
+          caseId: fixture.caseId,
+          holdId: ordered.id,
+        }),
+      );
+
+      expect(stopped.reason).toBe("paypal_unavailable");
+      expect(await eventsSince(before)).toEqual([]);
+      const money = await caseMoney(db, fixture.practiceId, fixture.caseId);
+      expect(money.state).toBe("awaiting_owner");
+    },
+  );
+
   it("authorising twice answers the hold as authorised, with no second authorisation", async () => {
     const versionId = await sentEstimate();
     const { hold: ordered } = await orderHold(deps(), {
