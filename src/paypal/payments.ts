@@ -3,7 +3,7 @@ import { z } from "zod";
 import { currencyCode, type Money } from "@/money/currency";
 import { fromPayPalValue, toPayPalValue } from "@/money/paypal-value";
 
-import type { PayPalClient } from "./client";
+import { optionalField, type PayPalClient } from "./client";
 
 /*
  * The Payments v2 calls pawhold makes against an authorisation and its
@@ -29,10 +29,10 @@ export type PayPalAmount = z.infer<typeof paypalAmount>;
 export const paypalLink = z.looseObject({
   href: z.string(),
   rel: z.string(),
-  method: z.string().optional(),
+  method: optionalField(z.string()),
 });
 
-const statusDetails = z.looseObject({ reason: z.string() }).optional();
+const statusDetails = optionalField(z.looseObject({ reason: z.string() }));
 
 /**
  * A status PayPal answered with that its published schema does not list. It
@@ -89,12 +89,12 @@ export const authorization = z.looseObject({
   id: z.string().min(1),
   status: statusField(authorizationStatus),
   status_details: statusDetails,
-  amount: paypalAmount.optional(),
-  custom_id: z.string().optional(),
-  expiration_time: z.string().optional(),
-  create_time: z.string().optional(),
-  update_time: z.string().optional(),
-  links: z.array(paypalLink).optional(),
+  amount: optionalField(paypalAmount),
+  custom_id: optionalField(z.string()),
+  expiration_time: optionalField(z.string()),
+  create_time: optionalField(z.string()),
+  update_time: optionalField(z.string()),
+  links: optionalField(z.array(paypalLink)),
 });
 
 export type Authorization = z.infer<typeof authorization>;
@@ -116,19 +116,19 @@ export const capture = z.looseObject({
   id: z.string().min(1),
   status: statusField(captureStatus),
   status_details: statusDetails,
-  amount: paypalAmount.optional(),
-  final_capture: z.boolean().optional(),
-  custom_id: z.string().optional(),
-  seller_receivable_breakdown: z
-    .looseObject({
-      gross_amount: paypalAmount.optional(),
-      paypal_fee: paypalAmount.optional(),
-      net_amount: paypalAmount.optional(),
-    })
-    .optional(),
-  create_time: z.string().optional(),
-  update_time: z.string().optional(),
-  links: z.array(paypalLink).optional(),
+  amount: optionalField(paypalAmount),
+  final_capture: optionalField(z.boolean()),
+  custom_id: optionalField(z.string()),
+  seller_receivable_breakdown: optionalField(
+    z.looseObject({
+      gross_amount: optionalField(paypalAmount),
+      paypal_fee: optionalField(paypalAmount),
+      net_amount: optionalField(paypalAmount),
+    }),
+  ),
+  create_time: optionalField(z.string()),
+  update_time: optionalField(z.string()),
+  links: optionalField(z.array(paypalLink)),
 });
 
 export type Capture = z.infer<typeof capture>;
@@ -142,10 +142,10 @@ export type RefundStatus = z.infer<typeof refundStatus>;
 export const refund = z.looseObject({
   id: z.string().min(1),
   status: statusField(refundStatus),
-  amount: paypalAmount.optional(),
-  create_time: z.string().optional(),
-  update_time: z.string().optional(),
-  links: z.array(paypalLink).optional(),
+  amount: optionalField(paypalAmount),
+  create_time: optionalField(z.string()),
+  update_time: optionalField(z.string()),
+  links: optionalField(z.array(paypalLink)),
 });
 
 export type Refund = z.infer<typeof refund>;

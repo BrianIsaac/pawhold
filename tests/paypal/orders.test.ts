@@ -281,6 +281,25 @@ describe("an order's id and status as pawhold reads and sends them (U15's pins, 
     expect(onlyAuthorization(order.parse(synthetic)).status).toBe("CREATED_LATER");
   });
 
+  it("reads an explicit null on an order's optional fields as absent, as the SDK's optional() does", () => {
+    // A synthetic answer: no recorded exchange carries a null.
+    const read = order.parse({
+      id: "4SJ22740VK065702B",
+      status: "COMPLETED",
+      links: null,
+      payment_source: { paypal: null, card: { brand: "VISA", type: null, last_digits: "1111" } },
+      purchase_units: [{ reference_id: null, custom_id: "hold-1", payments: null }],
+    });
+
+    expect(read.links).toBeUndefined();
+    expect(read.payment_source?.paypal).toBeUndefined();
+    expect(read.payment_source?.card).toMatchObject({ brand: "VISA", last_digits: "1111" });
+    expect(read.payment_source?.card?.type).toBeUndefined();
+    expect(paymentKindOf(read)).toBe("card");
+    expect(read.purchase_units?.[0]?.payments).toBeUndefined();
+    expect(order.safeParse({ id: "4SJ22740VK065702B", status: null }).success).toBe(false);
+  });
+
   it.each([
     ["reads", (id: string) => getOrder(client(), id), "GET", ""],
     ["authorises", (id: string) => authorizeOrder(client(), id, REQUEST_ID), "POST", "/authorize"],

@@ -546,6 +546,19 @@ describe("the token cache when a token cannot be had (pinned against what the SD
     ]);
   });
 
+  it("reads an explicit null on the token's optional fields as absent", async () => {
+    // A synthetic answer: the recorder never kept a token body.
+    paypal.on("POST /v1/oauth2/token", {
+      status: 200,
+      body: { ...TOKEN, scope: null, app_id: null, nonce: null },
+    });
+    paypal.on(`GET ${AUTHORIZATION_PATH}`, { status: 200, body: AUTHORIZATION });
+
+    const answer = await client().get(AUTHORIZATION_PATH, { response: authorization });
+
+    expect(answer.body).toEqual(AUTHORIZATION);
+  });
+
   it("refuses a token that names no lifetime, and sends nothing with it", async () => {
     paypal.on("POST /v1/oauth2/token", { status: 200, body: { ...TOKEN, expires_in: undefined } });
     paypal.on(`GET ${AUTHORIZATION_PATH}`, { status: 200, body: AUTHORIZATION });

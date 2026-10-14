@@ -109,7 +109,7 @@ describe("the Payments v2 answers, as the sandbox gave them (U0's recordings)", 
   });
 });
 
-describe("the Payments v2 answers read more strictly than PayPal's own SDK reads them (pinned)", () => {
+describe("the Payments v2 answers as PayPal's own SDK reads them (U15's pins, fixed by U20)", () => {
   const recorded = () =>
     recordedAnswer("P2", "GET", /^\/v2\/payments\/authorizations\/[^/]+$/).responseBody as Record<
       string,
@@ -144,13 +144,61 @@ describe("the Payments v2 answers read more strictly than PayPal's own SDK reads
     expect(schema.safeParse({ id: "91T13242G72341823" }).success).toBe(false);
   });
 
-  it.each(["status_details", "amount", "expiration_time", "links"])(
-    "refuses an explicit null for %s, which may be absent",
+  it.each([
+    "status_details",
+    "amount",
+    "custom_id",
+    "expiration_time",
+    "create_time",
+    "update_time",
+    "links",
+  ])(
+    "reads an explicit null for an authorisation's %s as absent, as the SDK's optional() does",
     (field) => {
-      expect(authorization.safeParse(recorded()).success).toBe(true);
-      expect(authorization.safeParse({ ...recorded(), [field]: null }).success).toBe(false);
+      // A synthetic answer: no recorded exchange carries a null.
+      const read = authorization.parse({ ...recorded(), [field]: null }) as Record<string, unknown>;
+
+      expect(field in read ? read[field] : undefined).toBeUndefined();
+      expect(read.id).toBe(recorded().id);
     },
   );
+
+  it("reads an explicit null as absent inside a capture, a refund and a link", () => {
+    const captured = recordedAnswer("P2", "POST", /\/capture$/).responseBody as Record<
+      string,
+      unknown
+    >;
+
+    const read = capture.parse({
+      ...captured,
+      final_capture: null,
+      seller_receivable_breakdown: { gross_amount: null, paypal_fee: null, net_amount: null },
+      links: [
+        {
+          href: "https://api.sandbox.paypal.com/v2/payments/captures/1",
+          rel: "self",
+          method: null,
+        },
+      ],
+    });
+    const refunded = refund.parse({
+      id: "1JU08902",
+      status: "COMPLETED",
+      amount: null,
+      create_time: null,
+    });
+
+    expect(read.final_capture).toBeUndefined();
+    expect(read.seller_receivable_breakdown).toEqual({});
+    expect(pence(read.seller_receivable_breakdown?.paypal_fee)).toBeNull();
+    expect(read.links?.[0]?.method).toBeUndefined();
+    expect(refunded.amount).toBeUndefined();
+    expect(refunded.create_time).toBeUndefined();
+  });
+
+  it.each(["id", "status"])("still refuses a null %s, which is required", (field) => {
+    expect(authorization.safeParse({ ...recorded(), [field]: null }).success).toBe(false);
+  });
 
   it("keeps the fields it does not name, as the sandbox sent them", () => {
     const sent = recorded();

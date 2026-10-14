@@ -19,14 +19,29 @@ const TOKEN_PATH = "/v1/oauth2/token";
 const DEFAULT_TIMEOUT_MS = 20_000;
 const MAX_REFRESH_MARGIN_MS = 5 * 60 * 1000;
 
+/**
+ * An optional field of PayPal's answer that reads an explicit `null` as
+ * absent, as PayPal's own SDK reads one (`optional()` in `@apimatic/schema`).
+ * A field that is present and not null must still match its schema.
+ *
+ * @param schema - The field's schema.
+ * @returns The schema, optional, with `null` read as `undefined`.
+ */
+export function optionalField<T extends z.ZodType>(schema: T) {
+  return schema
+    .nullish()
+    .transform((value) => value ?? undefined)
+    .optional();
+}
+
 /** The token answer, as the Authentication page's sample response shows it. */
 const tokenResponse = z.object({
   access_token: z.string().min(1),
   token_type: z.string().regex(/^bearer$/i),
   expires_in: z.number().int().positive(),
-  scope: z.string().optional(),
-  app_id: z.string().optional(),
-  nonce: z.string().optional(),
+  scope: optionalField(z.string()),
+  app_id: optionalField(z.string()),
+  nonce: optionalField(z.string()),
 });
 
 type ApiPath = `/v${number}/${string}`;
