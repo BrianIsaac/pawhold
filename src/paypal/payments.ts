@@ -34,7 +34,41 @@ export const paypalLink = z.looseObject({
 
 const statusDetails = z.looseObject({ reason: z.string() }).optional();
 
-/** `authorization_status.status`, as the schema enumerates it. */
+/**
+ * A status PayPal answered with that its published schema does not list. It
+ * is read as itself, as PayPal's own SDK reads it (`stringEnum(X, true)`), so
+ * an answer PayPal gave still parses; the money layer flags the hold rather
+ * than act on a status it cannot know (`knownStatus` in `@/money/holds`).
+ */
+const unknownStatus = z.string().min(1).brand<"UnknownPayPalStatus">();
+
+export type UnknownStatus = z.infer<typeof unknownStatus>;
+
+/**
+ * A status field: one of the statuses the schema lists, else read as itself.
+ *
+ * @param listed - The statuses PayPal's published schema lists.
+ * @returns The field's schema.
+ */
+export function statusField<T extends z.ZodEnum>(listed: T) {
+  return z.union([listed, unknownStatus]);
+}
+
+/**
+ * Whether a status PayPal answered with is one its published schema lists.
+ *
+ * @param listed - The statuses the schema lists.
+ * @param status - The status as read.
+ * @returns True for a listed status, which then binds as its own type.
+ */
+export function isKnownStatus<T extends z.ZodEnum>(
+  listed: T,
+  status: z.output<T> | UnknownStatus,
+): status is z.output<T> {
+  return listed.safeParse(status).success;
+}
+
+/** `authorization_status.status`, as the schema enumerates it; others are read as themselves. */
 export const authorizationStatus = z.enum([
   "CREATED",
   "CAPTURED",
@@ -53,7 +87,7 @@ export type AuthorizationStatus = z.infer<typeof authorizationStatus>;
  */
 export const authorization = z.looseObject({
   id: z.string().min(1),
-  status: authorizationStatus,
+  status: statusField(authorizationStatus),
   status_details: statusDetails,
   amount: paypalAmount.optional(),
   custom_id: z.string().optional(),
@@ -65,7 +99,7 @@ export const authorization = z.looseObject({
 
 export type Authorization = z.infer<typeof authorization>;
 
-/** `capture_status.status`, as the schema enumerates it. */
+/** `capture_status.status`, as the schema enumerates it; others are read as themselves. */
 export const captureStatus = z.enum([
   "COMPLETED",
   "DECLINED",
@@ -80,7 +114,7 @@ export type CaptureStatus = z.infer<typeof captureStatus>;
 /** A capture, as `capture` (with a representation) and `GET` return it. */
 export const capture = z.looseObject({
   id: z.string().min(1),
-  status: captureStatus,
+  status: statusField(captureStatus),
   status_details: statusDetails,
   amount: paypalAmount.optional(),
   final_capture: z.boolean().optional(),
@@ -99,7 +133,7 @@ export const capture = z.looseObject({
 
 export type Capture = z.infer<typeof capture>;
 
-/** `refund_status.status`, as the schema enumerates it. */
+/** `refund_status.status`, as the schema enumerates it; others are read as themselves. */
 export const refundStatus = z.enum(["CANCELLED", "FAILED", "PENDING", "COMPLETED"]);
 
 export type RefundStatus = z.infer<typeof refundStatus>;
@@ -107,7 +141,7 @@ export type RefundStatus = z.infer<typeof refundStatus>;
 /** A refund, as `refund` (with a representation) returns it. */
 export const refund = z.looseObject({
   id: z.string().min(1),
-  status: refundStatus,
+  status: statusField(refundStatus),
   amount: paypalAmount.optional(),
   create_time: z.string().optional(),
   update_time: z.string().optional(),

@@ -9,6 +9,7 @@ import {
   capture,
   paypalLink,
   REPRESENTATION,
+  statusField,
   toPayPalAmount,
 } from "./payments";
 
@@ -20,7 +21,7 @@ import {
  * 2026).
  */
 
-/** `order_status`, as the schema enumerates it. */
+/** `order_status`, as the schema enumerates it; others are read as themselves. */
 export const orderStatus = z.enum([
   "CREATED",
   "SAVED",
@@ -35,7 +36,7 @@ export type OrderStatus = z.infer<typeof orderStatus>;
 /** An order, as `create`, `GET` and `authorize` return it. */
 export const order = z.looseObject({
   id: z.string().min(1),
-  status: orderStatus,
+  status: statusField(orderStatus),
   links: z.array(paypalLink).optional(),
   payment_source: z
     .looseObject({

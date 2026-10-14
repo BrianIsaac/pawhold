@@ -120,6 +120,8 @@ const WORDS: Record<string, (event: Described) => string> = {
   "hold.expired": ({ amount }) => `found the hold of ${amount} expired at PayPal`,
   "hold.reauthorised": ({ amount }) => `extended the hold of ${amount}: PayPal reauthorised it`,
   "hold.reauthorise_refused": () => "asked PayPal to extend the hold; PayPal refused",
+  "hold.paypal_status_unknown": ({ detail }) =>
+    `flagged the hold: PayPal answered the ${text(detail.step) ?? "step"} with ${text(detail.status) ?? "a status"}, a status pawhold does not know; check the hold in PayPal`,
   "hold.honour_period_over": ({ amount }) =>
     `flagged the hold of ${amount}: its honour period is over`,
   "bill.signed_off": ({ amount }) => `signed off the bill: ${amount}`,

@@ -9,8 +9,10 @@ import {
   onlyAuthorization,
   order,
   OrderRequestError,
+  orderStatus,
   paymentKindOf,
 } from "@/paypal/orders";
+import { isKnownStatus } from "@/paypal/payments";
 
 import { paypalFixture } from "../support/fixtures";
 import { startMockPayPal } from "../support/mock-paypal";
@@ -246,11 +248,37 @@ describe("an order to authorise", () => {
 });
 
 describe("an order's id and status as pawhold reads and sends them (pinned)", () => {
-  it("refuses an order in a status the published schema does not list", () => {
-    expect(order.safeParse({ id: "4SJ22740VK065702B", status: "CREATED" }).success).toBe(true);
-    expect(order.safeParse({ id: "4SJ22740VK065702B", status: "CREATED_LATER" }).success).toBe(
-      false,
-    );
+  it("reads an order in a status the published schema does not list as itself, and knows it is unknown", () => {
+    // A synthetic answer: no recording holds a status outside the published lists.
+    const unknown = order.parse({ id: "4SJ22740VK065702B", status: "CREATED_LATER" });
+    const known = order.parse({ id: "4SJ22740VK065702B", status: "CREATED" });
+
+    expect(unknown.status).toBe("CREATED_LATER");
+    expect(isKnownStatus(orderStatus, unknown.status)).toBe(false);
+    expect(known.status).toBe("CREATED");
+    expect(isKnownStatus(orderStatus, known.status)).toBe(true);
+    expect(order.safeParse({ id: "4SJ22740VK065702B", status: "" }).success).toBe(false);
+  });
+
+  it("reads the authorisation inside an order in an unknown status as itself", () => {
+    const authorised = recordedAnswer("P2", "POST", /\/authorize$/).responseBody as {
+      purchase_units: { payments: { authorizations: Record<string, unknown>[] } }[];
+    };
+    const unit = authorised.purchase_units[0]!;
+    const synthetic = {
+      ...authorised,
+      purchase_units: [
+        {
+          ...unit,
+          payments: {
+            ...unit.payments,
+            authorizations: [{ ...unit.payments.authorizations[0], status: "CREATED_LATER" }],
+          },
+        },
+      ],
+    };
+
+    expect(onlyAuthorization(order.parse(synthetic)).status).toBe("CREATED_LATER");
   });
 
   it("puts an id into the path as it was given: a slash in one is a path separator", async () => {

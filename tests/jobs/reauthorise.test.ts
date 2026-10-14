@@ -238,6 +238,37 @@ describe("the reauthorisation job (plan 3.2, U0's P5 (a): once per wallet hold, 
     expect((await stored()).authorizationId).toBe(first);
   });
 
+  it("flags the hold when PayPal answers a reauthorisation in a status it does not list, and keeps its authorisation", async () => {
+    holdId = await heldBy("paypal");
+    const first = (await stored()).authorizationId;
+    // A synthetic answer: no recording holds a status outside PayPal's published list.
+    paypal.inject({
+      method: "POST",
+      path: /\/reauthorize$/,
+      status: 201,
+      body: { id: "8AA831015SYNTHRE1", status: "CREATED_LATER", links: [] },
+    });
+
+    const report = await runAt(day(4));
+
+    expect(report.failed).toEqual([holdId]);
+    expect((await stored()).authorizationId).toBe(first);
+    const [flagged] = await db
+      .select()
+      .from(auditEvent)
+      .where(
+        and(
+          eq(auditEvent.caseId, fixture.caseId),
+          eq(auditEvent.action, "hold.paypal_status_unknown"),
+        ),
+      );
+    expect(flagged).toMatchObject({
+      actor: "system",
+      paypalAuthorizationId: "8AA831015SYNTHRE1",
+      detail: { holdId, step: "reauthorisation", status: "CREATED_LATER" },
+    });
+  });
+
   it("goes on to the next hold when one fails", async () => {
     holdId = await heldBy("paypal");
     // A second case in the same practice, so the run stays inside it.

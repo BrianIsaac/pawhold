@@ -3,14 +3,18 @@ import { describe, expect, it } from "vitest";
 import { createPayPalClient, PayPalError } from "@/paypal/client";
 import {
   authorization,
+  authorizationStatus,
   capture,
   captureAuthorization,
+  captureStatus,
+  isKnownStatus,
   moneyFromPayPal,
   parsePayPalTime,
   pence,
   reauthorizeAuthorization,
   refund,
   refundCapture,
+  refundStatus,
   voidAuthorization,
 } from "@/paypal/payments";
 
@@ -111,14 +115,31 @@ describe("the Payments v2 answers read more strictly than PayPal's own SDK reads
     >;
 
   it.each([
+    ["an authorisation", authorization, authorizationStatus],
+    ["a capture", capture, captureStatus],
+    ["a refund", refund, refundStatus],
+  ] as const)(
+    "reads %s in a status the published schema does not list as itself, and knows it is unknown",
+    (_what, schema, listed) => {
+      // A synthetic answer: no recording holds a status outside the published lists.
+      const unknown = schema.parse({ id: "91T13242G72341823", status: "PENDING_LATER" });
+      const known = schema.parse({ id: "91T13242G72341823", status: "PENDING" });
+
+      expect(unknown.status).toBe("PENDING_LATER");
+      expect(isKnownStatus(listed, unknown.status)).toBe(false);
+      expect(known.status).toBe("PENDING");
+      expect(isKnownStatus(listed, known.status)).toBe(true);
+    },
+  );
+
+  it.each([
     ["an authorisation", authorization],
     ["a capture", capture],
     ["a refund", refund],
-  ])("refuses %s in a status the published schema does not list", (_what, schema) => {
-    expect(schema.safeParse({ id: "91T13242G72341823", status: "PENDING" }).success).toBe(true);
-    expect(schema.safeParse({ id: "91T13242G72341823", status: "PENDING_LATER" }).success).toBe(
-      false,
-    );
+  ])("still refuses %s with an empty status, or none", (_what, schema) => {
+    expect(schema.safeParse({ id: "91T13242G72341823", status: "" }).success).toBe(false);
+    expect(schema.safeParse({ id: "91T13242G72341823", status: 7 }).success).toBe(false);
+    expect(schema.safeParse({ id: "91T13242G72341823" }).success).toBe(false);
   });
 
   it.each(["status_details", "amount", "expiration_time", "links"])(

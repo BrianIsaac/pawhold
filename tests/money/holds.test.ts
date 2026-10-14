@@ -71,6 +71,32 @@ async function lastEventId(): Promise<number> {
 }
 
 /**
+ * A synthetic authorise answer: P2's recorded one, its authorisation in the
+ * status given. No recording holds a status outside PayPal's published lists.
+ *
+ * @param status - The authorisation's status.
+ * @returns The answer's body.
+ */
+function authorisedIn(status: string): unknown {
+  const recorded = recordedAnswer("P2", "POST", /\/authorize$/).responseBody as {
+    purchase_units: { payments: { authorizations: Record<string, unknown>[] } }[];
+  };
+  const unit = recorded.purchase_units[0]!;
+  return {
+    ...recorded,
+    purchase_units: [
+      {
+        ...unit,
+        payments: {
+          ...unit.payments,
+          authorizations: [{ ...unit.payments.authorizations[0], id: "4SJ22740AUTHSYNTH", status }],
+        },
+      },
+    ],
+  };
+}
+
+/**
  * The reason a money operation was refused.
  *
  * @param operation - The operation.
@@ -343,6 +369,48 @@ describe("the case's money state machine (plan 3.2): draft estimate, awaiting ow
     expect(money.state).toBe("awaiting_owner");
     const event = (await eventsSince()).at(-1);
     expect(event).toMatchObject({ action: "hold.authorise_refused", paypalDebugId: "double422" });
+  });
+
+  it("flags the hold when PayPal answers the authorisation in a status it does not list, and holds nothing", async () => {
+    const versionId = await sentEstimate();
+    const { hold: ordered } = await orderHold(deps(), {
+      practiceId: fixture.practiceId,
+      caseId: fixture.caseId,
+      versionId,
+    });
+    paypal.approve(ordered.paypalOrderId);
+    paypal.inject({
+      method: "POST",
+      path: /\/authorize$/,
+      status: 201,
+      body: authorisedIn("CREATED_LATER"),
+      acts: true,
+    });
+    const before = await lastEventId();
+
+    const stopped = await refusal(
+      authoriseHold(deps(), {
+        practiceId: fixture.practiceId,
+        caseId: fixture.caseId,
+        holdId: ordered.id,
+      }),
+    );
+
+    expect(stopped.reason).toBe("paypal_unavailable");
+    expect(stopped.message).toContain("CREATED_LATER");
+    const money = await caseMoney(db, fixture.practiceId, fixture.caseId);
+    expect(money.state).toBe("awaiting_owner");
+    const [stored] = await db.select().from(hold).where(eq(hold.id, ordered.id));
+    expect(stored).toMatchObject({ status: "ordered", authorizationId: null });
+    const events = await eventsSince(before);
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({
+      action: "hold.paypal_status_unknown",
+      actor: "system",
+      paypalOrderId: ordered.paypalOrderId,
+      paypalAuthorizationId: "4SJ22740AUTHSYNTH",
+      detail: { holdId: ordered.id, step: "authorisation", status: "CREATED_LATER" },
+    });
   });
 
   it("authorising twice answers the hold as authorised, with no second authorisation", async () => {

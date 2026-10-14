@@ -6,10 +6,11 @@ import type { Executor, Transaction } from "@/db/client";
 import { allocation, auditActor, bill, billLine, capture, hold } from "@/db/schema";
 import { type EstimateVersionView, loadEstimateVersion } from "@/estimate/version";
 import type { CurrencyCode } from "@/money/currency";
-import type { captureStatus as paypalCaptureStatus } from "@/paypal/payments";
 import {
   captureAuthorization,
   type Capture,
+  captureStatus as paypalCaptureStatus,
+  isKnownStatus,
   moneyFromPayPal,
   parsePayPalTime,
   pence,
@@ -18,7 +19,14 @@ import {
 
 import { allocateBill, approvalsByHold, type AllocatableHold } from "./allocation";
 import { askPayPal, MoneyError } from "./errors";
-import { asking, holdRequestId, type MoneyDependencies, parse, refusedEvent } from "./holds";
+import {
+  asking,
+  flagUnknownStatus,
+  holdRequestId,
+  type MoneyDependencies,
+  parse,
+  refusedEvent,
+} from "./holds";
 import { type LockedCase, lockCase, type MoneyState, moveCase, nextState } from "./state";
 import { caseHolds, caseMoney, type HoldView } from "./view";
 
@@ -420,6 +428,23 @@ async function captureStep(
     throw error;
   }
 
+  if (!isKnownStatus(paypalCaptureStatus, answer.status)) {
+    throw await flagUnknownStatus(
+      deps.db,
+      {
+        practiceId,
+        caseId,
+        holdId: target.id,
+        step: "capture",
+        paypal: {
+          orderId: target.paypalOrderId,
+          authorizationId: target.authorizationId!,
+          captureId: answer.id,
+        },
+      },
+      answer.status,
+    );
+  }
   const status = lowerStatus(answer.status);
   const taken = status !== "declined" && status !== "failed";
   await deps.db.transaction(async (tx) => {
