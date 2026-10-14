@@ -84,7 +84,7 @@ export interface PayPalClientOptions {
   readonly fetch?: typeof fetch;
   /** The clock, in milliseconds since the epoch. */
   readonly now?: () => number;
-  /** How long to wait for PayPal on each request. */
+  /** How long a call may take, its token fetch and refresh included. */
   readonly timeoutMs?: number;
 }
 
@@ -132,28 +132,37 @@ export function createPayPalClient(options: PayPalClientOptions): PayPalClient {
   let cached: CachedToken | null = null;
   let pending: Promise<CachedToken> | null = null;
 
-  const send = async (method: string, path: string, init: RequestInit): Promise<Response> => {
+  const send = async (
+    method: string,
+    path: string,
+    init: RequestInit,
+    deadline: AbortSignal,
+  ): Promise<Response> => {
     try {
-      return await fetchImpl(`${baseUrl}${path}`, {
-        ...init,
-        method,
-        signal: AbortSignal.timeout(timeoutMs),
-      });
+      return await fetchImpl(`${baseUrl}${path}`, { ...init, method, signal: deadline });
     } catch (error) {
       throw new PayPalTransportError(method, path, error);
     }
   };
 
+  // Shared by every call waiting on it, so bounded by its own timeout rather
+  // than by any one caller's deadline.
   const fetchToken = async (): Promise<CachedToken> => {
     const startedAt = now();
-    const answer = await send("POST", TOKEN_PATH, {
-      headers: {
-        accept: "application/json",
-        authorization: `Basic ${basicAuth}`,
-        "content-type": "application/x-www-form-urlencoded",
+    const deadline = AbortSignal.timeout(timeoutMs);
+    const answer = await send(
+      "POST",
+      TOKEN_PATH,
+      {
+        headers: {
+          accept: "application/json",
+          authorization: `Basic ${basicAuth}`,
+          "content-type": "application/x-www-form-urlencoded",
+        },
+        body: "grant_type=client_credentials",
       },
-      body: "grant_type=client_credentials",
-    });
+      deadline,
+    );
     const text = await readText(answer, "POST", TOKEN_PATH);
     if (!answer.ok) {
       throw PayPalError.fromResponse(answer.status, text, answer.headers);
@@ -167,14 +176,14 @@ export function createPayPalClient(options: PayPalClientOptions): PayPalClient {
     return { value: parsed.data.access_token, refreshAt: startedAt + lifetimeMs - margin };
   };
 
-  const token = async (): Promise<string> => {
+  const token = async (deadline: AbortSignal): Promise<string> => {
     if (cached && now() < cached.refreshAt) {
       return cached.value;
     }
     pending ??= fetchToken().finally(() => {
       pending = null;
     });
-    cached = await pending;
+    cached = await untilDeadline(pending, deadline);
     return cached.value;
   };
 
@@ -191,13 +200,21 @@ export function createPayPalClient(options: PayPalClientOptions): PayPalClient {
     body: string | undefined,
     schema: z.ZodType<T>,
   ): Promise<PayPalResponse<T>> => {
+    // One deadline for the whole call: the token, the request, its answer's
+    // body and the refresh after a 401 all fit inside it.
+    const deadline = AbortSignal.timeout(timeoutMs);
     let answer: Response | undefined;
     for (let attempt = 0; attempt < 2; attempt += 1) {
-      const bearer = await token();
-      answer = await send(method, path, {
-        headers: { accept: "application/json", ...headers, authorization: `Bearer ${bearer}` },
-        ...(body === undefined ? {} : { body }),
-      });
+      const bearer = await token(deadline);
+      answer = await send(
+        method,
+        path,
+        {
+          headers: { accept: "application/json", ...headers, authorization: `Bearer ${bearer}` },
+          ...(body === undefined ? {} : { body }),
+        },
+        deadline,
+      );
       if (answer.status !== 401) {
         break;
       }
@@ -234,6 +251,28 @@ export function createPayPalClient(options: PayPalClientOptions): PayPalClient {
       return call("POST", path, headers, body, postOptions.response);
     },
   };
+}
+
+/**
+ * Waits for the shared token on one call's deadline: when the deadline passes
+ * first, this call stops waiting as one with no answer from the token
+ * endpoint, and the fetch goes on for the calls still waiting on it.
+ *
+ * @param token - The token being fetched.
+ * @param deadline - The call's deadline.
+ * @returns The token.
+ * @throws PayPalTransportError when the deadline passes first.
+ */
+function untilDeadline(token: Promise<CachedToken>, deadline: AbortSignal): Promise<CachedToken> {
+  return new Promise((resolve, reject) => {
+    const giveUp = () => reject(new PayPalTransportError("POST", TOKEN_PATH, deadline.reason));
+    if (deadline.aborted) {
+      giveUp();
+      return;
+    }
+    deadline.addEventListener("abort", giveUp, { once: true });
+    token.then(resolve, reject).finally(() => deadline.removeEventListener("abort", giveUp));
+  });
 }
 
 /**

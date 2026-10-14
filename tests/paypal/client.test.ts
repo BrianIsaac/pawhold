@@ -570,7 +570,7 @@ describe("the token cache when a token cannot be had (pinned against what the SD
   });
 });
 
-describe("the client's waiting and asking again (pinned: its own timeout, no retry of its own)", () => {
+describe("the client's waiting and asking again (one deadline per call, by U20; no retry of its own)", () => {
   /**
    * An answer that comes after a delay, or fails as fetch does when the
    * request's signal aborts first.
@@ -608,21 +608,89 @@ describe("the client's waiting and asking again (pinned: its own timeout, no ret
     expect(sent).toEqual(["POST /v1/oauth2/token", `GET ${AUTHORIZATION_PATH}`]);
   });
 
-  it("bounds each request, not the call: a slow token and a slow answer together outlast it", async () => {
-    const timeoutMs = 300;
-    const { client: paypalClient } = stubbed(
+  it("bounds the call, not each request: a slow token and a slow answer together are no answer", async () => {
+    const { client: paypalClient, sent } = stubbed(
       {
         "/v1/oauth2/token": after(200, TOKEN),
         [AUTHORIZATION_PATH]: after(200, AUTHORIZATION),
       },
-      timeoutMs,
+      300,
     );
-    const startedAt = performance.now();
 
-    const answer = await paypalClient.get(AUTHORIZATION_PATH, { response: authorization });
+    const error = await paypalClient
+      .get(AUTHORIZATION_PATH, { response: authorization })
+      .catch((caught: unknown) => caught);
 
-    expect(answer.body).toEqual(AUTHORIZATION);
-    expect(performance.now() - startedAt).toBeGreaterThan(timeoutMs);
+    expect(error).toBeInstanceOf(PayPalTransportError);
+    expect(error).toMatchObject({ method: "GET", path: AUTHORIZATION_PATH });
+    expect((error as Error).cause).toMatchObject({ name: "TimeoutError" });
+    expect(sent).toEqual(["POST /v1/oauth2/token", `GET ${AUTHORIZATION_PATH}`]);
+  });
+
+  it("bounds the refresh after a 401 inside the same deadline", async () => {
+    let asked = 0;
+    const { client: paypalClient, sent } = stubbed(
+      {
+        "/v1/oauth2/token": after(80, TOKEN),
+        [AUTHORIZATION_PATH]: (signal) => {
+          asked += 1;
+          return asked === 1
+            ? Promise.resolve(Response.json({ error: "invalid_token" }, { status: 401 }))
+            : after(250, AUTHORIZATION)(signal);
+        },
+      },
+      300,
+    );
+
+    const error = await paypalClient
+      .get(AUTHORIZATION_PATH, { response: authorization })
+      .catch((caught: unknown) => caught);
+
+    expect(error).toBeInstanceOf(PayPalTransportError);
+    expect((error as Error).cause).toMatchObject({ name: "TimeoutError" });
+    expect(sent).toEqual([
+      "POST /v1/oauth2/token",
+      `GET ${AUTHORIZATION_PATH}`,
+      "POST /v1/oauth2/token",
+      `GET ${AUTHORIZATION_PATH}`,
+    ]);
+  });
+
+  it("gives up waiting on a token past its own deadline, as no answer from the token endpoint", async () => {
+    const { client: paypalClient } = stubbed(
+      {
+        "/v1/oauth2/token": after(60_000, TOKEN),
+        [AUTHORIZATION_PATH]: () => Response.json(AUTHORIZATION),
+      },
+      50,
+    );
+
+    const error = await paypalClient
+      .get(AUTHORIZATION_PATH, { response: authorization })
+      .catch((caught: unknown) => caught);
+
+    expect(error).toBeInstanceOf(PayPalTransportError);
+    expect(error).toMatchObject({ method: "POST", path: "/v1/oauth2/token" });
+  });
+
+  it("leaves a token another call is waiting on to that call when its own deadline passes", async () => {
+    const { client: paypalClient, sent } = stubbed(
+      {
+        "/v1/oauth2/token": after(500, TOKEN),
+        [AUTHORIZATION_PATH]: after(200, AUTHORIZATION),
+      },
+      600,
+    );
+
+    const first = paypalClient
+      .get(AUTHORIZATION_PATH, { response: authorization })
+      .catch((caught: unknown) => caught);
+    await new Promise((resolve) => setTimeout(resolve, 200));
+    const second = await paypalClient.get(AUTHORIZATION_PATH, { response: authorization });
+
+    expect(await first).toBeInstanceOf(PayPalTransportError);
+    expect(second.body).toEqual(AUTHORIZATION);
+    expect(sent.filter((one) => one === "POST /v1/oauth2/token")).toHaveLength(1);
   });
 
   it.each(["GET", "POST"] as const)(
