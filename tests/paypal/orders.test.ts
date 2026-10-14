@@ -247,7 +247,7 @@ describe("an order to authorise", () => {
   });
 });
 
-describe("an order's id and status as pawhold reads and sends them (pinned)", () => {
+describe("an order's id and status as pawhold reads and sends them (U15's pins, fixed by U20)", () => {
   it("reads an order in a status the published schema does not list as itself, and knows it is unknown", () => {
     // A synthetic answer: no recording holds a status outside the published lists.
     const unknown = order.parse({ id: "4SJ22740VK065702B", status: "CREATED_LATER" });
@@ -281,13 +281,27 @@ describe("an order's id and status as pawhold reads and sends them (pinned)", ()
     expect(onlyAuthorization(order.parse(synthetic)).status).toBe("CREATED_LATER");
   });
 
-  it("puts an id into the path as it was given: a slash in one is a path separator", async () => {
-    await expect(getOrder(client(), "4SJ22740VK065702B/authorize")).rejects.toMatchObject({
-      status: 404,
-    });
+  it.each([
+    ["reads", (id: string) => getOrder(client(), id), "GET", ""],
+    ["authorises", (id: string) => authorizeOrder(client(), id, REQUEST_ID), "POST", "/authorize"],
+  ] as const)(
+    "%s an order by an id encoded into the path, as PayPal's SDK does: a slash or a query in one stays in the id",
+    async (_what, call, method, suffix) => {
+      // A synthetic id: every id PayPal has answered with is letters and digits.
+      await expect(call("4SJ22740VK065702B/authorize?x=1#y")).rejects.toMatchObject({
+        status: 404,
+      });
 
-    expect(paypal.requests.map((r) => `${r.method} ${r.path}`)).toContain(
-      "GET /v2/checkout/orders/4SJ22740VK065702B/authorize",
-    );
+      expect(paypal.requests.map((r) => `${r.method} ${r.path}`)).toContain(
+        `${method} /v2/checkout/orders/4SJ22740VK065702B%2Fauthorize%3Fx%3D1%23y${suffix}`,
+      );
+    },
+  );
+
+  it("sends an id PayPal answered with unchanged", async () => {
+    const id = recordedAnswer("P2", "POST", /\/authorize$/).path.split("/")[4]!;
+    await getOrder(client(), id).catch(() => undefined);
+
+    expect(paypal.requests.map((r) => r.path)).toContain(`/v2/checkout/orders/${id}`);
   });
 });

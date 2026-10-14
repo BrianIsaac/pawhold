@@ -276,7 +276,9 @@ export function approvalUrl(created: Order): string {
  * @returns The order.
  */
 export async function getOrder(client: PayPalClient, orderId: string): Promise<Order> {
-  return (await client.get(`/v2/checkout/orders/${orderId}`, { response: order })).body;
+  return (
+    await client.get(`/v2/checkout/orders/${encodeURIComponent(orderId)}`, { response: order })
+  ).body;
 }
 
 /**
@@ -292,7 +294,7 @@ export async function authorizeOrder(
   orderId: string,
   requestId: string,
 ): Promise<Order> {
-  const answer = await client.post(`/v2/checkout/orders/${orderId}/authorize`, {
+  const answer = await client.post(`/v2/checkout/orders/${encodeURIComponent(orderId)}/authorize`, {
     requestId,
     headers: REPRESENTATION,
     body: {},

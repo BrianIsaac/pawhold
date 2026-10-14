@@ -162,7 +162,7 @@ export async function getAuthorization(
   authorizationId: string,
 ): Promise<Authorization> {
   return (
-    await client.get(`/v2/payments/authorizations/${authorizationId}`, {
+    await client.get(`/v2/payments/authorizations/${encodeURIComponent(authorizationId)}`, {
       response: authorization,
     })
   ).body;
@@ -196,12 +196,15 @@ export async function captureAuthorization(
   if (request.amount) {
     body.amount = toPayPalAmount(request.amount);
   }
-  const answer = await client.post(`/v2/payments/authorizations/${authorizationId}/capture`, {
-    requestId: request.requestId,
-    headers: { ...REPRESENTATION, ...request.headers },
-    body,
-    response: capture,
-  });
+  const answer = await client.post(
+    `/v2/payments/authorizations/${encodeURIComponent(authorizationId)}/capture`,
+    {
+      requestId: request.requestId,
+      headers: { ...REPRESENTATION, ...request.headers },
+      body,
+      response: capture,
+    },
+  );
   return answer.body;
 }
 
@@ -221,11 +224,14 @@ export async function voidAuthorization(
   authorizationId: string,
   requestId: string,
 ): Promise<Authorization | null> {
-  const answer = await client.post(`/v2/payments/authorizations/${authorizationId}/void`, {
-    requestId,
-    headers: REPRESENTATION,
-    response: voided,
-  });
+  const answer = await client.post(
+    `/v2/payments/authorizations/${encodeURIComponent(authorizationId)}/void`,
+    {
+      requestId,
+      headers: REPRESENTATION,
+      response: voided,
+    },
+  );
   return answer.body;
 }
 
@@ -247,12 +253,15 @@ export async function reauthorizeAuthorization(
   requestId: string,
   amount?: Money,
 ): Promise<Authorization> {
-  const answer = await client.post(`/v2/payments/authorizations/${authorizationId}/reauthorize`, {
-    requestId,
-    headers: REPRESENTATION,
-    body: amount ? { amount: toPayPalAmount(amount) } : {},
-    response: authorization,
-  });
+  const answer = await client.post(
+    `/v2/payments/authorizations/${encodeURIComponent(authorizationId)}/reauthorize`,
+    {
+      requestId,
+      headers: REPRESENTATION,
+      body: amount ? { amount: toPayPalAmount(amount) } : {},
+      response: authorization,
+    },
+  );
   return answer.body;
 }
 
@@ -264,7 +273,11 @@ export async function reauthorizeAuthorization(
  * @returns The capture.
  */
 export async function getCapture(client: PayPalClient, captureId: string): Promise<Capture> {
-  return (await client.get(`/v2/payments/captures/${captureId}`, { response: capture })).body;
+  return (
+    await client.get(`/v2/payments/captures/${encodeURIComponent(captureId)}`, {
+      response: capture,
+    })
+  ).body;
 }
 
 /**
@@ -282,12 +295,15 @@ export async function refundCapture(
   requestId: string,
   amount?: Money,
 ): Promise<Refund> {
-  const answer = await client.post(`/v2/payments/captures/${captureId}/refund`, {
-    requestId,
-    headers: REPRESENTATION,
-    body: amount ? { amount: toPayPalAmount(amount) } : {},
-    response: refund,
-  });
+  const answer = await client.post(
+    `/v2/payments/captures/${encodeURIComponent(captureId)}/refund`,
+    {
+      requestId,
+      headers: REPRESENTATION,
+      body: amount ? { amount: toPayPalAmount(amount) } : {},
+      response: refund,
+    },
+  );
   return answer.body;
 }
 

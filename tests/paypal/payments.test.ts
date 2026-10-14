@@ -7,6 +7,8 @@ import {
   capture,
   captureAuthorization,
   captureStatus,
+  getAuthorization,
+  getCapture,
   isKnownStatus,
   moneyFromPayPal,
   parsePayPalTime,
@@ -159,6 +161,48 @@ describe("the Payments v2 answers read more strictly than PayPal's own SDK reads
     expect(read.seller_protection).toEqual(sent.seller_protection);
     expect(read.supplementary_data).toEqual(sent.supplementary_data);
   });
+});
+
+describe("an id in a Payments v2 path (U15's pin, fixed by U20)", () => {
+  // A synthetic id: every id PayPal has answered with is letters and digits.
+  const ID = "86E59591GJ353572T/void?x=1#y";
+  const ENCODED = "86E59591GJ353572T%2Fvoid%3Fx%3D1%23y";
+
+  it.each([
+    [
+      "reads an authorisation",
+      () => getAuthorization(client(), ID),
+      `GET /v2/payments/authorizations/${ENCODED}`,
+    ],
+    [
+      "captures",
+      () => captureAuthorization(client(), ID, { finalCapture: true, requestId: REQUEST_ID }),
+      `POST /v2/payments/authorizations/${ENCODED}/capture`,
+    ],
+    [
+      "voids",
+      () => voidAuthorization(client(), ID, REQUEST_ID),
+      `POST /v2/payments/authorizations/${ENCODED}/void`,
+    ],
+    [
+      "reauthorises",
+      () => reauthorizeAuthorization(client(), ID, REQUEST_ID),
+      `POST /v2/payments/authorizations/${ENCODED}/reauthorize`,
+    ],
+    ["reads a capture", () => getCapture(client(), ID), `GET /v2/payments/captures/${ENCODED}`],
+    [
+      "refunds",
+      () => refundCapture(client(), ID, REQUEST_ID),
+      `POST /v2/payments/captures/${ENCODED}/refund`,
+    ],
+  ] as const)(
+    "%s by an id encoded into the path, as PayPal's SDK does",
+    async (_what, call, sent) => {
+      await expect(call()).rejects.toMatchObject({ status: 404 });
+
+      expect(paypal.requests.map((r) => `${r.method} ${r.path}`)).toContain(sent);
+    },
+  );
 });
 
 describe("the Payments v2 requests", () => {
