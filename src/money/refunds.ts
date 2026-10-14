@@ -4,11 +4,24 @@ import { z } from "zod";
 import { appendAuditEvent } from "@/audit/writer";
 import { auditActor, capture, hold, refund } from "@/db/schema";
 import { type CurrencyCode, currencyCode } from "@/money/currency";
-import { parsePayPalTime, refundCapture, type Refund } from "@/paypal/payments";
+import {
+  isKnownStatus,
+  parsePayPalTime,
+  refundCapture,
+  type Refund,
+  refundStatus as paypalRefundStatus,
+} from "@/paypal/payments";
 import { isSeededPayPalId } from "@/paypal/seeded";
 
 import { askPayPal, MoneyError } from "./errors";
-import { asking, holdRequestId, type MoneyDependencies, parse, refusedEvent } from "./holds";
+import {
+  asking,
+  flagUnknownStatus,
+  holdRequestId,
+  type MoneyDependencies,
+  parse,
+  refusedEvent,
+} from "./holds";
 import { lockCase, moveCase, nextState } from "./state";
 
 const refundRequest = z.strictObject({
@@ -179,7 +192,25 @@ export async function refundCaptured(
     throw error;
   }
 
-  const status = answer.status.toLowerCase() as Lowercase<Refund["status"]>;
+  if (!isKnownStatus(paypalRefundStatus, answer.status)) {
+    throw await flagUnknownStatus(
+      deps.db,
+      {
+        practiceId,
+        caseId,
+        holdId: taken.holdId,
+        step: "refund",
+        paypal: {
+          orderId: taken.paypalOrderId,
+          authorizationId: taken.authorizationId,
+          captureId: taken.paypalCaptureId,
+          refundId: answer.id,
+        },
+      },
+      answer.status,
+    );
+  }
+  const status = answer.status.toLowerCase() as Lowercase<typeof answer.status>;
   const stored = await deps.db.transaction(async (tx) => {
     const kase = await lockCase(tx, practiceId, caseId);
     const [updated] = await tx

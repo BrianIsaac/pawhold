@@ -3,7 +3,7 @@ import { z } from "zod";
 import { currencyCode, type Money } from "@/money/currency";
 import { fromPayPalValue, toPayPalValue } from "@/money/paypal-value";
 
-import type { PayPalClient } from "./client";
+import { optionalField, type PayPalClient } from "./client";
 
 /*
  * The Payments v2 calls pawhold makes against an authorisation and its
@@ -29,12 +29,46 @@ export type PayPalAmount = z.infer<typeof paypalAmount>;
 export const paypalLink = z.looseObject({
   href: z.string(),
   rel: z.string(),
-  method: z.string().optional(),
+  method: optionalField(z.string()),
 });
 
-const statusDetails = z.looseObject({ reason: z.string() }).optional();
+const statusDetails = optionalField(z.looseObject({ reason: z.string() }));
 
-/** `authorization_status.status`, as the schema enumerates it. */
+/**
+ * A status PayPal answered with that its published schema does not list. It
+ * is read as itself, as PayPal's own SDK reads it (`stringEnum(X, true)`), so
+ * an answer PayPal gave still parses; the money layer flags the hold rather
+ * than act on a status it cannot know (`knownStatus` in `@/money/holds`).
+ */
+const unknownStatus = z.string().min(1).brand<"UnknownPayPalStatus">();
+
+export type UnknownStatus = z.infer<typeof unknownStatus>;
+
+/**
+ * A status field: one of the statuses the schema lists, else read as itself.
+ *
+ * @param listed - The statuses PayPal's published schema lists.
+ * @returns The field's schema.
+ */
+export function statusField<T extends z.ZodEnum>(listed: T) {
+  return z.union([listed, unknownStatus]);
+}
+
+/**
+ * Whether a status PayPal answered with is one its published schema lists.
+ *
+ * @param listed - The statuses the schema lists.
+ * @param status - The status as read.
+ * @returns True for a listed status, which then binds as its own type.
+ */
+export function isKnownStatus<T extends z.ZodEnum>(
+  listed: T,
+  status: z.output<T> | UnknownStatus,
+): status is z.output<T> {
+  return listed.safeParse(status).success;
+}
+
+/** `authorization_status.status`, as the schema enumerates it; others are read as themselves. */
 export const authorizationStatus = z.enum([
   "CREATED",
   "CAPTURED",
@@ -53,19 +87,19 @@ export type AuthorizationStatus = z.infer<typeof authorizationStatus>;
  */
 export const authorization = z.looseObject({
   id: z.string().min(1),
-  status: authorizationStatus,
+  status: statusField(authorizationStatus),
   status_details: statusDetails,
-  amount: paypalAmount.optional(),
-  custom_id: z.string().optional(),
-  expiration_time: z.string().optional(),
-  create_time: z.string().optional(),
-  update_time: z.string().optional(),
-  links: z.array(paypalLink).optional(),
+  amount: optionalField(paypalAmount),
+  custom_id: optionalField(z.string()),
+  expiration_time: optionalField(z.string()),
+  create_time: optionalField(z.string()),
+  update_time: optionalField(z.string()),
+  links: optionalField(z.array(paypalLink)),
 });
 
 export type Authorization = z.infer<typeof authorization>;
 
-/** `capture_status.status`, as the schema enumerates it. */
+/** `capture_status.status`, as the schema enumerates it; others are read as themselves. */
 export const captureStatus = z.enum([
   "COMPLETED",
   "DECLINED",
@@ -80,26 +114,26 @@ export type CaptureStatus = z.infer<typeof captureStatus>;
 /** A capture, as `capture` (with a representation) and `GET` return it. */
 export const capture = z.looseObject({
   id: z.string().min(1),
-  status: captureStatus,
+  status: statusField(captureStatus),
   status_details: statusDetails,
-  amount: paypalAmount.optional(),
-  final_capture: z.boolean().optional(),
-  custom_id: z.string().optional(),
-  seller_receivable_breakdown: z
-    .looseObject({
-      gross_amount: paypalAmount.optional(),
-      paypal_fee: paypalAmount.optional(),
-      net_amount: paypalAmount.optional(),
-    })
-    .optional(),
-  create_time: z.string().optional(),
-  update_time: z.string().optional(),
-  links: z.array(paypalLink).optional(),
+  amount: optionalField(paypalAmount),
+  final_capture: optionalField(z.boolean()),
+  custom_id: optionalField(z.string()),
+  seller_receivable_breakdown: optionalField(
+    z.looseObject({
+      gross_amount: optionalField(paypalAmount),
+      paypal_fee: optionalField(paypalAmount),
+      net_amount: optionalField(paypalAmount),
+    }),
+  ),
+  create_time: optionalField(z.string()),
+  update_time: optionalField(z.string()),
+  links: optionalField(z.array(paypalLink)),
 });
 
 export type Capture = z.infer<typeof capture>;
 
-/** `refund_status.status`, as the schema enumerates it. */
+/** `refund_status.status`, as the schema enumerates it; others are read as themselves. */
 export const refundStatus = z.enum(["CANCELLED", "FAILED", "PENDING", "COMPLETED"]);
 
 export type RefundStatus = z.infer<typeof refundStatus>;
@@ -107,11 +141,11 @@ export type RefundStatus = z.infer<typeof refundStatus>;
 /** A refund, as `refund` (with a representation) returns it. */
 export const refund = z.looseObject({
   id: z.string().min(1),
-  status: refundStatus,
-  amount: paypalAmount.optional(),
-  create_time: z.string().optional(),
-  update_time: z.string().optional(),
-  links: z.array(paypalLink).optional(),
+  status: statusField(refundStatus),
+  amount: optionalField(paypalAmount),
+  create_time: optionalField(z.string()),
+  update_time: optionalField(z.string()),
+  links: optionalField(z.array(paypalLink)),
 });
 
 export type Refund = z.infer<typeof refund>;
@@ -128,7 +162,7 @@ export async function getAuthorization(
   authorizationId: string,
 ): Promise<Authorization> {
   return (
-    await client.get(`/v2/payments/authorizations/${authorizationId}`, {
+    await client.get(`/v2/payments/authorizations/${encodeURIComponent(authorizationId)}`, {
       response: authorization,
     })
   ).body;
@@ -162,12 +196,15 @@ export async function captureAuthorization(
   if (request.amount) {
     body.amount = toPayPalAmount(request.amount);
   }
-  const answer = await client.post(`/v2/payments/authorizations/${authorizationId}/capture`, {
-    requestId: request.requestId,
-    headers: { ...REPRESENTATION, ...request.headers },
-    body,
-    response: capture,
-  });
+  const answer = await client.post(
+    `/v2/payments/authorizations/${encodeURIComponent(authorizationId)}/capture`,
+    {
+      requestId: request.requestId,
+      headers: { ...REPRESENTATION, ...request.headers },
+      body,
+      response: capture,
+    },
+  );
   return answer.body;
 }
 
@@ -187,11 +224,14 @@ export async function voidAuthorization(
   authorizationId: string,
   requestId: string,
 ): Promise<Authorization | null> {
-  const answer = await client.post(`/v2/payments/authorizations/${authorizationId}/void`, {
-    requestId,
-    headers: REPRESENTATION,
-    response: voided,
-  });
+  const answer = await client.post(
+    `/v2/payments/authorizations/${encodeURIComponent(authorizationId)}/void`,
+    {
+      requestId,
+      headers: REPRESENTATION,
+      response: voided,
+    },
+  );
   return answer.body;
 }
 
@@ -213,12 +253,15 @@ export async function reauthorizeAuthorization(
   requestId: string,
   amount?: Money,
 ): Promise<Authorization> {
-  const answer = await client.post(`/v2/payments/authorizations/${authorizationId}/reauthorize`, {
-    requestId,
-    headers: REPRESENTATION,
-    body: amount ? { amount: toPayPalAmount(amount) } : {},
-    response: authorization,
-  });
+  const answer = await client.post(
+    `/v2/payments/authorizations/${encodeURIComponent(authorizationId)}/reauthorize`,
+    {
+      requestId,
+      headers: REPRESENTATION,
+      body: amount ? { amount: toPayPalAmount(amount) } : {},
+      response: authorization,
+    },
+  );
   return answer.body;
 }
 
@@ -230,7 +273,11 @@ export async function reauthorizeAuthorization(
  * @returns The capture.
  */
 export async function getCapture(client: PayPalClient, captureId: string): Promise<Capture> {
-  return (await client.get(`/v2/payments/captures/${captureId}`, { response: capture })).body;
+  return (
+    await client.get(`/v2/payments/captures/${encodeURIComponent(captureId)}`, {
+      response: capture,
+    })
+  ).body;
 }
 
 /**
@@ -248,12 +295,15 @@ export async function refundCapture(
   requestId: string,
   amount?: Money,
 ): Promise<Refund> {
-  const answer = await client.post(`/v2/payments/captures/${captureId}/refund`, {
-    requestId,
-    headers: REPRESENTATION,
-    body: amount ? { amount: toPayPalAmount(amount) } : {},
-    response: refund,
-  });
+  const answer = await client.post(
+    `/v2/payments/captures/${encodeURIComponent(captureId)}/refund`,
+    {
+      requestId,
+      headers: REPRESENTATION,
+      body: amount ? { amount: toPayPalAmount(amount) } : {},
+      response: refund,
+    },
+  );
   return answer.body;
 }
 

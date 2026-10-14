@@ -274,6 +274,41 @@ describe("discharge of a two-hold case (plan 3.2; U7's acceptance as U3 can hold
     expect(await db.select().from(capture).where(eq(capture.holdId, first.id))).toHaveLength(1);
   });
 
+  it("flags the hold when PayPal answers its capture in a status it does not list, and records no capture", async () => {
+    // A synthetic answer: P2's recorded capture in a status outside PayPal's published list.
+    paypal.inject({
+      method: "POST",
+      path: /\/capture$/,
+      status: 201,
+      body: {
+        ...(recordedAnswer("P2", "POST", /\/capture$/).responseBody as object),
+        id: "2GG27936SYNTHCAP1",
+        status: "COMPLETED_LATER",
+      },
+      acts: true,
+    });
+    const before = (await eventsSince()).at(-1)!.id;
+
+    const stopped = await refusal(
+      discharge(deps(), { ...fixture, actor: "vet", lines: [done(update, "GA-DENT")] }),
+    );
+
+    expect(stopped.reason).toBe("paypal_unavailable");
+    expect(stopped.message).toContain("COMPLETED_LATER");
+    expect(await db.select().from(capture).where(eq(capture.holdId, first.id))).toHaveLength(0);
+    expect((await caseMoney(db, fixture.practiceId, fixture.caseId)).state).toBe("held");
+    const flagged = (await eventsSince(before)).filter(
+      (event) => event.action === "hold.paypal_status_unknown",
+    );
+    expect(flagged).toHaveLength(1);
+    expect(flagged[0]).toMatchObject({
+      actor: "system",
+      paypalAuthorizationId: expect.any(String),
+      paypalCaptureId: "2GG27936SYNTHCAP1",
+      detail: { holdId: first.id, step: "capture", status: "COMPLETED_LATER" },
+    });
+  });
+
   it("records an expired hold, leaves its share unpaid, and still closes the others", async () => {
     paypal.inject({
       method: "POST",
@@ -510,6 +545,45 @@ describe("refunded (plan 3.2: captured --goodwill or correction--> refunded, par
     expect(refused.reason).toBe("refund_refused");
     expect(paypal.posts(/\/refund$/)).toHaveLength(0);
     expect(await db.select().from(refund).where(eq(refund.captureId, capturedId))).toHaveLength(0);
+  });
+
+  it("flags the hold when PayPal answers a refund in a status it does not list, and leaves the refund asked", async () => {
+    // A synthetic answer: no recording holds a refund, nor a status outside PayPal's published list.
+    paypal.inject({
+      method: "POST",
+      path: /\/refund$/,
+      status: 201,
+      body: { id: "1JU08902SYNTHREF1", status: "COMPLETED_LATER", links: [] },
+      acts: true,
+    });
+    const before = (await eventsSince()).at(-1)!.id;
+
+    const stopped = await refusal(
+      refundCaptured(deps(), {
+        ...fixture,
+        captureId: capturedId,
+        amountPence: 2_000,
+        reason: "goodwill",
+        actor: "vet",
+      }),
+    );
+
+    expect(stopped.reason).toBe("paypal_unavailable");
+    expect(stopped.message).toContain("COMPLETED_LATER");
+    const [asked] = await db.select().from(refund).where(eq(refund.captureId, capturedId));
+    expect(asked).toMatchObject({ status: "requested", paypalRefundId: null });
+    const [taken] = await db.select().from(capture).where(eq(capture.id, capturedId));
+    expect(taken!.status).toBe("completed");
+    const flagged = (await eventsSince(before)).filter(
+      (event) => event.action === "hold.paypal_status_unknown",
+    );
+    expect(flagged).toHaveLength(1);
+    expect(flagged[0]).toMatchObject({
+      actor: "system",
+      paypalCaptureId: taken!.paypalCaptureId,
+      paypalRefundId: "1JU08902SYNTHREF1",
+      detail: { holdId: taken!.holdId, step: "refund", status: "COMPLETED_LATER" },
+    });
   });
 
   it("resumes a refund whose answer was lost with the same request id and the same amount", async () => {

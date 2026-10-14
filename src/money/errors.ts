@@ -53,15 +53,18 @@ export class MoneyError extends Error {
 }
 
 /**
- * PayPal's answers that mean "not now" rather than "no": 409 for a request
- * with the same `PayPal-Request-Id` still in progress, 429 for too many.
+ * PayPal's answers that mean "not now" rather than "no": 408 for a request
+ * that timed out on PayPal's side (on PayPal's SDK's list of statuses worth
+ * asking again, and as the webhook certificate fetch already reads it), 409
+ * for a request with the same `PayPal-Request-Id` still in progress, 429 for
+ * too many.
  */
-const RETRYABLE: ReadonlySet<number> = new Set([409, 429]);
+const RETRYABLE: ReadonlySet<number> = new Set([408, 409, 429]);
 
 /**
  * Makes one call to PayPal, turning its failures into a refusal: a PayPal
  * answer of 4xx is `paypal_refused` with its `debug_id` and issues; no
- * answer, a 409, a 429, a 5xx or an answer of the wrong shape is
+ * answer, a 408, a 409, a 429, a 5xx or an answer of the wrong shape is
  * `paypal_unavailable`, and
  * the caller may retry, since every POST carries the same `PayPal-Request-Id`
  * and so acts at most once.

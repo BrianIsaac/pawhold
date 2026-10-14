@@ -3,14 +3,20 @@ import { describe, expect, it } from "vitest";
 import { createPayPalClient, PayPalError } from "@/paypal/client";
 import {
   authorization,
+  authorizationStatus,
   capture,
   captureAuthorization,
+  captureStatus,
+  getAuthorization,
+  getCapture,
+  isKnownStatus,
   moneyFromPayPal,
   parsePayPalTime,
   pence,
   reauthorizeAuthorization,
   refund,
   refundCapture,
+  refundStatus,
   voidAuthorization,
 } from "@/paypal/payments";
 
@@ -103,7 +109,7 @@ describe("the Payments v2 answers, as the sandbox gave them (U0's recordings)", 
   });
 });
 
-describe("the Payments v2 answers read more strictly than PayPal's own SDK reads them (pinned)", () => {
+describe("the Payments v2 answers as PayPal's own SDK reads them (U15's pins, fixed by U20)", () => {
   const recorded = () =>
     recordedAnswer("P2", "GET", /^\/v2\/payments\/authorizations\/[^/]+$/).responseBody as Record<
       string,
@@ -111,23 +117,88 @@ describe("the Payments v2 answers read more strictly than PayPal's own SDK reads
     >;
 
   it.each([
+    ["an authorisation", authorization, authorizationStatus],
+    ["a capture", capture, captureStatus],
+    ["a refund", refund, refundStatus],
+  ] as const)(
+    "reads %s in a status the published schema does not list as itself, and knows it is unknown",
+    (_what, schema, listed) => {
+      // A synthetic answer: no recording holds a status outside the published lists.
+      const unknown = schema.parse({ id: "91T13242G72341823", status: "PENDING_LATER" });
+      const known = schema.parse({ id: "91T13242G72341823", status: "PENDING" });
+
+      expect(unknown.status).toBe("PENDING_LATER");
+      expect(isKnownStatus(listed, unknown.status)).toBe(false);
+      expect(known.status).toBe("PENDING");
+      expect(isKnownStatus(listed, known.status)).toBe(true);
+    },
+  );
+
+  it.each([
     ["an authorisation", authorization],
     ["a capture", capture],
     ["a refund", refund],
-  ])("refuses %s in a status the published schema does not list", (_what, schema) => {
-    expect(schema.safeParse({ id: "91T13242G72341823", status: "PENDING" }).success).toBe(true);
-    expect(schema.safeParse({ id: "91T13242G72341823", status: "PENDING_LATER" }).success).toBe(
-      false,
-    );
+  ])("still refuses %s with an empty status, or none", (_what, schema) => {
+    expect(schema.safeParse({ id: "91T13242G72341823", status: "" }).success).toBe(false);
+    expect(schema.safeParse({ id: "91T13242G72341823", status: 7 }).success).toBe(false);
+    expect(schema.safeParse({ id: "91T13242G72341823" }).success).toBe(false);
   });
 
-  it.each(["status_details", "amount", "expiration_time", "links"])(
-    "refuses an explicit null for %s, which may be absent",
+  it.each([
+    "status_details",
+    "amount",
+    "custom_id",
+    "expiration_time",
+    "create_time",
+    "update_time",
+    "links",
+  ])(
+    "reads an explicit null for an authorisation's %s as absent, as the SDK's optional() does",
     (field) => {
-      expect(authorization.safeParse(recorded()).success).toBe(true);
-      expect(authorization.safeParse({ ...recorded(), [field]: null }).success).toBe(false);
+      // A synthetic answer: no recorded exchange carries a null.
+      const read = authorization.parse({ ...recorded(), [field]: null }) as Record<string, unknown>;
+
+      expect(field in read ? read[field] : undefined).toBeUndefined();
+      expect(read.id).toBe(recorded().id);
     },
   );
+
+  it("reads an explicit null as absent inside a capture, a refund and a link", () => {
+    const captured = recordedAnswer("P2", "POST", /\/capture$/).responseBody as Record<
+      string,
+      unknown
+    >;
+
+    const read = capture.parse({
+      ...captured,
+      final_capture: null,
+      seller_receivable_breakdown: { gross_amount: null, paypal_fee: null, net_amount: null },
+      links: [
+        {
+          href: "https://api.sandbox.paypal.com/v2/payments/captures/1",
+          rel: "self",
+          method: null,
+        },
+      ],
+    });
+    const refunded = refund.parse({
+      id: "1JU08902",
+      status: "COMPLETED",
+      amount: null,
+      create_time: null,
+    });
+
+    expect(read.final_capture).toBeUndefined();
+    expect(read.seller_receivable_breakdown).toEqual({});
+    expect(pence(read.seller_receivable_breakdown?.paypal_fee)).toBeNull();
+    expect(read.links?.[0]?.method).toBeUndefined();
+    expect(refunded.amount).toBeUndefined();
+    expect(refunded.create_time).toBeUndefined();
+  });
+
+  it.each(["id", "status"])("still refuses a null %s, which is required", (field) => {
+    expect(authorization.safeParse({ ...recorded(), [field]: null }).success).toBe(false);
+  });
 
   it("keeps the fields it does not name, as the sandbox sent them", () => {
     const sent = recorded();
@@ -138,6 +209,48 @@ describe("the Payments v2 answers read more strictly than PayPal's own SDK reads
     expect(read.seller_protection).toEqual(sent.seller_protection);
     expect(read.supplementary_data).toEqual(sent.supplementary_data);
   });
+});
+
+describe("an id in a Payments v2 path (U15's pin, fixed by U20)", () => {
+  // A synthetic id: every id PayPal has answered with is letters and digits.
+  const ID = "86E59591GJ353572T/void?x=1#y";
+  const ENCODED = "86E59591GJ353572T%2Fvoid%3Fx%3D1%23y";
+
+  it.each([
+    [
+      "reads an authorisation",
+      () => getAuthorization(client(), ID),
+      `GET /v2/payments/authorizations/${ENCODED}`,
+    ],
+    [
+      "captures",
+      () => captureAuthorization(client(), ID, { finalCapture: true, requestId: REQUEST_ID }),
+      `POST /v2/payments/authorizations/${ENCODED}/capture`,
+    ],
+    [
+      "voids",
+      () => voidAuthorization(client(), ID, REQUEST_ID),
+      `POST /v2/payments/authorizations/${ENCODED}/void`,
+    ],
+    [
+      "reauthorises",
+      () => reauthorizeAuthorization(client(), ID, REQUEST_ID),
+      `POST /v2/payments/authorizations/${ENCODED}/reauthorize`,
+    ],
+    ["reads a capture", () => getCapture(client(), ID), `GET /v2/payments/captures/${ENCODED}`],
+    [
+      "refunds",
+      () => refundCapture(client(), ID, REQUEST_ID),
+      `POST /v2/payments/captures/${ENCODED}/refund`,
+    ],
+  ] as const)(
+    "%s by an id encoded into the path, as PayPal's SDK does",
+    async (_what, call, sent) => {
+      await expect(call()).rejects.toMatchObject({ status: 404 });
+
+      expect(paypal.requests.map((r) => `${r.method} ${r.path}`)).toContain(sent);
+    },
+  );
 });
 
 describe("the Payments v2 requests", () => {

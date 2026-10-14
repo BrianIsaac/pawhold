@@ -335,6 +335,21 @@ describe("the timeline's words for a judge (U11)", () => {
     expect(sent.what).toBe("sent the estimate to Ellis: £95.00, a hold of £95.00");
   });
 
+  it("says a hold is flagged when PayPal answered in a status pawhold does not know (U20)", async () => {
+    const flagged = describeEvent(
+      await eventLike({
+        action: "hold.paypal_status_unknown",
+        actor: "system",
+        detail: { holdId: "hold-1", step: "capture", status: "COMPLETED_LATER" },
+      }),
+      context,
+    );
+
+    expect(`${flagged.who}: ${flagged.what}`).toBe(
+      "pawhold: flagged the hold: PayPal answered the capture with COMPLETED_LATER, a status pawhold does not know; check the hold in PayPal",
+    );
+  });
+
   it("names the vet who confirmed the bill as who captured and released at discharge", async () => {
     const captured = await eventLike({
       action: "hold.captured",

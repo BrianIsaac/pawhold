@@ -546,6 +546,19 @@ describe("the token cache when a token cannot be had (pinned against what the SD
     ]);
   });
 
+  it("reads an explicit null on the token's optional fields as absent", async () => {
+    // A synthetic answer: the recorder never kept a token body.
+    paypal.on("POST /v1/oauth2/token", {
+      status: 200,
+      body: { ...TOKEN, scope: null, app_id: null, nonce: null },
+    });
+    paypal.on(`GET ${AUTHORIZATION_PATH}`, { status: 200, body: AUTHORIZATION });
+
+    const answer = await client().get(AUTHORIZATION_PATH, { response: authorization });
+
+    expect(answer.body).toEqual(AUTHORIZATION);
+  });
+
   it("refuses a token that names no lifetime, and sends nothing with it", async () => {
     paypal.on("POST /v1/oauth2/token", { status: 200, body: { ...TOKEN, expires_in: undefined } });
     paypal.on(`GET ${AUTHORIZATION_PATH}`, { status: 200, body: AUTHORIZATION });
@@ -557,7 +570,7 @@ describe("the token cache when a token cannot be had (pinned against what the SD
   });
 });
 
-describe("the client's waiting and asking again (pinned: its own timeout, no retry of its own)", () => {
+describe("the client's waiting and asking again (one deadline per call, by U20; no retry of its own)", () => {
   /**
    * An answer that comes after a delay, or fails as fetch does when the
    * request's signal aborts first.
@@ -595,21 +608,127 @@ describe("the client's waiting and asking again (pinned: its own timeout, no ret
     expect(sent).toEqual(["POST /v1/oauth2/token", `GET ${AUTHORIZATION_PATH}`]);
   });
 
-  it("bounds each request, not the call: a slow token and a slow answer together outlast it", async () => {
-    const timeoutMs = 300;
-    const { client: paypalClient } = stubbed(
+  it("bounds the call, not each request: a slow token and a slow answer together are no answer", async () => {
+    const { client: paypalClient, sent } = stubbed(
       {
         "/v1/oauth2/token": after(200, TOKEN),
         [AUTHORIZATION_PATH]: after(200, AUTHORIZATION),
       },
-      timeoutMs,
+      300,
     );
-    const startedAt = performance.now();
 
+    const error = await paypalClient
+      .get(AUTHORIZATION_PATH, { response: authorization })
+      .catch((caught: unknown) => caught);
+
+    expect(error).toBeInstanceOf(PayPalTransportError);
+    expect(error).toMatchObject({ method: "GET", path: AUTHORIZATION_PATH });
+    expect((error as Error).cause).toMatchObject({ name: "TimeoutError" });
+    expect(sent).toEqual(["POST /v1/oauth2/token", `GET ${AUTHORIZATION_PATH}`]);
+  });
+
+  it("bounds the refresh after a 401 inside the same deadline", async () => {
+    let asked = 0;
+    const { client: paypalClient, sent } = stubbed(
+      {
+        "/v1/oauth2/token": after(80, TOKEN),
+        [AUTHORIZATION_PATH]: (signal) => {
+          asked += 1;
+          return asked === 1
+            ? Promise.resolve(Response.json({ error: "invalid_token" }, { status: 401 }))
+            : after(250, AUTHORIZATION)(signal);
+        },
+      },
+      300,
+    );
+
+    const error = await paypalClient
+      .get(AUTHORIZATION_PATH, { response: authorization })
+      .catch((caught: unknown) => caught);
+
+    expect(error).toBeInstanceOf(PayPalTransportError);
+    expect((error as Error).cause).toMatchObject({ name: "TimeoutError" });
+    expect(sent).toEqual([
+      "POST /v1/oauth2/token",
+      `GET ${AUTHORIZATION_PATH}`,
+      "POST /v1/oauth2/token",
+      `GET ${AUTHORIZATION_PATH}`,
+    ]);
+  });
+
+  it("gives up waiting on a token past its own deadline, as no answer from the token endpoint", async () => {
+    const { client: paypalClient } = stubbed(
+      {
+        "/v1/oauth2/token": after(60_000, TOKEN),
+        [AUTHORIZATION_PATH]: () => Response.json(AUTHORIZATION),
+      },
+      50,
+    );
+
+    const error = await paypalClient
+      .get(AUTHORIZATION_PATH, { response: authorization })
+      .catch((caught: unknown) => caught);
+
+    expect(error).toBeInstanceOf(PayPalTransportError);
+    expect(error).toMatchObject({ method: "POST", path: "/v1/oauth2/token" });
+  });
+
+  it("keeps a refreshed token that arrives after the call that asked for it gave up", async () => {
+    let tokens = 0;
+    let asked = 0;
+    const { client: paypalClient, sent } = stubbed(
+      {
+        "/v1/oauth2/token": (signal) => {
+          tokens += 1;
+          return tokens === 1 ? Response.json(TOKEN) : after(150, TOKEN)(signal);
+        },
+        [AUTHORIZATION_PATH]: (signal) => {
+          asked += 1;
+          return asked === 1
+            ? after(100, { error: "invalid_token" })(signal).then(
+                (answer) => new Response(answer.body, { status: 401 }),
+              )
+            : Response.json(AUTHORIZATION);
+        },
+      },
+      200,
+    );
+
+    // The deadline passes at 200 ms while the refreshed token, asked at 100 ms, is on the way.
+    const gaveUp = await paypalClient
+      .get(AUTHORIZATION_PATH, { response: authorization })
+      .catch((caught: unknown) => caught);
+    await new Promise((resolve) => setTimeout(resolve, 150));
     const answer = await paypalClient.get(AUTHORIZATION_PATH, { response: authorization });
 
+    expect(gaveUp).toMatchObject({ name: "PayPalTransportError", path: "/v1/oauth2/token" });
     expect(answer.body).toEqual(AUTHORIZATION);
-    expect(performance.now() - startedAt).toBeGreaterThan(timeoutMs);
+    expect(sent).toEqual([
+      "POST /v1/oauth2/token",
+      `GET ${AUTHORIZATION_PATH}`,
+      "POST /v1/oauth2/token",
+      `GET ${AUTHORIZATION_PATH}`,
+    ]);
+  });
+
+  it("leaves a token another call is waiting on to that call when its own deadline passes", async () => {
+    const { client: paypalClient, sent } = stubbed(
+      {
+        "/v1/oauth2/token": after(500, TOKEN),
+        [AUTHORIZATION_PATH]: after(200, AUTHORIZATION),
+      },
+      600,
+    );
+
+    const first = paypalClient
+      .get(AUTHORIZATION_PATH, { response: authorization })
+      .catch((caught: unknown) => caught);
+    await new Promise((resolve) => setTimeout(resolve, 200));
+    const second = await paypalClient.get(AUTHORIZATION_PATH, { response: authorization });
+
+    expect(await first).toBeInstanceOf(PayPalTransportError);
+    expect(second.body).toEqual(AUTHORIZATION);
+    expect(sent.filter((one) => one === "POST /v1/oauth2/token")).toHaveLength(1);
   });
 
   it.each(["GET", "POST"] as const)(
@@ -652,28 +771,86 @@ describe("the client's waiting and asking again (pinned: its own timeout, no ret
   });
 });
 
-describe("an error body PayPal's documents do not describe (pinned)", () => {
-  it("is read whole or not at all: one detail without an issue leaves only the status", async () => {
+describe("an error body with a malformed part (U15's pin, fixed by U20)", () => {
+  /**
+   * PayPal's error for a capture that answers with the given body.
+   *
+   * @param body - The 422's body; synthetic, since no recording holds a malformed one.
+   * @returns The error the client threw.
+   */
+  const refusedWith = async (body: unknown): Promise<PayPalError> => {
     paypal.on("POST /v1/oauth2/token", { status: 200, body: TOKEN });
-    paypal.on(`POST ${AUTHORIZATION_PATH}/capture`, {
-      status: 422,
-      body: {
-        name: "UNPROCESSABLE_ENTITY",
-        debug_id: "whole422",
-        details: [{ issue: "AUTHORIZATION_EXPIRED" }, { description: "a detail with no issue" }],
-      },
-    });
-
-    const error = (await client()
+    paypal.on(`POST ${AUTHORIZATION_PATH}/capture`, { status: 422, body });
+    const error = await client()
       .post(`${AUTHORIZATION_PATH}/capture`, {
         requestId: "8f0f8a3e-0000-8000-8000-000000000009",
         body: {},
         response: authorization,
       })
-      .catch((caught: unknown) => caught)) as PayPalError;
-
+      .catch((caught: unknown) => caught);
     expect(error).toBeInstanceOf(PayPalError);
-    expect(error).toMatchObject({ status: 422, name: "HTTP_422", debugId: null, details: [] });
-    expect(error.hasIssue("AUTHORIZATION_EXPIRED")).toBe(false);
+    return error as PayPalError;
+  };
+
+  it("keeps the name, the debug id and every well-formed detail when one detail has no issue", async () => {
+    const error = await refusedWith({
+      name: "UNPROCESSABLE_ENTITY",
+      message: "The requested action could not be performed.",
+      debug_id: "whole422",
+      details: [{ issue: "AUTHORIZATION_EXPIRED" }, { description: "a detail with no issue" }],
+    });
+
+    expect(error).toMatchObject({
+      status: 422,
+      name: "UNPROCESSABLE_ENTITY",
+      message: "The requested action could not be performed.",
+      debugId: "whole422",
+      details: [{ issue: "AUTHORIZATION_EXPIRED" }],
+    });
+    expect(error.hasIssue("AUTHORIZATION_EXPIRED")).toBe(true);
+  });
+
+  it("drops a malformed link, message or debug id and keeps the rest", async () => {
+    const error = await refusedWith({
+      name: "UNPROCESSABLE_ENTITY",
+      message: 422,
+      debug_id: { id: "not-a-string" },
+      details: [
+        { issue: "AUTHORIZATION_EXPIRED", field: 7 },
+        "not-a-detail",
+        { issue: "DUPLICATE" },
+      ],
+      links: [
+        {
+          href: "https://developer.paypal.com/docs/api/payments/v2/#error-AUTHORIZATION_EXPIRED",
+          rel: "information_link",
+        },
+        { rel: "no-href" },
+      ],
+    });
+
+    expect(error).toMatchObject({
+      name: "UNPROCESSABLE_ENTITY",
+      message: "UNPROCESSABLE_ENTITY",
+      debugId: null,
+      details: [{ issue: "DUPLICATE" }],
+      links: [{ rel: "information_link" }],
+    });
+  });
+
+  it("keeps the name and debug id when the details are not a list", async () => {
+    const error = await refusedWith({
+      name: "UNPROCESSABLE_ENTITY",
+      debug_id: "list422",
+      details: { issue: "AUTHORIZATION_EXPIRED" },
+    });
+
+    expect(error).toMatchObject({ name: "UNPROCESSABLE_ENTITY", debugId: "list422", details: [] });
+  });
+
+  it("still reads a body with no name as no body PayPal documents", async () => {
+    const error = await refusedWith({ debug_id: "noname422", details: [{ issue: "DUPLICATE" }] });
+
+    expect(error).toMatchObject({ name: "HTTP_422", details: [] });
   });
 });

@@ -9,8 +9,10 @@ import {
   onlyAuthorization,
   order,
   OrderRequestError,
+  orderStatus,
   paymentKindOf,
 } from "@/paypal/orders";
+import { isKnownStatus } from "@/paypal/payments";
 
 import { paypalFixture } from "../support/fixtures";
 import { startMockPayPal } from "../support/mock-paypal";
@@ -245,21 +247,80 @@ describe("an order to authorise", () => {
   });
 });
 
-describe("an order's id and status as pawhold reads and sends them (pinned)", () => {
-  it("refuses an order in a status the published schema does not list", () => {
-    expect(order.safeParse({ id: "4SJ22740VK065702B", status: "CREATED" }).success).toBe(true);
-    expect(order.safeParse({ id: "4SJ22740VK065702B", status: "CREATED_LATER" }).success).toBe(
-      false,
-    );
+describe("an order's id and status as pawhold reads and sends them (U15's pins, fixed by U20)", () => {
+  it("reads an order in a status the published schema does not list as itself, and knows it is unknown", () => {
+    // A synthetic answer: no recording holds a status outside the published lists.
+    const unknown = order.parse({ id: "4SJ22740VK065702B", status: "CREATED_LATER" });
+    const known = order.parse({ id: "4SJ22740VK065702B", status: "CREATED" });
+
+    expect(unknown.status).toBe("CREATED_LATER");
+    expect(isKnownStatus(orderStatus, unknown.status)).toBe(false);
+    expect(known.status).toBe("CREATED");
+    expect(isKnownStatus(orderStatus, known.status)).toBe(true);
+    expect(order.safeParse({ id: "4SJ22740VK065702B", status: "" }).success).toBe(false);
   });
 
-  it("puts an id into the path as it was given: a slash in one is a path separator", async () => {
-    await expect(getOrder(client(), "4SJ22740VK065702B/authorize")).rejects.toMatchObject({
-      status: 404,
+  it("reads the authorisation inside an order in an unknown status as itself", () => {
+    const authorised = recordedAnswer("P2", "POST", /\/authorize$/).responseBody as {
+      purchase_units: { payments: { authorizations: Record<string, unknown>[] } }[];
+    };
+    const unit = authorised.purchase_units[0]!;
+    const synthetic = {
+      ...authorised,
+      purchase_units: [
+        {
+          ...unit,
+          payments: {
+            ...unit.payments,
+            authorizations: [{ ...unit.payments.authorizations[0], status: "CREATED_LATER" }],
+          },
+        },
+      ],
+    };
+
+    expect(onlyAuthorization(order.parse(synthetic)).status).toBe("CREATED_LATER");
+  });
+
+  it("reads an explicit null on an order's optional fields as absent, as the SDK's optional() does", () => {
+    // A synthetic answer: no recorded exchange carries a null.
+    const read = order.parse({
+      id: "4SJ22740VK065702B",
+      status: "COMPLETED",
+      links: null,
+      payment_source: { paypal: null, card: { brand: "VISA", type: null, last_digits: "1111" } },
+      purchase_units: [{ reference_id: null, custom_id: "hold-1", payments: null }],
     });
 
-    expect(paypal.requests.map((r) => `${r.method} ${r.path}`)).toContain(
-      "GET /v2/checkout/orders/4SJ22740VK065702B/authorize",
-    );
+    expect(read.links).toBeUndefined();
+    expect(read.payment_source?.paypal).toBeUndefined();
+    expect(read.payment_source?.card).toMatchObject({ brand: "VISA", last_digits: "1111" });
+    expect(read.payment_source?.card?.type).toBeUndefined();
+    expect(paymentKindOf(read)).toBe("card");
+    expect(read.purchase_units?.[0]?.payments).toBeUndefined();
+    expect(order.safeParse({ id: "4SJ22740VK065702B", status: null }).success).toBe(false);
+  });
+
+  it.each([
+    ["reads", (id: string) => getOrder(client(), id), "GET", ""],
+    ["authorises", (id: string) => authorizeOrder(client(), id, REQUEST_ID), "POST", "/authorize"],
+  ] as const)(
+    "%s an order by an id encoded into the path, as PayPal's SDK does: a slash or a query in one stays in the id",
+    async (_what, call, method, suffix) => {
+      // A synthetic id: every id PayPal has answered with is letters and digits.
+      await expect(call("4SJ22740VK065702B/authorize?x=1#y")).rejects.toMatchObject({
+        status: 404,
+      });
+
+      expect(paypal.requests.map((r) => `${r.method} ${r.path}`)).toContain(
+        `${method} /v2/checkout/orders/4SJ22740VK065702B%2Fauthorize%3Fx%3D1%23y${suffix}`,
+      );
+    },
+  );
+
+  it("sends an id PayPal answered with unchanged", async () => {
+    const id = recordedAnswer("P2", "POST", /\/authorize$/).path.split("/")[4]!;
+    await getOrder(client(), id).catch(() => undefined);
+
+    expect(paypal.requests.map((r) => r.path)).toContain(`/v2/checkout/orders/${id}`);
   });
 });

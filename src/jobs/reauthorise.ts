@@ -4,11 +4,16 @@ import { appendAuditEvent } from "@/audit/writer";
 import type { Database, Transaction } from "@/db/client";
 import { bill, hold } from "@/db/schema";
 import { askPayPal, MoneyError } from "@/money/errors";
-import { holdRequestId } from "@/money/holds";
+import { flagUnknownStatus, holdRequestId } from "@/money/holds";
 import { lockCase } from "@/money/state";
 import { currencyCode } from "@/money/currency";
 import type { PayPalClient } from "@/paypal/client";
-import { parsePayPalTime, reauthorizeAuthorization } from "@/paypal/payments";
+import {
+  authorizationStatus,
+  isKnownStatus,
+  parsePayPalTime,
+  reauthorizeAuthorization,
+} from "@/paypal/payments";
 import { isSeededPayPalId } from "@/paypal/seeded";
 
 /** PayPal's honour period: "the first 3 days of an authorization" (/payment-methods/auth-honor). */
@@ -248,6 +253,24 @@ async function reauthorise(
     return { outcome: "refused", row: refused! };
   }
 
+  if (!isKnownStatus(authorizationStatus, renewed.status)) {
+    const flagged = await flagUnknownStatus(
+      tx,
+      {
+        practiceId: row.practiceId,
+        caseId: row.caseId,
+        holdId: row.id,
+        step: "reauthorisation",
+        paypal: { orderId: row.paypalOrderId, authorizationId: renewed.id },
+      },
+      renewed.status,
+    );
+    console.error("pawhold: reauthorisation answered in a status pawhold does not know", {
+      holdId: row.id,
+      error: flagged.message,
+    });
+    return { outcome: "failed", row };
+  }
   if (renewed.status !== "CREATED") {
     console.error("pawhold: reauthorisation answered without holding", {
       holdId: row.id,

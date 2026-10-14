@@ -10,8 +10,9 @@ import { holdTitle } from "./wording";
 
 /**
  * How long a discharge with a hold still open may go without a step landing
- * before the page offers to resume it: longer than one PayPal call may take (the client waits
- * 20 s), far shorter than the hourly job's ten minutes.
+ * before the page offers to resume it: longer than one PayPal call may take (the client bounds
+ * a call at 20 s, its token fetch and refresh included), far shorter than the hourly job's ten
+ * minutes.
  */
 export const STALL_AFTER_MS = 45_000;
 

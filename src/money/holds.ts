@@ -19,7 +19,13 @@ import {
   type OrderItem,
   paymentKindOf,
 } from "@/paypal/orders";
-import { parsePayPalTime, voidAuthorization } from "@/paypal/payments";
+import {
+  authorizationStatus,
+  isKnownStatus,
+  parsePayPalTime,
+  type UnknownStatus,
+  voidAuthorization,
+} from "@/paypal/payments";
 import { paypalRequestId } from "@/paypal/request-id";
 
 import { askPayPal, MoneyError } from "./errors";
@@ -361,7 +367,13 @@ export async function authoriseHold(
         ),
       ),
   );
-  const authorisation = readAuthorisation(authorised);
+  const authorisation = await readAuthorisation(deps.db, authorised, {
+    practiceId,
+    caseId,
+    holdId,
+    step: "authorisation",
+    paypal: { orderId: found.paypalOrderId },
+  });
 
   const outcome = await deps.db.transaction(async (tx) => {
     const kase = await lockCase(tx, practiceId, caseId);
@@ -463,11 +475,17 @@ interface ReadAuthorisation {
 /**
  * Reads the authorisation from PayPal's answer to an authorise.
  *
+ * @param db - The pool, for the flag of a status pawhold does not know.
  * @param authorised - The order as `authorize` answered it.
+ * @param flag - The hold and the step, should the status need flagging.
  * @returns The authorisation.
- * @throws MoneyError when PayPal did not hold the money (an authorisation not `CREATED`) or the answer lacks what a hold records.
+ * @throws MoneyError when PayPal did not hold the money (an authorisation not `CREATED`), answered in a status pawhold does not know, or the answer lacks what a hold records.
  */
-function readAuthorisation(authorised: Order): ReadAuthorisation {
+async function readAuthorisation(
+  db: Database["db"],
+  authorised: Order,
+  flag: UnknownStatusFlag,
+): Promise<ReadAuthorisation> {
   let found;
   try {
     found = onlyAuthorization(authorised);
@@ -476,6 +494,13 @@ function readAuthorisation(authorised: Order): ReadAuthorisation {
       "paypal_unavailable",
       `PayPal's authorise answer does not hold one authorisation; ask again`,
       { cause: error },
+    );
+  }
+  if (!isKnownStatus(authorizationStatus, found.status)) {
+    throw await flagUnknownStatus(
+      db,
+      { ...flag, paypal: { ...flag.paypal, authorizationId: found.id } },
+      found.status,
     );
   }
   if (found.status !== "CREATED") {
@@ -679,6 +704,49 @@ export function refusedEvent(
     paypal: { ...paypal, ...(refusal.debugId ? { debugId: refusal.debugId } : {}) },
     detail: { reason: refusal.message, issues: [...refusal.issues] },
   });
+}
+
+/** Where PayPal answered a money step in a status pawhold does not know. */
+export interface UnknownStatusFlag {
+  readonly practiceId: string;
+  readonly caseId: string;
+  readonly holdId: string;
+  /** What PayPal answered, in one word: `authorisation`, `capture`, `reauthorisation` or `refund`. */
+  readonly step: string;
+  /** PayPal's ids for the hold and the answer. */
+  readonly paypal: NonNullable<AuditEventInput["paypal"]>;
+}
+
+/**
+ * Flags a hold whose PayPal answer carries a status PayPal's published schema
+ * does not list (`hold.paypal_status_unknown`, on the case's timeline). The
+ * answer was read; what PayPal did is not known to pawhold, so the step
+ * records nothing as done or refused and stops as `paypal_unavailable`, for
+ * someone to look at the hold in PayPal. A listed status still binds as U3's
+ * decision 6 has it: the caller checks `isKnownStatus` first.
+ *
+ * @param executor - The pool, or the step's open transaction.
+ * @param flag - The hold, the step and PayPal's ids.
+ * @param status - The status PayPal answered with.
+ * @returns The refusal for the caller to throw or report.
+ */
+export async function flagUnknownStatus(
+  executor: Executor,
+  flag: UnknownStatusFlag,
+  status: UnknownStatus,
+): Promise<MoneyError> {
+  await appendAuditEvent(executor, {
+    practiceId: flag.practiceId,
+    caseId: flag.caseId,
+    actor: "system",
+    action: "hold.paypal_status_unknown",
+    paypal: flag.paypal,
+    detail: { holdId: flag.holdId, step: flag.step, status },
+  });
+  return new MoneyError(
+    "paypal_unavailable",
+    `PayPal answered the ${flag.step} with ${status}, a status its published schema does not list: hold ${flag.holdId} is flagged to be checked in PayPal`,
+  );
 }
 
 /**

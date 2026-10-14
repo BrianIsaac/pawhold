@@ -2,13 +2,14 @@ import { z } from "zod";
 
 import type { Money } from "@/money/currency";
 
-import type { PayPalClient } from "./client";
+import { optionalField, type PayPalClient } from "./client";
 import {
   type Authorization,
   authorization,
   capture,
   paypalLink,
   REPRESENTATION,
+  statusField,
   toPayPalAmount,
 } from "./payments";
 
@@ -20,7 +21,7 @@ import {
  * 2026).
  */
 
-/** `order_status`, as the schema enumerates it. */
+/** `order_status`, as the schema enumerates it; others are read as themselves. */
 export const orderStatus = z.enum([
   "CREATED",
   "SAVED",
@@ -35,42 +36,42 @@ export type OrderStatus = z.infer<typeof orderStatus>;
 /** An order, as `create`, `GET` and `authorize` return it. */
 export const order = z.looseObject({
   id: z.string().min(1),
-  status: orderStatus,
-  links: z.array(paypalLink).optional(),
-  payment_source: z
-    .looseObject({
-      paypal: z
-        .looseObject({
-          account_status: z.string().optional(),
-          address: z.looseObject({ country_code: z.string().optional() }).optional(),
-        })
-        .optional(),
-      card: z
-        .looseObject({
-          brand: z.string().optional(),
-          type: z.string().optional(),
-          last_digits: z.string().optional(),
-          authentication_result: z
-            .looseObject({ liability_shift: z.string().optional() })
-            .optional(),
-        })
-        .optional(),
-    })
-    .optional(),
-  purchase_units: z
-    .array(
+  status: statusField(orderStatus),
+  links: optionalField(z.array(paypalLink)),
+  payment_source: optionalField(
+    z.looseObject({
+      paypal: optionalField(
+        z.looseObject({
+          account_status: optionalField(z.string()),
+          address: optionalField(z.looseObject({ country_code: optionalField(z.string()) })),
+        }),
+      ),
+      card: optionalField(
+        z.looseObject({
+          brand: optionalField(z.string()),
+          type: optionalField(z.string()),
+          last_digits: optionalField(z.string()),
+          authentication_result: optionalField(
+            z.looseObject({ liability_shift: optionalField(z.string()) }),
+          ),
+        }),
+      ),
+    }),
+  ),
+  purchase_units: optionalField(
+    z.array(
       z.looseObject({
-        reference_id: z.string().optional(),
-        custom_id: z.string().optional(),
-        payments: z
-          .looseObject({
-            authorizations: z.array(authorization).optional(),
-            captures: z.array(capture).optional(),
-          })
-          .optional(),
+        reference_id: optionalField(z.string()),
+        custom_id: optionalField(z.string()),
+        payments: optionalField(
+          z.looseObject({
+            authorizations: optionalField(z.array(authorization)),
+            captures: optionalField(z.array(capture)),
+          }),
+        ),
       }),
-    )
-    .optional(),
+    ),
+  ),
 });
 
 export type Order = z.infer<typeof order>;
@@ -275,7 +276,9 @@ export function approvalUrl(created: Order): string {
  * @returns The order.
  */
 export async function getOrder(client: PayPalClient, orderId: string): Promise<Order> {
-  return (await client.get(`/v2/checkout/orders/${orderId}`, { response: order })).body;
+  return (
+    await client.get(`/v2/checkout/orders/${encodeURIComponent(orderId)}`, { response: order })
+  ).body;
 }
 
 /**
@@ -291,7 +294,7 @@ export async function authorizeOrder(
   orderId: string,
   requestId: string,
 ): Promise<Order> {
-  const answer = await client.post(`/v2/checkout/orders/${orderId}/authorize`, {
+  const answer = await client.post(`/v2/checkout/orders/${encodeURIComponent(orderId)}/authorize`, {
     requestId,
     headers: REPRESENTATION,
     body: {},
