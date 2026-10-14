@@ -673,6 +673,44 @@ describe("the client's waiting and asking again (one deadline per call, by U20; 
     expect(error).toMatchObject({ method: "POST", path: "/v1/oauth2/token" });
   });
 
+  it("keeps a refreshed token that arrives after the call that asked for it gave up", async () => {
+    let tokens = 0;
+    let asked = 0;
+    const { client: paypalClient, sent } = stubbed(
+      {
+        "/v1/oauth2/token": (signal) => {
+          tokens += 1;
+          return tokens === 1 ? Response.json(TOKEN) : after(150, TOKEN)(signal);
+        },
+        [AUTHORIZATION_PATH]: (signal) => {
+          asked += 1;
+          return asked === 1
+            ? after(100, { error: "invalid_token" })(signal).then(
+                (answer) => new Response(answer.body, { status: 401 }),
+              )
+            : Response.json(AUTHORIZATION);
+        },
+      },
+      200,
+    );
+
+    // The deadline passes at 200 ms while the refreshed token, asked at 100 ms, is on the way.
+    const gaveUp = await paypalClient
+      .get(AUTHORIZATION_PATH, { response: authorization })
+      .catch((caught: unknown) => caught);
+    await new Promise((resolve) => setTimeout(resolve, 150));
+    const answer = await paypalClient.get(AUTHORIZATION_PATH, { response: authorization });
+
+    expect(gaveUp).toMatchObject({ name: "PayPalTransportError", path: "/v1/oauth2/token" });
+    expect(answer.body).toEqual(AUTHORIZATION);
+    expect(sent).toEqual([
+      "POST /v1/oauth2/token",
+      `GET ${AUTHORIZATION_PATH}`,
+      "POST /v1/oauth2/token",
+      `GET ${AUTHORIZATION_PATH}`,
+    ]);
+  });
+
   it("leaves a token another call is waiting on to that call when its own deadline passes", async () => {
     const { client: paypalClient, sent } = stubbed(
       {

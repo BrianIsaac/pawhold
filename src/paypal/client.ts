@@ -180,11 +180,17 @@ export function createPayPalClient(options: PayPalClientOptions): PayPalClient {
     if (cached && now() < cached.refreshAt) {
       return cached.value;
     }
-    pending ??= fetchToken().finally(() => {
-      pending = null;
-    });
-    cached = await untilDeadline(pending, deadline);
-    return cached.value;
+    // Cached where it is fetched, so a token whose caller stopped waiting
+    // still serves the next call.
+    pending ??= fetchToken()
+      .then((fetched) => {
+        cached = fetched;
+        return fetched;
+      })
+      .finally(() => {
+        pending = null;
+      });
+    return (await untilDeadline(pending, deadline)).value;
   };
 
   const invalidate = (used: string): void => {
