@@ -17,13 +17,37 @@ const paypalLink = z.object({
   method: z.string().optional(),
 });
 
-/** The body PayPal returns for every error but the identity ones (Responses page). */
+/**
+ * The entries of a list that match their schema; a malformed entry, or a
+ * value that is no list, is dropped rather than the body it came in.
+ *
+ * @param entry - One entry's schema.
+ * @returns The list's schema.
+ */
+function wellFormed<T extends z.ZodType>(entry: T) {
+  return z
+    .array(z.unknown())
+    .catch([])
+    .transform((items) =>
+      items.flatMap((item) => {
+        const read = entry.safeParse(item);
+        return read.success ? [read.data] : [];
+      }),
+    );
+}
+
+/**
+ * The body PayPal returns for every error but the identity ones (Responses
+ * page). Only `name` makes it one; every other field is read on its own, so
+ * one malformed part costs that part and not the name, the debug id or the
+ * issues a refusal is matched by.
+ */
 const apiErrorBody = z.object({
   name: z.string().min(1),
-  message: z.string().optional(),
-  debug_id: z.string().optional(),
-  details: z.array(paypalErrorDetail).optional(),
-  links: z.array(paypalLink).optional(),
+  message: z.string().optional().catch(undefined),
+  debug_id: z.string().optional().catch(undefined),
+  details: wellFormed(paypalErrorDetail),
+  links: wellFormed(paypalLink),
 });
 
 /** The body of an identity (OAuth) error (Responses page). */
@@ -115,8 +139,8 @@ export class PayPalError extends Error {
         name: api.data.name,
         message: api.data.message ?? api.data.name,
         debugId: usableDebugId(api.data.debug_id) ?? headerDebugId,
-        details: api.data.details ?? [],
-        links: api.data.links ?? [],
+        details: api.data.details,
+        links: api.data.links,
       });
     }
     const identity = identityErrorBody.safeParse(json);

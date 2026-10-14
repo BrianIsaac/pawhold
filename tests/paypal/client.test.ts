@@ -652,28 +652,86 @@ describe("the client's waiting and asking again (pinned: its own timeout, no ret
   });
 });
 
-describe("an error body PayPal's documents do not describe (pinned)", () => {
-  it("is read whole or not at all: one detail without an issue leaves only the status", async () => {
+describe("an error body with a malformed part (U15's pin, fixed by U20)", () => {
+  /**
+   * PayPal's error for a capture that answers with the given body.
+   *
+   * @param body - The 422's body; synthetic, since no recording holds a malformed one.
+   * @returns The error the client threw.
+   */
+  const refusedWith = async (body: unknown): Promise<PayPalError> => {
     paypal.on("POST /v1/oauth2/token", { status: 200, body: TOKEN });
-    paypal.on(`POST ${AUTHORIZATION_PATH}/capture`, {
-      status: 422,
-      body: {
-        name: "UNPROCESSABLE_ENTITY",
-        debug_id: "whole422",
-        details: [{ issue: "AUTHORIZATION_EXPIRED" }, { description: "a detail with no issue" }],
-      },
-    });
-
-    const error = (await client()
+    paypal.on(`POST ${AUTHORIZATION_PATH}/capture`, { status: 422, body });
+    const error = await client()
       .post(`${AUTHORIZATION_PATH}/capture`, {
         requestId: "8f0f8a3e-0000-8000-8000-000000000009",
         body: {},
         response: authorization,
       })
-      .catch((caught: unknown) => caught)) as PayPalError;
-
+      .catch((caught: unknown) => caught);
     expect(error).toBeInstanceOf(PayPalError);
-    expect(error).toMatchObject({ status: 422, name: "HTTP_422", debugId: null, details: [] });
-    expect(error.hasIssue("AUTHORIZATION_EXPIRED")).toBe(false);
+    return error as PayPalError;
+  };
+
+  it("keeps the name, the debug id and every well-formed detail when one detail has no issue", async () => {
+    const error = await refusedWith({
+      name: "UNPROCESSABLE_ENTITY",
+      message: "The requested action could not be performed.",
+      debug_id: "whole422",
+      details: [{ issue: "AUTHORIZATION_EXPIRED" }, { description: "a detail with no issue" }],
+    });
+
+    expect(error).toMatchObject({
+      status: 422,
+      name: "UNPROCESSABLE_ENTITY",
+      message: "The requested action could not be performed.",
+      debugId: "whole422",
+      details: [{ issue: "AUTHORIZATION_EXPIRED" }],
+    });
+    expect(error.hasIssue("AUTHORIZATION_EXPIRED")).toBe(true);
+  });
+
+  it("drops a malformed link, message or debug id and keeps the rest", async () => {
+    const error = await refusedWith({
+      name: "UNPROCESSABLE_ENTITY",
+      message: 422,
+      debug_id: { id: "not-a-string" },
+      details: [
+        { issue: "AUTHORIZATION_EXPIRED", field: 7 },
+        "not-a-detail",
+        { issue: "DUPLICATE" },
+      ],
+      links: [
+        {
+          href: "https://developer.paypal.com/docs/api/payments/v2/#error-AUTHORIZATION_EXPIRED",
+          rel: "information_link",
+        },
+        { rel: "no-href" },
+      ],
+    });
+
+    expect(error).toMatchObject({
+      name: "UNPROCESSABLE_ENTITY",
+      message: "UNPROCESSABLE_ENTITY",
+      debugId: null,
+      details: [{ issue: "DUPLICATE" }],
+      links: [{ rel: "information_link" }],
+    });
+  });
+
+  it("keeps the name and debug id when the details are not a list", async () => {
+    const error = await refusedWith({
+      name: "UNPROCESSABLE_ENTITY",
+      debug_id: "list422",
+      details: { issue: "AUTHORIZATION_EXPIRED" },
+    });
+
+    expect(error).toMatchObject({ name: "UNPROCESSABLE_ENTITY", debugId: "list422", details: [] });
+  });
+
+  it("still reads a body with no name as no body PayPal documents", async () => {
+    const error = await refusedWith({ debug_id: "noname422", details: [{ issue: "DUPLICATE" }] });
+
+    expect(error).toMatchObject({ name: "HTTP_422", details: [] });
   });
 });
