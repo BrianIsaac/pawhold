@@ -130,9 +130,9 @@ The answers are recorded in `evals/recorded/`; CI replays them (`pnpm eval`), an
 
 The product is under `app/`, `src/`, `drizzle/` and `seed/`, with its tests
 under `tests/`; the PayPal sandbox probes and their redacted recordings under
-`probes/`; the estimate agent's evaluation under `evals/`; the demo video's
-kit under `video/`. Research, plans, decisions and progress notes are kept
-outside this repository.
+`probes/`; the estimate agent's evaluation under `evals/`. Research, plans,
+decisions, progress notes and the demo video's kit are kept outside this
+repository.
 
 ## Licence
 
