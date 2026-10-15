@@ -28,7 +28,7 @@ import { type ProbeRun, runOnce } from "./run-once";
  * Calls PayPal's sandbox and drives a headless Chromium as the GB buyer.
  * The credentials and logins come from this process's environment only:
  *
- *   env $(grep -E '^PAYPAL_' ~/.config/briain/secrets.env | xargs) pnpm probes
+ *   env $(grep -E '^PAYPAL_' .env.local | xargs) pnpm probes
  *
  * and are never printed, recorded or written to the report (every write is
  * checked for them). Exits non-zero when a run broke, when a probe's runs

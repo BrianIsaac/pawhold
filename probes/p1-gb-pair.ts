@@ -6,7 +6,7 @@ import { gbp, makeWalletHold, type Probe } from "./probe";
  * P1. A GB sandbox pair: a £100.00 GBP `AUTHORIZE` order approved by the GB
  * personal account and authorised for the app's GB business account. The
  * accounts' existence and countries were made and checked in the dashboard
- * (the operator's and the cockpit's part); the script proves the pair works.
+ * (the operator's part); the script proves the pair works.
  */
 export const p1: Probe = {
   id: "P1",

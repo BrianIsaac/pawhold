@@ -33,5 +33,5 @@ data/raw/
 .next/
 next-env.d.ts
 
-# private context: plans, decisions, briefs, handovers, research. Kept on disk, copied into each pane at dispatch, never tracked.
+# private context: plans, decisions, briefs, handovers, research. Kept outside the repository, never tracked.
 /docs/

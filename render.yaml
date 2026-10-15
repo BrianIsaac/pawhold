@@ -2,7 +2,7 @@
 # and the hourly cron job, all paid plans so nothing sleeps before
 # 16 December. Field names as the Blueprint YAML Reference reads on
 # 12 October 2026 (https://render.com/docs/blueprint-spec). The operator's
-# one-time steps are in docs/runbooks/render.md; tests/hosting/blueprint.test.ts
+# one-time steps are in a private runbook; tests/hosting/blueprint.test.ts
 # holds this file to the plan.
 
 services:

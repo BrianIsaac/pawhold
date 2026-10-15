@@ -345,7 +345,7 @@ function owed(reason: string) {
     summary: `${reason}. No PayPal call was made.`,
     observations: {
       command:
-        "env $(grep -E '^PAYPAL_' ~/.config/briain/secrets.env | xargs) PAYPAL_WEBHOOK_ID=<id> P8_DATABASE_URL=<url> pnpm probes P8 --record",
+        "env $(grep -E '^PAYPAL_' .env.local | xargs) PAYPAL_WEBHOOK_ID=<id> P8_DATABASE_URL=<url> pnpm probes P8 --record",
     },
     branch: null,
   };

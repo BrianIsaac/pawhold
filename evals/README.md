@@ -39,7 +39,7 @@ fit an answer.
 ```sh
 pnpm eval                       # replay evals/recorded/ (CI runs this through tests/evals/)
 pnpm eval --require-all         # also fail when a set has no recording
-env $(grep '^OPENAI_API_KEY=' ~/.config/briain/secrets.env) pnpm eval --live --require-all --write-results
+env $(grep '^OPENAI_API_KEY=' .env.local) pnpm eval --live --require-all --write-results
 pnpm eval --only=01-dental-plan-example
 ```
 

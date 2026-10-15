@@ -7,6 +7,8 @@ Sandbox only: no real money moves.
 
 **<https://pawhold.onrender.com>**: no sign-up, no download, nothing to pay. Everything runs on PayPal's sandbox, so no real money moves.
 
+The demo video (2:48): <https://youtu.be/ktTieJGmkjw>.
+
 The landing page has two doors:
 
 - **Try it as the practice** opens a fictional vet practice of your own, Hollins Lane Veterinary Surgery, with fifteen cases at every stage of the money: estimates drafted and sent, holds on PayPal and on cards, updates asked for and declined, discharges captured, released and refunded.
@@ -85,10 +87,7 @@ Each practice can ask the model for 40 drafts an hour; a press of **Draft estima
 
 ## About the entry
 
-The entry for the PayPal AI Hackathon (deadline 12 November 2026, 12:00 PST). Picked by the owner on 12 October 2026 from the ideas
-drafted in the `paypal-ai-hack` repository (Idea 4, Go-Ahead in
-`docs/research/ideas-2026-10-11.md`; the research in
-`docs/research/hackathon-2026-10-11.md` there). Aimed at Most Impactful, Bryntum as the sponsor prize.
+The entry for the PayPal AI Hackathon (deadline 12 November 2026, 12:00 PST), picked by the owner on 12 October 2026 from a shortlist of ideas researched for the hackathon. Aimed at Most Impactful, Bryntum as the sponsor prize.
 
 Status: built so far are the skeleton (the app, the schema, the PayPal client, the webhook listener and the audit trail), the price list and estimate versions with the CMA Order's update trigger, the money lifecycle (holds, updates, reauthorisation, discharge, refunds), the estimate agent with its evaluation, the practice's screens, the owner's phone pages, the schedule agent's day, and judge mode.
 
@@ -129,9 +128,11 @@ The answers are recorded in `evals/recorded/`; CI replays them (`pnpm eval`), an
 
 ## Where things go
 
-Research in `docs/research/<slug>.md`, briefs in `docs/research/briefs/`,
-plans in `docs/plans/`, progress reports in `docs/plans/progress/`.
-Runbooks in `docs/runbooks/`.
+The product is under `app/`, `src/`, `drizzle/` and `seed/`, with its tests
+under `tests/`; the PayPal sandbox probes and their redacted recordings under
+`probes/`; the estimate agent's evaluation under `evals/`; the demo video's
+kit under `video/`. Research, plans, decisions and progress notes are kept
+outside this repository.
 
 ## Licence
 
