@@ -87,9 +87,9 @@ Each practice can ask the model for 40 drafts an hour; a press of **Draft estima
 
 ## About the entry
 
-The entry for the PayPal AI Hackathon (deadline 12 November 2026, 12:00 PST), picked by the owner on 12 October 2026 from a shortlist of ideas researched for the hackathon. Aimed at Most Impactful, Bryntum as the sponsor prize.
+pawhold is an entry in the PayPal AI Hackathon (submission period 1 October to 12 November 2026), submitted on 15 October 2026: https://devpost.com/software/pawhold. It was built from scratch inside the submission period by one person, aimed at the Most Impactful prize, with Bryntum's Scheduler for the practice's day and Render for the hosting.
 
-Status: built so far are the skeleton (the app, the schema, the PayPal client, the webhook listener and the audit trail), the price list and estimate versions with the CMA Order's update trigger, the money lifecycle (holds, updates, reauthorisation, discharge, refunds), the estimate agent with its evaluation, the practice's screens, the owner's phone pages, the schedule agent's day, and judge mode.
+What it is: an itemised estimate from the vet, held on the owner's PayPal or card rather than charged; a second yes from the owner before any extra work; exactly the final bill captured at discharge and the rest released; every hold reconciled against PayPal's webhooks; and an estimate agent that drafts the lines from the clinical notes and explains each change in the owner's words, with code checking every line and formatting every amount. Everything runs on PayPal's sandbox, so no real money moves.
 
 ## Develop
 
