@@ -121,16 +121,17 @@ async function live(kase: MoneyStateCase): Promise<string> {
   if (story.withdrawnAt !== undefined) {
     await withdrawEstimate(db, { ...fixture, actor: "vet" });
   }
-  if (story.honourPeriodFlaggedAfter !== undefined) {
+  for (const after of [story.reauthorisedAfter, story.honourPeriodFlaggedAfter]) {
+    if (after === undefined) {
+      continue;
+    }
     const [authorised] = await db
       .select({ at: hold.authorisedAt })
       .from(hold)
       .where(eq(hold.caseId, fixture.caseId));
-    await reauthoriseHolds({
-      ...deps,
-      practiceId,
-      now: new Date(authorised!.at!.getTime() + story.honourPeriodFlaggedAfter * MINUTE_MS),
-    });
+    const now = new Date(authorised!.at!.getTime() + after * MINUTE_MS);
+    double.clock.now = now;
+    await reauthoriseHolds({ ...deps, practiceId, now });
   }
   if (story.update) {
     await held([...kase.lines, ...kase.updateLines!], story.update.authorised.payment);

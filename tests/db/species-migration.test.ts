@@ -1,8 +1,6 @@
 import { randomBytes } from "node:crypto";
-import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { readFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
-import { fileURLToPath } from "node:url";
 
 import { migrate } from "drizzle-orm/postgres-js/migrator";
 import postgres from "postgres";
@@ -16,6 +14,7 @@ import { DAY_CASES } from "../../seed/practice/day";
 import { SHOWCASE_CASE } from "../../seed/practice/showcase";
 import { MONEY_STATE_CASES } from "../../seed/showcase/cases";
 import { connectAdmin, DEFAULT_ADMIN_URL } from "../setup/database";
+import { DRIZZLE, journalIndex, migrationsUpTo } from "../support/migrations";
 import { refusalOf } from "../support/postgres-error";
 
 /*
@@ -23,10 +22,11 @@ import { refusalOf } from "../support/postgres-error";
  * does: each is kept, a case the seed wrote takes the seed's species and any
  * other becomes "other", the column then has no default, and the way back
  * (two files under `drizzle/revert/`) leaves the database as 0014 left it,
- * from which 0015 runs again.
+ * from which 0015 runs again. The database stops at 0015, as a way back is
+ * taken newest first: drizzle runs a migration again only when it is newer
+ * than the last it ran.
  */
 
-const DRIZZLE = fileURLToPath(new URL("../../drizzle", import.meta.url));
 const FORWARD = join(DRIZZLE, "0015_case_species.sql");
 const REVERT_ALLOW = join(DRIZZLE, "revert", "0015_case_species.1-allow-unset.sql");
 const REVERT_DROP = join(DRIZZLE, "revert", "0015_case_species.2-drop.sql");
@@ -34,31 +34,8 @@ const REVERT_DROP = join(DRIZZLE, "revert", "0015_case_species.2-drop.sql");
 /** The migration before this unit's. */
 const BEFORE_SPECIES = "0014_case_vet_row";
 
-/** A journal entry, as far as this test reads it. */
-interface JournalEntry {
-  readonly tag: string;
-}
-
-/**
- * A copy of `drizzle/` whose journal stops at a migration, so a database can
- * be left as it was before a later one.
- *
- * @param lastTag - The last migration the copy keeps.
- * @returns The copy's folder.
- */
-function migrationsUpTo(lastTag: string): string {
-  const folder = mkdtempSync(join(tmpdir(), "pawhold-migrations-"));
-  cpSync(DRIZZLE, folder, { recursive: true });
-  const journalPath = join(folder, "meta", "_journal.json");
-  const journal = JSON.parse(readFileSync(journalPath, "utf8")) as { entries: JournalEntry[] };
-  const last = journal.entries.findIndex((entry) => entry.tag === lastTag);
-  expect(last, lastTag).toBeGreaterThanOrEqual(0);
-  writeFileSync(
-    journalPath,
-    JSON.stringify({ ...journal, entries: journal.entries.slice(0, last + 1) }),
-  );
-  return folder;
-}
+/** This unit's migration. */
+const SPECIES = "0015_case_species";
 
 let admin: postgres.Sql;
 let name: string;
@@ -111,7 +88,14 @@ beforeAll(async () => {
   await opened("Otis", true);
   await opened("Poppy", false);
 
-  await migrateDatabase(url);
+  const upToSpecies = migrationsUpTo(SPECIES);
+  const migrated = createDatabase(url, { max: 1 });
+  try {
+    await migrate(migrated.db, { migrationsFolder: upToSpecies });
+  } finally {
+    await migrated.close();
+    rmSync(upToSpecies, { recursive: true, force: true });
+  }
 });
 
 afterAll(async () => {
@@ -214,10 +198,7 @@ describe("migration 0015, a case's species (U17)", () => {
     const [ran] = await sql<{ count: string }[]>`
       select count(*) from drizzle.__drizzle_migrations
     `;
-    const journal = JSON.parse(readFileSync(join(DRIZZLE, "meta", "_journal.json"), "utf8")) as {
-      entries: JournalEntry[];
-    };
-    expect(Number(ran!.count)).toBe(journal.entries.length - 1);
+    expect(Number(ran!.count)).toBe(journalIndex(SPECIES));
 
     await migrateDatabase(url);
     const cases = await sql`select patient_name, species from patient_case order by patient_name`;

@@ -520,7 +520,7 @@ export const hold = pgTable(
     /** PayPal's `expiration_time` of the authorisation captures go against. */
     expiresAt: timestamp("expires_at", { withTimezone: true }),
     reauthorisedAt: timestamp("reauthorised_at", { withTimezone: true }),
-    /** When PayPal refused this wallet hold's reauthorisation for good. */
+    /** When PayPal refused this hold's reauthorisation for good. */
     reauthoriseRefusedAt: timestamp("reauthorise_refused_at", { withTimezone: true }),
     /** When the practice was told the hold is past its honour period. */
     honourPeriodFlaggedAt: timestamp("honour_period_flagged_at", { withTimezone: true }),
@@ -565,10 +565,11 @@ export const hold = pgTable(
         and (${table.authorizationId} is null) = (${table.paymentKind} is null)
         and (${table.authorizationId} is null) = (${table.authorisedAt} is null)`,
     ),
+    // A wallet or a card hold may be reauthorised (P5 (b) and (c), migration 0016).
     check(
-      "hold_reauthorised_wallet_only",
+      "hold_reauthorised_new_authorisation",
       sql`${table.reauthorisedAt} is null
-        or (${table.paymentKind} = 'paypal' and ${table.authorizationId} <> ${table.originalAuthorizationId})`,
+        or ${table.authorizationId} <> ${table.originalAuthorizationId}`,
     ),
     check(
       "hold_closed_with_status",

@@ -29,7 +29,12 @@ export interface MoneyStory {
   readonly withdrawnAt?: number;
   /** The owner authorised the estimate's hold. */
   readonly authorised?: { readonly at: number; readonly payment: SeededPayment };
-  /** The hourly rule flagged a card hold past its honour period (minutes after its authorisation). */
+  /** The hourly rule reauthorised the first hold, wallet or card (minutes after its authorisation). */
+  readonly reauthorisedAfter?: number;
+  /**
+   * The hourly rule flagged the first hold once its reauthorisation's honour
+   * period was over (minutes after its authorisation).
+   */
   readonly honourPeriodFlaggedAfter?: number;
   /** The vet sent an update and the owner authorised its increase. */
   readonly update?: {
@@ -193,7 +198,7 @@ export const MONEY_STATE_CASES: readonly MoneyStateCase[] = [
     ownerName: "Carys Evans",
     procedure: "Bladder stone removal",
     vetName: "Rowan Hale",
-    daysAgo: 5,
+    daysAgo: 8,
     notes:
       "9yo MN Miniature Schnauzer, 12 kg. Bladder stones on X-ray, straining to pass urine. Plan: pre-op bloods, GA, cystotomy, urine culture, one night in hospital, pain relief to go home.",
     lines: [
@@ -244,7 +249,8 @@ export const MONEY_STATE_CASES: readonly MoneyStateCase[] = [
       sentAt: 30,
       orderedAt: 52,
       authorised: { at: 55, payment: "card" },
-      honourPeriodFlaggedAfter: 3 * MINUTES_A_DAY + 47,
+      reauthorisedAfter: 3 * MINUTES_A_DAY + 47,
+      honourPeriodFlaggedAfter: 6 * MINUTES_A_DAY + 47,
     },
   },
   {

@@ -4,6 +4,7 @@ import { appendAuditEvent, type AuditEventInput } from "@/audit/writer";
 import type { Transaction } from "@/db/client";
 import { allocation, bill, billLine, capture, hold, patientCase, refund } from "@/db/schema";
 import type { PriceListWithItems } from "@/estimate/price-list";
+import { HONOUR_PERIOD_MS, HONOUR_PERIOD_OVER_REASON } from "@/jobs/reauthorise";
 import { allocateBill, approvalsByHold } from "@/money/allocation";
 import type { MoneyState } from "@/money/state";
 import { seededPayPalId } from "@/paypal/seeded";
@@ -25,15 +26,14 @@ const DAY_MS = 24 * 60 * MINUTE_MS;
 /** PayPal's authorisation period: "Valid for 29 days" (U3's `AUTHORISATION_PERIOD_MS`). */
 const AUTHORISATION_PERIOD_MS = 29 * DAY_MS;
 
+/** The honour period in the story's minutes. */
+const HONOUR_PERIOD_MINUTES = HONOUR_PERIOD_MS / MINUTE_MS;
+
 /**
  * How long after each PayPal step its webhook is shown to have confirmed it:
  * P8 and P9 saw lags of about 20 s.
  */
 const WEBHOOK_LAG_MS = 18 * SECOND_MS;
-
-/** The reason U3's hourly rule writes when it flags a card hold. */
-const CARD_FLAG_REASON =
-  "a card hold is never reauthorised: PayPal documents reauthorisation for PayPal accounts only";
 
 /** A hold the seed wrote, as the discharge reads it. */
 interface SeededHold {
@@ -186,7 +186,7 @@ export async function writeMoneyStateCase(
     return settle(tx, caseId, state, last);
   }
 
-  const first = await authorise(tx, {
+  let first = await authorise(tx, {
     holdId: estimate.id,
     version: estimate,
     amountPence: estimate.highPence,
@@ -199,11 +199,47 @@ export async function writeMoneyStateCase(
     at(story.authorised.at),
   );
   state = "held";
+
+  if (story.reauthorisedAfter !== undefined) {
+    if (story.reauthorisedAfter < HONOUR_PERIOD_MINUTES) {
+      throw new Error("the hourly rule reauthorises a hold only once its honour period is over");
+    }
+    const reauthorisedAt = at(story.authorised.at + story.reauthorisedAfter);
+    const authorizationId = seededPayPalId();
+    await tx
+      .update(hold)
+      .set({ authorizationId, reauthorisedAt, updatedAt: reauthorisedAt })
+      .where(eq(hold.id, first.id));
+    await event(
+      {
+        actor: "system",
+        action: "hold.reauthorised",
+        amount: money(first.amountPence),
+        paypal: { orderId: first.orderId, authorizationId },
+        detail: {
+          holdId: first.id,
+          previousAuthorizationId: first.authorizationId,
+          originalAuthorizationId: first.authorizationId,
+          authorisedAt: at(story.authorised.at).toISOString(),
+          newStatus: "CREATED",
+        },
+      },
+      reauthorisedAt,
+    );
+    first = { ...first, authorizationId };
+  }
   const holds: SeededHold[] = [first];
 
   if (story.honourPeriodFlaggedAfter !== undefined) {
-    if (story.authorised.payment !== "card") {
-      throw new Error("the hourly rule flags a card hold; a PayPal hold is reauthorised first");
+    // A hold PayPal made is reauthorised once its honour period ends, so the
+    // rule flags it only when that reauthorisation's is over too.
+    if (
+      story.reauthorisedAfter === undefined ||
+      story.honourPeriodFlaggedAfter < story.reauthorisedAfter + HONOUR_PERIOD_MINUTES
+    ) {
+      throw new Error(
+        "the hourly rule flags a hold only once its reauthorisation's honour period is over",
+      );
     }
     const flaggedAt = at(story.authorised.at + story.honourPeriodFlaggedAfter);
     await tx
@@ -219,8 +255,8 @@ export async function writeMoneyStateCase(
         detail: {
           holdId: first.id,
           paymentKind: story.authorised.payment,
-          reason: CARD_FLAG_REASON,
-          honourPeriodFrom: at(story.authorised.at).toISOString(),
+          reason: HONOUR_PERIOD_OVER_REASON.reauthorisedOnce,
+          honourPeriodFrom: at(story.authorised.at + story.reauthorisedAfter).toISOString(),
         },
       },
       flaggedAt,

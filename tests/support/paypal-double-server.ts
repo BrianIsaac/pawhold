@@ -21,9 +21,10 @@ import { recordedAnswer } from "./recorded";
  *   with its original amount (P4); a void of a captured authorisation is
  *   refused `PREVIOUSLY_CAPTURED` (PayPal's documented sample);
  * - a reauthorisation inside three days is refused `REAUTHORIZATION_TOO_SOON`
- *   (P5 (a)), and from day 4 answers a new authorisation (the documented
- *   sample's shape); a card authorisation's is refused (the API documents it
- *   for PayPal accounts; the issue name is this double's, P5 (c) is owed);
+ *   (P5 (a)); from day 4 it answers a new authorisation, `CREATED`, expiring
+ *   with the original, for a wallet hold as P5 (b) recorded and for a card
+ *   hold as P5 (c) did; a second one is refused `REAUTHORIZE_NOT_ALLOWED`
+ *   (PayPal allows one, P5 (a)'s answer; the issue name is this double's);
  * - `PayPal-Mock-Response` `AUTHORIZATION_EXPIRED` on a capture is refused as
  *   P5 (a) recorded it;
  * - a POST with a `PayPal-Request-Id` already answered with a success is
@@ -172,6 +173,8 @@ export function createPayPalDouble(options: { liveClock?: boolean } = {}): PayPa
     : { now: new Date(TEST_CLOCK) };
   let address: AddressInfo | undefined;
 
+  const paypalTime = (at: Date) => at.toISOString().replace(/\.\d+Z$/, "Z");
+
   const amount = (pence: number, currency: string) => ({
     currency_code: currency,
     value: toPayPalValue(pence),
@@ -195,7 +198,7 @@ export function createPayPalDouble(options: { liveClock?: boolean } = {}): PayPa
     const time = (at: Date) =>
       localOffset
         ? new Date(at.getTime() - 7 * 60 * 60 * 1000).toISOString().replace(/\.\d+Z$/, "-07:00")
-        : at.toISOString().replace(/\.\d+Z$/, "Z");
+        : paypalTime(at);
     Object.assign(body, {
       id: held.id,
       status: held.status,
@@ -282,8 +285,8 @@ export function createPayPalDouble(options: { liveClock?: boolean } = {}): PayPa
         paypal_fee: amount(fee, currency),
         net_amount: amount(taken.amountPence - fee, currency),
       },
-      create_time: clock.now.toISOString().replace(/\.\d+Z$/, "Z"),
-      update_time: clock.now.toISOString().replace(/\.\d+Z$/, "Z"),
+      create_time: paypalTime(clock.now),
+      update_time: paypalTime(clock.now),
     });
     return body;
   };
@@ -426,10 +429,10 @@ export function createPayPalDouble(options: { liveClock?: boolean } = {}): PayPa
             body: recordedAnswer("P5A", "POST", /\/reauthorize$/).responseBody,
           };
         }
-        if (held.kind === "card" || held.reauthorisedAs || held.status !== "CREATED") {
+        if (held.reauthorisedAs || held.status !== "CREATED") {
           return unprocessable(
             "REAUTHORIZE_NOT_ALLOWED",
-            "This authorization cannot be reauthorized (the double's answer; P5 (b) and (c) are owed).",
+            "This authorization cannot be reauthorized (the double's answer).",
           );
         }
         const renewed: DoubleAuthorization = {
@@ -442,18 +445,26 @@ export function createPayPalDouble(options: { liveClock?: boolean } = {}): PayPa
         };
         authorizations.set(renewed.id, renewed);
         held.reauthorisedAs = renewed.id;
-        const answer = template(paypalFixture("api/reauthorize-201.json")) as Record<
-          string,
-          unknown
-        >;
-        answer.id = renewed.id;
-        answer.links = [
-          {
-            rel: "self",
-            method: "GET",
-            href: `https://api.sandbox.paypal.com/v2/payments/authorizations/${renewed.id}`,
-          },
-        ];
+        // The sandbox's own answer, whose links all name the original authorisation.
+        const answer = template(
+          recordedAnswer(held.kind === "card" ? "P5C" : "P5B", "POST", /\/reauthorize$/)
+            .responseBody,
+        ) as Record<string, unknown> & { links: { href: string }[] };
+        Object.assign(answer, {
+          id: renewed.id,
+          amount: amount(renewed.amountPence, renewed.currency),
+          custom_id: orders.get(held.orderId)?.customId,
+          supplementary_data: { related_ids: { order_id: held.orderId } },
+          expiration_time: paypalTime(renewed.expiresAt),
+          create_time: paypalTime(renewed.createdAt),
+          update_time: paypalTime(renewed.createdAt),
+          links: answer.links.map((link) => ({
+            ...link,
+            href: link.href
+              .replace(/authorizations\/[^/]+/, `authorizations/${held.id}`)
+              .replace(/orders\/[^/]+/, `orders/${held.orderId}`),
+          })),
+        });
         return { status: 201, body: answer };
       }
     }
