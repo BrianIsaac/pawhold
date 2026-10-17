@@ -54,19 +54,19 @@ Only a hold you authorised yourself can be charged: the seeded cases' holds were
 
 The practice's list shows each case's money as a chip, in these words.
 
-| Chip               | What it means                                                                                                                       | Seeded case                                    |
-| ------------------ | ----------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------- |
-| Estimate draft     | The vet is writing the estimate; the owner has seen nothing                                                                         | Pip, Moss                                      |
-| Waiting for owner  | The estimate is sent; nothing is held until the owner authorises it                                                                 | Otis, Archie                                   |
-| Held {amount}      | PayPal holds the top of the estimate on the owner's PayPal or card; nothing is charged yet                                          | Hazel (PayPal), Willow, Biscuit, Clover (card) |
-| Update waiting     | The vet found more to do and asked; the extra is not held until the owner says yes                                                  | Juno                                           |
-| Update declined    | The owner said no to the extra: the work stays within what is held                                                                  | Bramble                                        |
-| Hold extended      | PayPal reauthorised a PayPal-account hold after its three-day honour period                                                         | Bramble                                        |
-| Honour period over | A card hold is past PayPal's three days; card holds are never reauthorised, so the practice is told to ask the owner for a new hold | Rufus                                          |
-| Captured {amount}  | Discharged: exactly the bill was captured, from each hold up to its amount                                                          | Poppy                                          |
-| Released {amount}  | Discharged: what the bill did not use was released back to the owner                                                                | Teddy                                          |
-| Refunded {amount}  | Part of a captured bill was refunded after discharge, as goodwill or a correction                                                   | Luna                                           |
-| Withdrawn          | The practice withdrew an estimate before the owner authorised it; PayPal's order was left unapproved                                | Milo                                           |
+| Chip               | What it means                                                                                                                                                                          | Seeded case                                    |
+| ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------- |
+| Estimate draft     | The vet is writing the estimate; the owner has seen nothing                                                                                                                            | Pip, Moss                                      |
+| Waiting for owner  | The estimate is sent; nothing is held until the owner authorises it                                                                                                                    | Otis, Archie                                   |
+| Held {amount}      | PayPal holds the top of the estimate on the owner's PayPal or card; nothing is charged yet                                                                                             | Hazel (PayPal), Willow, Biscuit, Clover (card) |
+| Update waiting     | The vet found more to do and asked; the extra is not held until the owner says yes                                                                                                     | Juno                                           |
+| Update declined    | The owner said no to the extra: the work stays within what is held                                                                                                                     | Bramble                                        |
+| Hold extended      | PayPal reauthorised a hold, on the owner's PayPal or card, after its three-day honour period                                                                                           | Bramble (PayPal), Rufus (card)                 |
+| Honour period over | A hold is past PayPal's three days and cannot be extended: its one reauthorisation is spent or refused, or its 29 days are up, so the practice is told to ask the owner for a new hold | Rufus                                          |
+| Captured {amount}  | Discharged: exactly the bill was captured, from each hold up to its amount                                                                                                             | Poppy                                          |
+| Released {amount}  | Discharged: what the bill did not use was released back to the owner                                                                                                                   | Teddy                                          |
+| Refunded {amount}  | Part of a captured bill was refunded after discharge, as goodwill or a correction                                                                                                      | Luna                                           |
+| Withdrawn          | The practice withdrew an estimate before the owner authorised it; PayPal's order was left unapproved                                                                                   | Milo                                           |
 
 ### What is seeded and what is live
 
@@ -77,7 +77,7 @@ The practice's list shows each case's money as a chip, in these words.
 
 An hourly job, on Render's cron:
 
-- **Reauthorises** a PayPal-account hold once, between day 4 and day 29, so it stays good for a long stay; flags a **card** hold whose honour period is over ("Honour period over"); and flags a seeded PayPal hold the same way after three days, since a seeded hold is never sent to PayPal.
+- **Reauthorises** a hold, on the owner's PayPal or card, once, between day 4 and day 29, so it stays good for a long stay (PayPal's documentation names PayPal-account holds only, but its sandbox reauthorised a card hold too on 17 October); flags a hold whose honour period is over and cannot be extended again ("Honour period over"); and flags a seeded hold the same way after three days, since a seeded hold is never sent to PayPal.
 - **Resumes** a discharge stopped part way, and reconciles PayPal's webhooks.
 - **Prunes** a judge's session seven days after it started: any hold still standing is voided at PayPal first, and the practice's records are kept. A new visit makes a new practice.
 

@@ -123,7 +123,7 @@ describe("the next thing to do", () => {
   });
 });
 
-describe("the next step for a card hold past its honour period (U11)", () => {
+describe("the next step for a hold past its honour period that cannot be extended (U11)", () => {
   it("asks the owner for a new hold, as U9 found", () => {
     expect(
       nextStep("held", { ownerFirstName: "Carys", hasDraftLines: false, honourPeriodOver: true }),
