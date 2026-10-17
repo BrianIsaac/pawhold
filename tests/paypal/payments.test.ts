@@ -45,7 +45,7 @@ function client() {
 
 describe("the Payments v2 answers, as the sandbox gave them (U0's recordings)", () => {
   it("reads every recorded authorisation, capture and void answer", () => {
-    const probes = ["SMOKE", "P1", "P2", "P3", "P4", "P5A", "P6", "P7", "P9"];
+    const probes = ["SMOKE", "P1", "P2", "P3", "P4", "P5A", "P5B", "P5C", "P6", "P7", "P9"];
     let read = 0;
     for (const probe of probes) {
       for (const exchange of recordedAnswers(
@@ -100,6 +100,24 @@ describe("the Payments v2 answers, as the sandbox gave them (U0's recordings)", 
     expect(answer.status).toBe("CREATED");
     expect(answer.amount).toBeUndefined();
   });
+
+  it.each([
+    ["P5B", "a wallet hold", "82X6061176829372S", "2026-10-17T00:00:34Z", "2026-11-10T11:33:30Z"],
+    ["P5C", "a card hold", "9KG47140A1181761A", "2026-10-17T00:00:46Z", "2026-11-10T11:42:31Z"],
+  ])(
+    "reads %s's reauthorise answer for %s: a new id, CREATED, the original's 29 days",
+    (probe, _hold, id, created, expires) => {
+      const answer = authorization.parse(
+        recordedAnswer(probe, "POST", /\/reauthorize$/).responseBody,
+      );
+
+      expect(answer.id).toBe(id);
+      expect(answer.status).toBe("CREATED");
+      expect(answer.create_time).toBe(created);
+      expect(answer.expiration_time).toBe(expires);
+      expect(moneyFromPayPal(answer.amount!)).toEqual({ pence: 10_000, currency: "GBP" });
+    },
+  );
 
   it("reads the documented refund answer", () => {
     const answer = refund.parse(paypalFixture("api/refund-201.json"));

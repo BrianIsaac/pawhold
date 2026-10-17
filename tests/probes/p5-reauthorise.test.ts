@@ -35,6 +35,41 @@ describe("P5 (a), over the sandbox's recorded answers", () => {
   });
 });
 
+describe("P5 (b) and (c), over the sandbox's recorded answers of 17 October", () => {
+  it("(b) reauthorises the wallet hold with a new id, keeping its 29 days, and the new id captures", async () => {
+    const { replayed } = await replayRecorded("P5B");
+
+    expect(replayed.outcome).toMatchObject({
+      verdict: "pass",
+      observations: {
+        "standing authorisation": "0ES00663UY756964A",
+        "new authorisation": "82X6061176829372S",
+        "new authorisation status": "CREATED",
+        "new authorisation expires": "2026-11-10T11:33:30Z",
+        "capture status": "COMPLETED",
+        "captured (pence)": 10_000,
+      },
+    });
+    expect(replayed.cleanup?.clean).toBe(true);
+  });
+
+  it("(c) reauthorises the card hold too, against PayPal's documentation: the plan's branch for card holds", async () => {
+    const { replayed } = await replayRecorded("P5C");
+
+    expect(replayed.outcome).toMatchObject({
+      verdict: "fail",
+      branch: "A card hold reauthorised: the job extends card holds too.",
+      observations: {
+        "standing authorisation": "6UE89269RV120640R",
+        "new authorisation": "9KG47140A1181761A",
+        "new authorisation status": "CREATED",
+        "new authorisation expires": "2026-11-10T11:42:31Z",
+      },
+    });
+    expect(replayed.cleanup?.clean).toBe(true);
+  });
+});
+
 const exchange = (method: string, path: string, status: number, body: unknown): Exchange => ({
   at: "2026-10-17T09:00:00.000Z",
   ms: 1,
