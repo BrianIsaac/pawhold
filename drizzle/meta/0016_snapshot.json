@@ -1,0 +1,3182 @@
+{
+  "id": "0e8a4371-a671-4385-bc56-10fc615757ad",
+  "prevId": "34167ae7-cdb4-4b99-a9fa-df07707282d9",
+  "version": "7",
+  "dialect": "postgresql",
+  "tables": {
+    "public.agent_answer": {
+      "name": "agent_answer",
+      "schema": "",
+      "columns": {
+        "practice_id": {
+          "name": "practice_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "input_sha256": {
+          "name": "input_sha256",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "job": {
+          "name": "job",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "model_id": {
+          "name": "model_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "served_model": {
+          "name": "served_model",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "answer": {
+          "name": "answer",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "agent_answer_practice_id_practice_id_fk": {
+          "name": "agent_answer_practice_id_practice_id_fk",
+          "tableFrom": "agent_answer",
+          "tableTo": "practice",
+          "columnsFrom": [
+            "practice_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "agent_answer_pkey": {
+          "name": "agent_answer_pkey",
+          "columns": [
+            "practice_id",
+            "input_sha256"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "agent_answer_input_sha256": {
+          "name": "agent_answer_input_sha256",
+          "value": "\"agent_answer\".\"input_sha256\" ~ '^[0-9a-f]{64}$'"
+        },
+        "agent_answer_job": {
+          "name": "agent_answer_job",
+          "value": "\"agent_answer\".\"job\" in ('draft', 'update')"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.allocation": {
+      "name": "allocation",
+      "schema": "",
+      "columns": {
+        "bill_line_id": {
+          "name": "bill_line_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "hold_id": {
+          "name": "hold_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "amount_pence": {
+          "name": "amount_pence",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "allocation_hold_id_idx": {
+          "name": "allocation_hold_id_idx",
+          "columns": [
+            {
+              "expression": "hold_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "allocation_bill_line_id_bill_line_id_fk": {
+          "name": "allocation_bill_line_id_bill_line_id_fk",
+          "tableFrom": "allocation",
+          "tableTo": "bill_line",
+          "columnsFrom": [
+            "bill_line_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "allocation_hold_id_hold_id_fk": {
+          "name": "allocation_hold_id_hold_id_fk",
+          "tableFrom": "allocation",
+          "tableTo": "hold",
+          "columnsFrom": [
+            "hold_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "allocation_pkey": {
+          "name": "allocation_pkey",
+          "columns": [
+            "bill_line_id",
+            "hold_id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "allocation_amount_positive": {
+          "name": "allocation_amount_positive",
+          "value": "\"allocation\".\"amount_pence\" > 0"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.audit_event": {
+      "name": "audit_event",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "bigint",
+          "primaryKey": true,
+          "notNull": true,
+          "identity": {
+            "type": "always",
+            "name": "audit_event_id_seq",
+            "schema": "public",
+            "increment": "1",
+            "startWith": "1",
+            "minValue": "1",
+            "maxValue": "9223372036854775807",
+            "cache": "1",
+            "cycle": false
+          }
+        },
+        "occurred_at": {
+          "name": "occurred_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "clock_timestamp()"
+        },
+        "practice_id": {
+          "name": "practice_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "case_id": {
+          "name": "case_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "actor": {
+          "name": "actor",
+          "type": "audit_actor",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "action": {
+          "name": "action",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "money_state_before": {
+          "name": "money_state_before",
+          "type": "money_state",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "money_state_after": {
+          "name": "money_state_after",
+          "type": "money_state",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "amount_pence": {
+          "name": "amount_pence",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "currency_code": {
+          "name": "currency_code",
+          "type": "char(3)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "paypal_order_id": {
+          "name": "paypal_order_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "paypal_authorization_id": {
+          "name": "paypal_authorization_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "paypal_capture_id": {
+          "name": "paypal_capture_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "paypal_refund_id": {
+          "name": "paypal_refund_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "paypal_debug_id": {
+          "name": "paypal_debug_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "webhook_event_id": {
+          "name": "webhook_event_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "webhook_verified": {
+          "name": "webhook_verified",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "model_id": {
+          "name": "model_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "model_input_sha256": {
+          "name": "model_input_sha256",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "model_output": {
+          "name": "model_output",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "detail": {
+          "name": "detail",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'::jsonb"
+        }
+      },
+      "indexes": {
+        "audit_event_case_id_idx": {
+          "name": "audit_event_case_id_idx",
+          "columns": [
+            {
+              "expression": "case_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "audit_event_practice_id_idx": {
+          "name": "audit_event_practice_id_idx",
+          "columns": [
+            {
+              "expression": "practice_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "audit_event_practice_id_practice_id_fk": {
+          "name": "audit_event_practice_id_practice_id_fk",
+          "tableFrom": "audit_event",
+          "tableTo": "practice",
+          "columnsFrom": [
+            "practice_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "audit_event_webhook_event_id_webhook_event_event_id_fk": {
+          "name": "audit_event_webhook_event_id_webhook_event_event_id_fk",
+          "tableFrom": "audit_event",
+          "tableTo": "webhook_event",
+          "columnsFrom": [
+            "webhook_event_id"
+          ],
+          "columnsTo": [
+            "event_id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "audit_event_case_in_practice_fk": {
+          "name": "audit_event_case_in_practice_fk",
+          "tableFrom": "audit_event",
+          "tableTo": "patient_case",
+          "columnsFrom": [
+            "case_id",
+            "practice_id"
+          ],
+          "columnsTo": [
+            "id",
+            "practice_id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "audit_event_action_shape": {
+          "name": "audit_event_action_shape",
+          "value": "\"audit_event\".\"action\" ~ '^[a-z][a-z_]*(\\.[a-z][a-z_]*)*$'"
+        },
+        "audit_event_amount_with_currency": {
+          "name": "audit_event_amount_with_currency",
+          "value": "(\"audit_event\".\"amount_pence\" is null) = (\"audit_event\".\"currency_code\" is null)"
+        },
+        "audit_event_amount_non_negative": {
+          "name": "audit_event_amount_non_negative",
+          "value": "\"audit_event\".\"amount_pence\" is null or \"audit_event\".\"amount_pence\" >= 0"
+        },
+        "audit_event_currency_code": {
+          "name": "audit_event_currency_code",
+          "value": "\"audit_event\".\"currency_code\" is null or \"audit_event\".\"currency_code\" in ('GBP', 'USD')"
+        },
+        "audit_event_case_needs_practice": {
+          "name": "audit_event_case_needs_practice",
+          "value": "\"audit_event\".\"case_id\" is null or \"audit_event\".\"practice_id\" is not null"
+        },
+        "audit_event_model_step_complete": {
+          "name": "audit_event_model_step_complete",
+          "value": "(\"audit_event\".\"model_id\" is null and \"audit_event\".\"model_input_sha256\" is null and \"audit_event\".\"model_output\" is null)\n        or (\"audit_event\".\"model_id\" is not null and \"audit_event\".\"model_input_sha256\" is not null)"
+        },
+        "audit_event_model_input_sha256": {
+          "name": "audit_event_model_input_sha256",
+          "value": "\"audit_event\".\"model_input_sha256\" is null or \"audit_event\".\"model_input_sha256\" ~ '^[0-9a-f]{64}$'"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.bill": {
+      "name": "bill",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "practice_id": {
+          "name": "practice_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "case_id": {
+          "name": "case_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "currency_code": {
+          "name": "currency_code",
+          "type": "char(3)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "total_pence": {
+          "name": "total_pence",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "signed_off_by": {
+          "name": "signed_off_by",
+          "type": "audit_actor",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "signed_off_at": {
+          "name": "signed_off_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "clock_timestamp()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "bill_case_in_practice_fk": {
+          "name": "bill_case_in_practice_fk",
+          "tableFrom": "bill",
+          "tableTo": "patient_case",
+          "columnsFrom": [
+            "case_id",
+            "practice_id"
+          ],
+          "columnsTo": [
+            "id",
+            "practice_id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "bill_case_id_key": {
+          "name": "bill_case_id_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "case_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "bill_currency_code": {
+          "name": "bill_currency_code",
+          "value": "\"bill\".\"currency_code\" in ('GBP', 'USD')"
+        },
+        "bill_total_non_negative": {
+          "name": "bill_total_non_negative",
+          "value": "\"bill\".\"total_pence\" >= 0"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.bill_line": {
+      "name": "bill_line",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "bill_id": {
+          "name": "bill_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "position": {
+          "name": "position",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "estimate_line_id": {
+          "name": "estimate_line_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "quantity": {
+          "name": "quantity",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "unit_price_pence": {
+          "name": "unit_price_pence",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "amount_pence": {
+          "name": "amount_pence",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "generated": {
+            "as": "unit_price_pence * quantity",
+            "type": "stored"
+          }
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "bill_line_bill_id_bill_id_fk": {
+          "name": "bill_line_bill_id_bill_id_fk",
+          "tableFrom": "bill_line",
+          "tableTo": "bill",
+          "columnsFrom": [
+            "bill_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "bill_line_priced_from_estimate_fk": {
+          "name": "bill_line_priced_from_estimate_fk",
+          "tableFrom": "bill_line",
+          "tableTo": "estimate_line",
+          "columnsFrom": [
+            "estimate_line_id",
+            "unit_price_pence"
+          ],
+          "columnsTo": [
+            "id",
+            "unit_price_pence"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "bill_line_position_key": {
+          "name": "bill_line_position_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "bill_id",
+            "position"
+          ]
+        },
+        "bill_line_estimate_line_key": {
+          "name": "bill_line_estimate_line_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "bill_id",
+            "estimate_line_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "bill_line_position_positive": {
+          "name": "bill_line_position_positive",
+          "value": "\"bill_line\".\"position\" >= 1"
+        },
+        "bill_line_quantity_positive": {
+          "name": "bill_line_quantity_positive",
+          "value": "\"bill_line\".\"quantity\" >= 1"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.booking": {
+      "name": "booking",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "practice_id": {
+          "name": "practice_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "case_id": {
+          "name": "case_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "room_id": {
+          "name": "room_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "vet_id": {
+          "name": "vet_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "kind": {
+          "name": "kind",
+          "type": "booking_kind",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "starts_at": {
+          "name": "starts_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "ends_at": {
+          "name": "ends_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "booking_practice_starts_at_idx": {
+          "name": "booking_practice_starts_at_idx",
+          "columns": [
+            {
+              "expression": "practice_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "starts_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "booking_case_id_idx": {
+          "name": "booking_case_id_idx",
+          "columns": [
+            {
+              "expression": "case_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "booking_case_in_practice_fk": {
+          "name": "booking_case_in_practice_fk",
+          "tableFrom": "booking",
+          "tableTo": "patient_case",
+          "columnsFrom": [
+            "case_id",
+            "practice_id"
+          ],
+          "columnsTo": [
+            "id",
+            "practice_id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "booking_room_in_practice_fk": {
+          "name": "booking_room_in_practice_fk",
+          "tableFrom": "booking",
+          "tableTo": "room",
+          "columnsFrom": [
+            "room_id",
+            "practice_id"
+          ],
+          "columnsTo": [
+            "id",
+            "practice_id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "booking_vet_in_practice_fk": {
+          "name": "booking_vet_in_practice_fk",
+          "tableFrom": "booking",
+          "tableTo": "vet",
+          "columnsFrom": [
+            "vet_id",
+            "practice_id"
+          ],
+          "columnsTo": [
+            "id",
+            "practice_id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "booking_id_practice_id_key": {
+          "name": "booking_id_practice_id_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "id",
+            "practice_id"
+          ]
+        },
+        "booking_id_case_practice_key": {
+          "name": "booking_id_case_practice_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "id",
+            "case_id",
+            "practice_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "booking_length": {
+          "name": "booking_length",
+          "value": "\"booking\".\"ends_at\" - \"booking\".\"starts_at\" between interval '15 minutes' and interval '12 hours'"
+        },
+        "booking_on_five_minute_marks": {
+          "name": "booking_on_five_minute_marks",
+          "value": "extract(epoch from \"booking\".\"starts_at\") % 300 = 0 and extract(epoch from \"booking\".\"ends_at\") % 300 = 0"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.capture": {
+      "name": "capture",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "hold_id": {
+          "name": "hold_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "sequence": {
+          "name": "sequence",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "paypal_capture_id": {
+          "name": "paypal_capture_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "authorization_id": {
+          "name": "authorization_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "amount_pence": {
+          "name": "amount_pence",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "currency_code": {
+          "name": "currency_code",
+          "type": "char(3)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "final_capture": {
+          "name": "final_capture",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "capture_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "paypal_fee_pence": {
+          "name": "paypal_fee_pence",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "net_pence": {
+          "name": "net_pence",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "captured_at": {
+          "name": "captured_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "confirmed_at": {
+          "name": "confirmed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "capture_hold_id_hold_id_fk": {
+          "name": "capture_hold_id_hold_id_fk",
+          "tableFrom": "capture",
+          "tableTo": "hold",
+          "columnsFrom": [
+            "hold_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "capture_paypal_capture_id_key": {
+          "name": "capture_paypal_capture_id_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "paypal_capture_id"
+          ]
+        },
+        "capture_sequence_key": {
+          "name": "capture_sequence_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "hold_id",
+            "sequence"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "capture_sequence_positive": {
+          "name": "capture_sequence_positive",
+          "value": "\"capture\".\"sequence\" >= 1"
+        },
+        "capture_amount_positive": {
+          "name": "capture_amount_positive",
+          "value": "\"capture\".\"amount_pence\" > 0"
+        },
+        "capture_currency_code": {
+          "name": "capture_currency_code",
+          "value": "\"capture\".\"currency_code\" in ('GBP', 'USD')"
+        },
+        "capture_fee_non_negative": {
+          "name": "capture_fee_non_negative",
+          "value": "\"capture\".\"paypal_fee_pence\" is null or \"capture\".\"paypal_fee_pence\" >= 0"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.estimate_line": {
+      "name": "estimate_line",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "version_id": {
+          "name": "version_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "price_list_id": {
+          "name": "price_list_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "position": {
+          "name": "position",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "price_list_item_id": {
+          "name": "price_list_item_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "unit_price_pence": {
+          "name": "unit_price_pence",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "quantity_low": {
+          "name": "quantity_low",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "quantity_high": {
+          "name": "quantity_high",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "low_pence": {
+          "name": "low_pence",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "generated": {
+            "as": "unit_price_pence * quantity_low",
+            "type": "stored"
+          }
+        },
+        "high_pence": {
+          "name": "high_pence",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "generated": {
+            "as": "unit_price_pence * quantity_high",
+            "type": "stored"
+          }
+        },
+        "depends_on": {
+          "name": "depends_on",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "notes_span": {
+          "name": "notes_span",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "owner_wording": {
+          "name": "owner_wording",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "estimate_line_item_idx": {
+          "name": "estimate_line_item_idx",
+          "columns": [
+            {
+              "expression": "price_list_item_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "estimate_line_version_fk": {
+          "name": "estimate_line_version_fk",
+          "tableFrom": "estimate_line",
+          "tableTo": "estimate_version",
+          "columnsFrom": [
+            "version_id",
+            "price_list_id"
+          ],
+          "columnsTo": [
+            "id",
+            "price_list_id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "estimate_line_priced_from_list_fk": {
+          "name": "estimate_line_priced_from_list_fk",
+          "tableFrom": "estimate_line",
+          "tableTo": "price_list_item",
+          "columnsFrom": [
+            "price_list_item_id",
+            "price_list_id",
+            "unit_price_pence"
+          ],
+          "columnsTo": [
+            "id",
+            "price_list_id",
+            "unit_price_pence"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "estimate_line_position_key": {
+          "name": "estimate_line_position_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "version_id",
+            "position"
+          ]
+        },
+        "estimate_line_priced_key": {
+          "name": "estimate_line_priced_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "id",
+            "unit_price_pence"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "estimate_line_position_positive": {
+          "name": "estimate_line_position_positive",
+          "value": "\"estimate_line\".\"position\" >= 1"
+        },
+        "estimate_line_quantity_range": {
+          "name": "estimate_line_quantity_range",
+          "value": "\"estimate_line\".\"quantity_low\" >= 0 and \"estimate_line\".\"quantity_high\" >= \"estimate_line\".\"quantity_low\" and \"estimate_line\".\"quantity_high\" >= 1"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.estimate_source": {
+      "name": "estimate_source",
+      "schema": "",
+      "columns": {
+        "version_id": {
+          "name": "version_id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "practice_id": {
+          "name": "practice_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "case_id": {
+          "name": "case_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "kind": {
+          "name": "kind",
+          "type": "estimate_source_kind",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "text": {
+          "name": "text",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "unmatched": {
+          "name": "unmatched",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'[]'::jsonb"
+        },
+        "unsupported": {
+          "name": "unsupported",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'[]'::jsonb"
+        },
+        "failure": {
+          "name": "failure",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "explanation": {
+          "name": "explanation",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "explanation_fell_back": {
+          "name": "explanation_fell_back",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "photo": {
+          "name": "photo",
+          "type": "bytea",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "photo_media_type": {
+          "name": "photo_media_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "photo_sha256": {
+          "name": "photo_sha256",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "photo_shared": {
+          "name": "photo_shared",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "estimate_source_case_id_idx": {
+          "name": "estimate_source_case_id_idx",
+          "columns": [
+            {
+              "expression": "case_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "estimate_source_version_fk": {
+          "name": "estimate_source_version_fk",
+          "tableFrom": "estimate_source",
+          "tableTo": "estimate_version",
+          "columnsFrom": [
+            "version_id",
+            "case_id",
+            "practice_id"
+          ],
+          "columnsTo": [
+            "id",
+            "case_id",
+            "practice_id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "estimate_source_case_in_practice_fk": {
+          "name": "estimate_source_case_in_practice_fk",
+          "tableFrom": "estimate_source",
+          "tableTo": "patient_case",
+          "columnsFrom": [
+            "case_id",
+            "practice_id"
+          ],
+          "columnsTo": [
+            "id",
+            "practice_id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "estimate_source_text_length": {
+          "name": "estimate_source_text_length",
+          "value": "char_length(\"estimate_source\".\"text\") between 1 and 10000"
+        },
+        "estimate_source_photo_complete": {
+          "name": "estimate_source_photo_complete",
+          "value": "(\"estimate_source\".\"photo\" is null) = (\"estimate_source\".\"photo_media_type\" is null)\n        and (\"estimate_source\".\"photo\" is null) = (\"estimate_source\".\"photo_sha256\" is null)"
+        },
+        "estimate_source_photo_on_finding": {
+          "name": "estimate_source_photo_on_finding",
+          "value": "\"estimate_source\".\"photo\" is null or \"estimate_source\".\"kind\" = 'finding'"
+        },
+        "estimate_source_photo_shared_with_photo": {
+          "name": "estimate_source_photo_shared_with_photo",
+          "value": "not \"estimate_source\".\"photo_shared\" or \"estimate_source\".\"photo\" is not null"
+        },
+        "estimate_source_photo_media_type": {
+          "name": "estimate_source_photo_media_type",
+          "value": "\"estimate_source\".\"photo_media_type\" is null or \"estimate_source\".\"photo_media_type\" in ('image/png', 'image/jpeg', 'image/webp', 'image/gif')"
+        },
+        "estimate_source_photo_size": {
+          "name": "estimate_source_photo_size",
+          "value": "\"estimate_source\".\"photo\" is null or octet_length(\"estimate_source\".\"photo\") between 1 and 5242880"
+        },
+        "estimate_source_photo_sha256": {
+          "name": "estimate_source_photo_sha256",
+          "value": "\"estimate_source\".\"photo_sha256\" is null or \"estimate_source\".\"photo_sha256\" ~ '^[0-9a-f]{64}$'"
+        },
+        "estimate_source_explanation_on_finding": {
+          "name": "estimate_source_explanation_on_finding",
+          "value": "(\"estimate_source\".\"explanation\" is null and \"estimate_source\".\"explanation_fell_back\" is null) or \"estimate_source\".\"kind\" = 'finding'"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.estimate_version": {
+      "name": "estimate_version",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "practice_id": {
+          "name": "practice_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "case_id": {
+          "name": "case_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "price_list_id": {
+          "name": "price_list_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "number": {
+          "name": "number",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "sent_at": {
+          "name": "sent_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "total_low_pence": {
+          "name": "total_low_pence",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "total_high_pence": {
+          "name": "total_high_pence",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "estimate_version_one_draft_per_case_idx": {
+          "name": "estimate_version_one_draft_per_case_idx",
+          "columns": [
+            {
+              "expression": "case_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"estimate_version\".\"sent_at\" is null",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "estimate_version_case_in_practice_fk": {
+          "name": "estimate_version_case_in_practice_fk",
+          "tableFrom": "estimate_version",
+          "tableTo": "patient_case",
+          "columnsFrom": [
+            "case_id",
+            "practice_id"
+          ],
+          "columnsTo": [
+            "id",
+            "practice_id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "estimate_version_price_list_in_practice_fk": {
+          "name": "estimate_version_price_list_in_practice_fk",
+          "tableFrom": "estimate_version",
+          "tableTo": "price_list",
+          "columnsFrom": [
+            "price_list_id",
+            "practice_id"
+          ],
+          "columnsTo": [
+            "id",
+            "practice_id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "estimate_version_case_number_key": {
+          "name": "estimate_version_case_number_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "case_id",
+            "number"
+          ]
+        },
+        "estimate_version_id_price_list_id_key": {
+          "name": "estimate_version_id_price_list_id_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "id",
+            "price_list_id"
+          ]
+        },
+        "estimate_version_id_case_practice_key": {
+          "name": "estimate_version_id_case_practice_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "id",
+            "case_id",
+            "practice_id"
+          ]
+        },
+        "estimate_version_hold_key": {
+          "name": "estimate_version_hold_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "id",
+            "case_id",
+            "number",
+            "total_high_pence"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "estimate_version_number_positive": {
+          "name": "estimate_version_number_positive",
+          "value": "\"estimate_version\".\"number\" >= 1"
+        },
+        "estimate_version_totals_when_sent": {
+          "name": "estimate_version_totals_when_sent",
+          "value": "(\"estimate_version\".\"sent_at\" is null and \"estimate_version\".\"total_low_pence\" is null and \"estimate_version\".\"total_high_pence\" is null)\n        or (\"estimate_version\".\"sent_at\" is not null and \"estimate_version\".\"total_low_pence\" is not null and \"estimate_version\".\"total_high_pence\" is not null)"
+        },
+        "estimate_version_totals_range": {
+          "name": "estimate_version_totals_range",
+          "value": "\"estimate_version\".\"total_low_pence\" is null or (\"estimate_version\".\"total_low_pence\" >= 0 and \"estimate_version\".\"total_high_pence\" >= \"estimate_version\".\"total_low_pence\")"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.hold": {
+      "name": "hold",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "practice_id": {
+          "name": "practice_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "case_id": {
+          "name": "case_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "version_number": {
+          "name": "version_number",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "version_high_pence": {
+          "name": "version_high_pence",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "held_before_pence": {
+          "name": "held_before_pence",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "amount_pence": {
+          "name": "amount_pence",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "currency_code": {
+          "name": "currency_code",
+          "type": "char(3)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "hold_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'ordered'"
+        },
+        "paypal_order_id": {
+          "name": "paypal_order_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "authorization_id": {
+          "name": "authorization_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "original_authorization_id": {
+          "name": "original_authorization_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "payment_kind": {
+          "name": "payment_kind",
+          "type": "payment_kind",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "authorised_at": {
+          "name": "authorised_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "expires_at": {
+          "name": "expires_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "reauthorised_at": {
+          "name": "reauthorised_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "reauthorise_refused_at": {
+          "name": "reauthorise_refused_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "honour_period_flagged_at": {
+          "name": "honour_period_flagged_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "confirmed_at": {
+          "name": "confirmed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "closed_at": {
+          "name": "closed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "hold_case_id_idx": {
+          "name": "hold_case_id_idx",
+          "columns": [
+            {
+              "expression": "case_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "version_number",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "hold_case_in_practice_fk": {
+          "name": "hold_case_in_practice_fk",
+          "tableFrom": "hold",
+          "tableTo": "patient_case",
+          "columnsFrom": [
+            "case_id",
+            "practice_id"
+          ],
+          "columnsTo": [
+            "id",
+            "practice_id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "hold_version_fk": {
+          "name": "hold_version_fk",
+          "tableFrom": "hold",
+          "tableTo": "estimate_version",
+          "columnsFrom": [
+            "id",
+            "case_id",
+            "version_number",
+            "version_high_pence"
+          ],
+          "columnsTo": [
+            "id",
+            "case_id",
+            "number",
+            "total_high_pence"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "hold_paypal_order_id_key": {
+          "name": "hold_paypal_order_id_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "paypal_order_id"
+          ]
+        },
+        "hold_authorization_id_key": {
+          "name": "hold_authorization_id_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "authorization_id"
+          ]
+        },
+        "hold_original_authorization_id_key": {
+          "name": "hold_original_authorization_id_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "original_authorization_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "hold_currency_code": {
+          "name": "hold_currency_code",
+          "value": "\"hold\".\"currency_code\" in ('GBP', 'USD')"
+        },
+        "hold_held_before_non_negative": {
+          "name": "hold_held_before_non_negative",
+          "value": "\"hold\".\"held_before_pence\" >= 0"
+        },
+        "hold_amount_is_increase": {
+          "name": "hold_amount_is_increase",
+          "value": "\"hold\".\"amount_pence\" > 0 and \"hold\".\"amount_pence\" = \"hold\".\"version_high_pence\" - \"hold\".\"held_before_pence\""
+        },
+        "hold_authorisation_with_status": {
+          "name": "hold_authorisation_with_status",
+          "value": "(\"hold\".\"status\" in ('ordered', 'withdrawn', 'declined')) = (\"hold\".\"authorization_id\" is null)"
+        },
+        "hold_authorisation_complete": {
+          "name": "hold_authorisation_complete",
+          "value": "(\"hold\".\"authorization_id\" is null) = (\"hold\".\"original_authorization_id\" is null)\n        and (\"hold\".\"authorization_id\" is null) = (\"hold\".\"payment_kind\" is null)\n        and (\"hold\".\"authorization_id\" is null) = (\"hold\".\"authorised_at\" is null)"
+        },
+        "hold_reauthorised_new_authorisation": {
+          "name": "hold_reauthorised_new_authorisation",
+          "value": "\"hold\".\"reauthorised_at\" is null\n        or \"hold\".\"authorization_id\" <> \"hold\".\"original_authorization_id\""
+        },
+        "hold_closed_with_status": {
+          "name": "hold_closed_with_status",
+          "value": "(\"hold\".\"status\" in ('ordered', 'authorised')) = (\"hold\".\"closed_at\" is null)"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.patient_case": {
+      "name": "patient_case",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "practice_id": {
+          "name": "practice_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "patient_name": {
+          "name": "patient_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "species": {
+          "name": "species",
+          "type": "animal_species",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "owner_name": {
+          "name": "owner_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "procedure": {
+          "name": "procedure",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "vet_name": {
+          "name": "vet_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "money_state": {
+          "name": "money_state",
+          "type": "money_state",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'estimate_draft'"
+        },
+        "currency_code": {
+          "name": "currency_code",
+          "type": "char(3)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'GBP'"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "patient_case_practice_id_idx": {
+          "name": "patient_case_practice_id_idx",
+          "columns": [
+            {
+              "expression": "practice_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "patient_case_practice_id_practice_id_fk": {
+          "name": "patient_case_practice_id_practice_id_fk",
+          "tableFrom": "patient_case",
+          "tableTo": "practice",
+          "columnsFrom": [
+            "practice_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "patient_case_id_practice_id_key": {
+          "name": "patient_case_id_practice_id_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "id",
+            "practice_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "patient_case_currency_code": {
+          "name": "patient_case_currency_code",
+          "value": "\"patient_case\".\"currency_code\" in ('GBP', 'USD')"
+        },
+        "patient_case_vet_name_length": {
+          "name": "patient_case_vet_name_length",
+          "value": "\"patient_case\".\"vet_name\" is null or char_length(\"patient_case\".\"vet_name\") between 1 and 100"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.practice": {
+      "name": "practice",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "kind": {
+          "name": "kind",
+          "type": "practice_kind",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "monetary_threshold_pence": {
+          "name": "monetary_threshold_pence",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 50000
+        },
+        "schedule_lead_minutes": {
+          "name": "schedule_lead_minutes",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 30
+        },
+        "time_zone": {
+          "name": "time_zone",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'Europe/London'"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "practice_monetary_threshold_positive": {
+          "name": "practice_monetary_threshold_positive",
+          "value": "\"practice\".\"monetary_threshold_pence\" > 0"
+        },
+        "practice_schedule_lead_minutes_range": {
+          "name": "practice_schedule_lead_minutes_range",
+          "value": "\"practice\".\"schedule_lead_minutes\" between 5 and 240"
+        },
+        "practice_time_zone_length": {
+          "name": "practice_time_zone_length",
+          "value": "char_length(\"practice\".\"time_zone\") between 1 and 64"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.price_list": {
+      "name": "price_list",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "practice_id": {
+          "name": "practice_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "currency_code": {
+          "name": "currency_code",
+          "type": "char(3)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'GBP'"
+        },
+        "source_name": {
+          "name": "source_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "item_count": {
+          "name": "item_count",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "imported_at": {
+          "name": "imported_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "clock_timestamp()"
+        }
+      },
+      "indexes": {
+        "price_list_practice_id_idx": {
+          "name": "price_list_practice_id_idx",
+          "columns": [
+            {
+              "expression": "practice_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "imported_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "price_list_practice_id_practice_id_fk": {
+          "name": "price_list_practice_id_practice_id_fk",
+          "tableFrom": "price_list",
+          "tableTo": "practice",
+          "columnsFrom": [
+            "practice_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "price_list_id_practice_id_key": {
+          "name": "price_list_id_practice_id_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "id",
+            "practice_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "price_list_currency_code": {
+          "name": "price_list_currency_code",
+          "value": "\"price_list\".\"currency_code\" in ('GBP', 'USD')"
+        },
+        "price_list_item_count_range": {
+          "name": "price_list_item_count_range",
+          "value": "\"price_list\".\"item_count\" between 1 and 2000"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.price_list_item": {
+      "name": "price_list_item",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "price_list_id": {
+          "name": "price_list_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "code": {
+          "name": "code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "category": {
+          "name": "category",
+          "type": "price_category",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "unit": {
+          "name": "unit",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "unit_price_pence": {
+          "name": "unit_price_pence",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "price_list_item_price_list_id_price_list_id_fk": {
+          "name": "price_list_item_price_list_id_price_list_id_fk",
+          "tableFrom": "price_list_item",
+          "tableTo": "price_list",
+          "columnsFrom": [
+            "price_list_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "price_list_item_code_key": {
+          "name": "price_list_item_code_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "price_list_id",
+            "code"
+          ]
+        },
+        "price_list_item_priced_key": {
+          "name": "price_list_item_priced_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "id",
+            "price_list_id",
+            "unit_price_pence"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "price_list_item_unit_price_non_negative": {
+          "name": "price_list_item_unit_price_non_negative",
+          "value": "\"price_list_item\".\"unit_price_pence\" >= 0"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.refund": {
+      "name": "refund",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "capture_id": {
+          "name": "capture_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "sequence": {
+          "name": "sequence",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "amount_pence": {
+          "name": "amount_pence",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "currency_code": {
+          "name": "currency_code",
+          "type": "char(3)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "reason": {
+          "name": "reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "requested_by": {
+          "name": "requested_by",
+          "type": "audit_actor",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "refund_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'requested'"
+        },
+        "paypal_refund_id": {
+          "name": "paypal_refund_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "refunded_at": {
+          "name": "refunded_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "confirmed_at": {
+          "name": "confirmed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "refund_capture_id_capture_id_fk": {
+          "name": "refund_capture_id_capture_id_fk",
+          "tableFrom": "refund",
+          "tableTo": "capture",
+          "columnsFrom": [
+            "capture_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "refund_paypal_refund_id_key": {
+          "name": "refund_paypal_refund_id_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "paypal_refund_id"
+          ]
+        },
+        "refund_sequence_key": {
+          "name": "refund_sequence_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "capture_id",
+            "sequence"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "refund_sequence_positive": {
+          "name": "refund_sequence_positive",
+          "value": "\"refund\".\"sequence\" >= 1"
+        },
+        "refund_amount_positive": {
+          "name": "refund_amount_positive",
+          "value": "\"refund\".\"amount_pence\" > 0"
+        },
+        "refund_currency_code": {
+          "name": "refund_currency_code",
+          "value": "\"refund\".\"currency_code\" in ('GBP', 'USD')"
+        },
+        "refund_reason_length": {
+          "name": "refund_reason_length",
+          "value": "char_length(\"refund\".\"reason\") between 1 and 500"
+        },
+        "refund_answered_with_id": {
+          "name": "refund_answered_with_id",
+          "value": "(\"refund\".\"status\" <> 'requested' or \"refund\".\"paypal_refund_id\" is null)\n        and (\"refund\".\"status\" not in ('pending', 'completed') or \"refund\".\"paypal_refund_id\" is not null)"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.room": {
+      "name": "room",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "practice_id": {
+          "name": "practice_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "kind": {
+          "name": "kind",
+          "type": "room_kind",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "position": {
+          "name": "position",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "room_practice_id_practice_id_fk": {
+          "name": "room_practice_id_practice_id_fk",
+          "tableFrom": "room",
+          "tableTo": "practice",
+          "columnsFrom": [
+            "practice_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "room_practice_name_key": {
+          "name": "room_practice_name_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "practice_id",
+            "name"
+          ]
+        },
+        "room_practice_position_key": {
+          "name": "room_practice_position_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "practice_id",
+            "position"
+          ]
+        },
+        "room_id_practice_id_key": {
+          "name": "room_id_practice_id_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "id",
+            "practice_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "room_name_length": {
+          "name": "room_name_length",
+          "value": "char_length(\"room\".\"name\") between 1 and 60"
+        },
+        "room_position_positive": {
+          "name": "room_position_positive",
+          "value": "\"room\".\"position\" >= 1"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.schedule_proposal": {
+      "name": "schedule_proposal",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "practice_id": {
+          "name": "practice_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "case_id": {
+          "name": "case_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "booking_id": {
+          "name": "booking_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "version_id": {
+          "name": "version_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "reason": {
+          "name": "reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "held_at": {
+          "name": "held_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "released_at": {
+          "name": "released_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "released_by": {
+          "name": "released_by",
+          "type": "schedule_released_by",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "move_booking_id": {
+          "name": "move_booking_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "move_to": {
+          "name": "move_to",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "move_status": {
+          "name": "move_status",
+          "type": "schedule_move_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "move_decided_at": {
+          "name": "move_decided_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "schedule_proposal_one_open_per_booking_idx": {
+          "name": "schedule_proposal_one_open_per_booking_idx",
+          "columns": [
+            {
+              "expression": "booking_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"schedule_proposal\".\"released_at\" is null",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "schedule_proposal_practice_idx": {
+          "name": "schedule_proposal_practice_idx",
+          "columns": [
+            {
+              "expression": "practice_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "held_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "schedule_proposal_case_idx": {
+          "name": "schedule_proposal_case_idx",
+          "columns": [
+            {
+              "expression": "case_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "schedule_proposal_booking_fk": {
+          "name": "schedule_proposal_booking_fk",
+          "tableFrom": "schedule_proposal",
+          "tableTo": "booking",
+          "columnsFrom": [
+            "booking_id",
+            "case_id",
+            "practice_id"
+          ],
+          "columnsTo": [
+            "id",
+            "case_id",
+            "practice_id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "schedule_proposal_case_in_practice_fk": {
+          "name": "schedule_proposal_case_in_practice_fk",
+          "tableFrom": "schedule_proposal",
+          "tableTo": "patient_case",
+          "columnsFrom": [
+            "case_id",
+            "practice_id"
+          ],
+          "columnsTo": [
+            "id",
+            "practice_id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "schedule_proposal_version_fk": {
+          "name": "schedule_proposal_version_fk",
+          "tableFrom": "schedule_proposal",
+          "tableTo": "estimate_version",
+          "columnsFrom": [
+            "version_id",
+            "case_id",
+            "practice_id"
+          ],
+          "columnsTo": [
+            "id",
+            "case_id",
+            "practice_id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "schedule_proposal_move_booking_fk": {
+          "name": "schedule_proposal_move_booking_fk",
+          "tableFrom": "schedule_proposal",
+          "tableTo": "booking",
+          "columnsFrom": [
+            "move_booking_id",
+            "practice_id"
+          ],
+          "columnsTo": [
+            "id",
+            "practice_id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "schedule_proposal_booking_version_key": {
+          "name": "schedule_proposal_booking_version_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "booking_id",
+            "version_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "schedule_proposal_reason_length": {
+          "name": "schedule_proposal_reason_length",
+          "value": "char_length(\"schedule_proposal\".\"reason\") between 1 and 500"
+        },
+        "schedule_proposal_released_complete": {
+          "name": "schedule_proposal_released_complete",
+          "value": "(\"schedule_proposal\".\"released_at\" is null) = (\"schedule_proposal\".\"released_by\" is null)"
+        },
+        "schedule_proposal_move_complete": {
+          "name": "schedule_proposal_move_complete",
+          "value": "(\"schedule_proposal\".\"move_booking_id\" is null) = (\"schedule_proposal\".\"move_status\" is null)\n        and (\"schedule_proposal\".\"move_booking_id\" is null) = (\"schedule_proposal\".\"move_to\" is null)"
+        },
+        "schedule_proposal_move_decided": {
+          "name": "schedule_proposal_move_decided",
+          "value": "(\"schedule_proposal\".\"move_decided_at\" is not null) = (\"schedule_proposal\".\"move_status\" is not null and \"schedule_proposal\".\"move_status\" <> 'proposed')"
+        },
+        "schedule_proposal_move_another_booking": {
+          "name": "schedule_proposal_move_another_booking",
+          "value": "\"schedule_proposal\".\"move_booking_id\" is null or \"schedule_proposal\".\"move_booking_id\" <> \"schedule_proposal\".\"booking_id\""
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.session": {
+      "name": "session",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "practice_id": {
+          "name": "practice_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "door": {
+          "name": "door",
+          "type": "session_door",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "expires_at": {
+          "name": "expires_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "last_seen_at": {
+          "name": "last_seen_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "session_practice_id_idx": {
+          "name": "session_practice_id_idx",
+          "columns": [
+            {
+              "expression": "practice_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "session_expires_at_idx": {
+          "name": "session_expires_at_idx",
+          "columns": [
+            {
+              "expression": "expires_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "session_practice_id_practice_id_fk": {
+          "name": "session_practice_id_practice_id_fk",
+          "tableFrom": "session",
+          "tableTo": "practice",
+          "columnsFrom": [
+            "practice_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "session_expires_after_creation": {
+          "name": "session_expires_after_creation",
+          "value": "\"session\".\"expires_at\" > \"session\".\"created_at\""
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.vet": {
+      "name": "vet",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "practice_id": {
+          "name": "practice_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "vet_practice_id_practice_id_fk": {
+          "name": "vet_practice_id_practice_id_fk",
+          "tableFrom": "vet",
+          "tableTo": "practice",
+          "columnsFrom": [
+            "practice_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "vet_practice_name_key": {
+          "name": "vet_practice_name_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "practice_id",
+            "name"
+          ]
+        },
+        "vet_id_practice_id_key": {
+          "name": "vet_id_practice_id_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "id",
+            "practice_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "vet_name_length": {
+          "name": "vet_name_length",
+          "value": "char_length(\"vet\".\"name\") between 1 and 100"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.webhook_event": {
+      "name": "webhook_event",
+      "schema": "",
+      "columns": {
+        "event_id": {
+          "name": "event_id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "event_type": {
+          "name": "event_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "resource_type": {
+          "name": "resource_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "resource_id": {
+          "name": "resource_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "summary": {
+          "name": "summary",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "event_created_at": {
+          "name": "event_created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "transmission_id": {
+          "name": "transmission_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "transmission_time": {
+          "name": "transmission_time",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "cert_url": {
+          "name": "cert_url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "auth_algo": {
+          "name": "auth_algo",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "transmission_sig": {
+          "name": "transmission_sig",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "verification": {
+          "name": "verification",
+          "type": "webhook_verification",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "is_mock": {
+          "name": "is_mock",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "raw_body": {
+          "name": "raw_body",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "payload": {
+          "name": "payload",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "received_at": {
+          "name": "received_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "processed_at": {
+          "name": "processed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "webhook_event_resource_id_idx": {
+          "name": "webhook_event_resource_id_idx",
+          "columns": [
+            {
+              "expression": "resource_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    }
+  },
+  "enums": {
+    "public.animal_species": {
+      "name": "animal_species",
+      "schema": "public",
+      "values": [
+        "dog",
+        "cat",
+        "other"
+      ]
+    },
+    "public.audit_actor": {
+      "name": "audit_actor",
+      "schema": "public",
+      "values": [
+        "vet",
+        "owner",
+        "system",
+        "schedule_agent",
+        "paypal_webhook"
+      ]
+    },
+    "public.booking_kind": {
+      "name": "booking_kind",
+      "schema": "public",
+      "values": [
+        "procedure",
+        "consult"
+      ]
+    },
+    "public.capture_status": {
+      "name": "capture_status",
+      "schema": "public",
+      "values": [
+        "completed",
+        "pending",
+        "declined",
+        "partially_refunded",
+        "refunded",
+        "failed"
+      ]
+    },
+    "public.estimate_source_kind": {
+      "name": "estimate_source_kind",
+      "schema": "public",
+      "values": [
+        "notes",
+        "finding"
+      ]
+    },
+    "public.hold_status": {
+      "name": "hold_status",
+      "schema": "public",
+      "values": [
+        "ordered",
+        "authorised",
+        "captured",
+        "voided",
+        "expired",
+        "withdrawn",
+        "declined"
+      ]
+    },
+    "public.money_state": {
+      "name": "money_state",
+      "schema": "public",
+      "values": [
+        "estimate_draft",
+        "awaiting_owner",
+        "held",
+        "update_awaiting_owner",
+        "update_declined",
+        "captured",
+        "released",
+        "refunded",
+        "withdrawn"
+      ]
+    },
+    "public.payment_kind": {
+      "name": "payment_kind",
+      "schema": "public",
+      "values": [
+        "paypal",
+        "card"
+      ]
+    },
+    "public.practice_kind": {
+      "name": "practice_kind",
+      "schema": "public",
+      "values": [
+        "showcase",
+        "judge"
+      ]
+    },
+    "public.price_category": {
+      "name": "price_category",
+      "schema": "public",
+      "values": [
+        "consultation",
+        "anaesthesia",
+        "procedure",
+        "imaging",
+        "laboratory",
+        "medication",
+        "hospitalisation",
+        "consumable"
+      ]
+    },
+    "public.refund_status": {
+      "name": "refund_status",
+      "schema": "public",
+      "values": [
+        "requested",
+        "pending",
+        "completed",
+        "failed",
+        "cancelled"
+      ]
+    },
+    "public.room_kind": {
+      "name": "room_kind",
+      "schema": "public",
+      "values": [
+        "theatre",
+        "consult"
+      ]
+    },
+    "public.schedule_move_status": {
+      "name": "schedule_move_status",
+      "schema": "public",
+      "values": [
+        "proposed",
+        "applied",
+        "dismissed",
+        "withdrawn"
+      ]
+    },
+    "public.schedule_released_by": {
+      "name": "schedule_released_by",
+      "schema": "public",
+      "values": [
+        "practice",
+        "agent"
+      ]
+    },
+    "public.session_door": {
+      "name": "session_door",
+      "schema": "public",
+      "values": [
+        "practice",
+        "owner"
+      ]
+    },
+    "public.webhook_verification": {
+      "name": "webhook_verification",
+      "schema": "public",
+      "values": [
+        "signature",
+        "postback"
+      ]
+    }
+  },
+  "schemas": {},
+  "sequences": {},
+  "roles": {},
+  "policies": {},
+  "views": {},
+  "_meta": {
+    "columns": {},
+    "schemas": {},
+    "tables": {}
+  }
+}
