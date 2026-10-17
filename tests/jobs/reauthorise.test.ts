@@ -80,7 +80,7 @@ beforeEach(async () => {
   fixture = await makeDentalCase(db);
 });
 
-describe("the reauthorisation job (plan 3.2, U0's P5 (a): once per wallet hold, day 4 to 29)", () => {
+describe("the reauthorisation job (plan 3.2; P5 (a), (b) and (c): once per hold, wallet or card, day 4 to 29)", () => {
   it("reauthorises a day-4 wallet hold once: a new authorisation, which captures go against", async () => {
     holdId = await heldBy("paypal");
     const first = (await stored()).authorizationId!;
@@ -124,16 +124,155 @@ describe("the reauthorisation job (plan 3.2, U0's P5 (a): once per wallet hold, 
     );
   });
 
-  it("flags a day-4 card hold, never reauthorising it", async () => {
+  it("reauthorises a day-4 card hold once: a new authorisation, which captures go against", async () => {
     holdId = await heldBy("card");
+    const first = (await stored()).authorizationId!;
+
+    const report = await runAt(day(4));
+    const again = await runAt(day(5));
+
+    expect(report).toMatchObject({ reauthorised: [holdId], flagged: [] });
+    expect(again).toMatchObject({ reauthorised: [], flagged: [] });
+    expect(paypal.posts(/\/reauthorize$/)).toHaveLength(1);
+    const row = await stored();
+    expect(row.paymentKind).toBe("card");
+    expect(row.authorizationId).not.toBe(first);
+    expect(row.originalAuthorizationId).toBe(first);
+    expect(row.honourPeriodFlaggedAt).toBeNull();
+    expect((await actions()).at(-1)).toBe("hold.reauthorised");
+    expect((await caseMoney(db, fixture.practiceId, fixture.caseId)).state).toBe("held");
+
+    const version = (await loadEstimateVersion(db, fixture.practiceId, holdId))!;
+    await discharge(
+      { db, paypal: paypal.client() },
+      {
+        ...fixture,
+        actor: "vet",
+        lines: [{ estimateLineId: version.lines[0]!.id, quantity: 1 }],
+      },
+    );
+    expect(paypal.posts(/\/capture$/)[0]!.path).toBe(
+      `/v2/payments/authorizations/${row.authorizationId}/capture`,
+    );
+  });
+
+  it("keeps PayPal's own answer for a card hold, as P5 (c) recorded it: the new id, its time and the original's 29 days", async () => {
+    holdId = await heldBy("card");
+    const first = (await stored()).authorizationId!;
+    paypal.inject({
+      method: "POST",
+      path: /\/reauthorize$/,
+      status: 201,
+      body: recordedAnswer("P5C", "POST", /\/reauthorize$/).responseBody,
+    });
 
     const report = await runAt(day(4));
 
-    expect(report.flagged).toEqual([holdId]);
+    expect(report.reauthorised).toEqual([holdId]);
+    const row = await stored();
+    expect(row.authorizationId).toBe("9KG47140A1181761A");
+    expect(row.originalAuthorizationId).toBe(first);
+    expect(row.reauthorisedAt).toEqual(new Date("2026-10-17T00:00:46Z"));
+    expect(row.expiresAt).toEqual(new Date("2026-11-10T11:42:31Z"));
+    const [event] = await db
+      .select()
+      .from(auditEvent)
+      .where(
+        and(eq(auditEvent.caseId, fixture.caseId), eq(auditEvent.action, "hold.reauthorised")),
+      );
+    expect(event).toMatchObject({
+      paypalAuthorizationId: "9KG47140A1181761A",
+      detail: { holdId, previousAuthorizationId: first, newStatus: "CREATED" },
+    });
+  });
+
+  it("does not reauthorise a reauthorised card hold again, and flags it once its new honour period is over", async () => {
+    holdId = await heldBy("card");
+
+    await runAt(day(4));
+    const eighth = await runAt(day(8));
+    const ninth = await runAt(day(9));
+
+    expect(paypal.posts(/\/reauthorize$/)).toHaveLength(1);
+    expect(eighth).toMatchObject({ reauthorised: [], flagged: [holdId] });
+    expect(ninth).toMatchObject({ reauthorised: [], flagged: [] });
+    const [flagged] = await db
+      .select()
+      .from(auditEvent)
+      .where(
+        and(
+          eq(auditEvent.caseId, fixture.caseId),
+          eq(auditEvent.action, "hold.honour_period_over"),
+        ),
+      );
+    expect(flagged?.detail).toMatchObject({
+      holdId,
+      paymentKind: "card",
+      reason: "reauthorised once, which is all PayPal allows; its new honour period is over",
+    });
+  });
+
+  it("records a card hold's reauthorisation PayPal refuses for good, and flags the hold", async () => {
+    holdId = await heldBy("card");
+    paypal.inject({
+      method: "POST",
+      path: /\/reauthorize$/,
+      status: 422,
+      body: {
+        name: "UNPROCESSABLE_ENTITY",
+        debug_id: "double422",
+        details: [{ issue: "REAUTHORIZE_NOT_ALLOWED", description: "not allowed" }],
+      },
+    });
+
+    const report = await runAt(day(4));
+    const again = await runAt(day(5));
+
+    expect(report).toMatchObject({ refused: [holdId], flagged: [holdId] });
+    expect(again).toMatchObject({ reauthorised: [], refused: [], flagged: [] });
+    expect((await stored()).reauthoriseRefusedAt).not.toBeNull();
+    expect((await actions()).slice(-2)).toEqual([
+      "hold.reauthorise_refused",
+      "hold.honour_period_over",
+    ]);
+    const [flagged] = await db
+      .select()
+      .from(auditEvent)
+      .where(
+        and(
+          eq(auditEvent.caseId, fixture.caseId),
+          eq(auditEvent.action, "hold.honour_period_over"),
+        ),
+      );
+    expect(flagged?.detail).toMatchObject({
+      paymentKind: "card",
+      reason: "PayPal refused to reauthorise it",
+    });
+  });
+
+  it("leaves a card hold PayPal says is too soon for the next run, as a wallet hold", async () => {
+    holdId = await heldBy("card");
+    paypal.inject({
+      method: "POST",
+      path: /\/reauthorize$/,
+      status: 422,
+      body: recordedAnswer("P5A", "POST", /\/reauthorize$/).responseBody,
+    });
+
+    const refused = await runAt(day(4));
+    const next = await runAt(new Date(day(4).getTime() + 60 * 60 * 1000));
+
+    expect(refused).toMatchObject({ tooSoon: [holdId], flagged: [] });
+    expect(next.reauthorised).toEqual([holdId]);
+  });
+
+  it("flags a card hold past its 29 days that was never reauthorised", async () => {
+    holdId = await heldBy("card");
+
+    const report = await runAt(day(30));
+
+    expect(report).toMatchObject({ reauthorised: [], flagged: [holdId] });
     expect(paypal.posts(/\/reauthorize$/)).toHaveLength(0);
-    expect((await stored()).honourPeriodFlaggedAt).not.toBeNull();
-    expect((await actions()).at(-1)).toBe("hold.honour_period_over");
-    expect((await caseMoney(db, fixture.practiceId, fixture.caseId)).state).toBe("held");
   });
 
   it("does not reauthorise a reauthorised hold again, and flags it once its new honour period is over", async () => {

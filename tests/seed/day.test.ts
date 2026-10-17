@@ -5,7 +5,7 @@ import { checkExplanation, checkOwnerWording, findSpan } from "@/agent/guardrail
 import { auditEvent, booking, patientCase, room, vet } from "@/db/schema";
 import { caseEstimateVersions } from "@/estimate/version";
 import { createJudgeSessionHandlers } from "@/judge/session";
-import { reauthoriseHolds } from "@/jobs/reauthorise";
+import { HONOUR_PERIOD_OVER_REASON, reauthoriseHolds } from "@/jobs/reauthorise";
 import { caseMoney } from "@/money/view";
 import type { PayPalClient } from "@/paypal/client";
 import { todaysCases } from "@/practice/cases";
@@ -204,7 +204,7 @@ describe("the seeded day (U8a)", () => {
     expect(first?.patientName).toBe(SHOWCASE_CASE.patientName);
   });
 
-  it("never sends a seeded hold to PayPal: the hourly rule flags card holds instead", async () => {
+  it("never sends a seeded hold to PayPal: the hourly rule flags the day's holds instead, as seeded", async () => {
     const asked: string[] = [];
     const refusing: PayPalClient = {
       get: async (path) => {
@@ -225,5 +225,21 @@ describe("the seeded day (U8a)", () => {
     });
 
     expect(asked).toEqual([]);
+    const dayCaseIds = (await todaysCases(db, practiceId))
+      .filter((listed) => DAY_CASES.some((kase) => kase.patientName === listed.patientName))
+      .map((listed) => listed.id);
+    const flagged = await db
+      .select({ detail: auditEvent.detail })
+      .from(auditEvent)
+      .where(
+        and(
+          inArray(auditEvent.caseId, dayCaseIds),
+          eq(auditEvent.action, "hold.honour_period_over"),
+        ),
+      );
+    expect(flagged.length).toBeGreaterThan(0);
+    for (const { detail } of flagged) {
+      expect(detail).toMatchObject({ reason: HONOUR_PERIOD_OVER_REASON.seeded });
+    }
   });
 });

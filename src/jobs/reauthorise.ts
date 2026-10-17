@@ -22,6 +22,15 @@ export const HONOUR_PERIOD_MS = 3 * 24 * 60 * 60 * 1000;
 /** The authorisation period: "Valid for 29 days" (/payment-methods/auth-honor). */
 export const AUTHORISATION_PERIOD_MS = 29 * 24 * 60 * 60 * 1000;
 
+/** Why the rule flags a hold past its honour period, in its audit event's words. */
+export const HONOUR_PERIOD_OVER_REASON = {
+  billed: "its bill is signed off and its capture has not landed",
+  reauthorisedOnce: "reauthorised once, which is all PayPal allows; its new honour period is over",
+  seeded: "a seeded hold is never sent to PayPal, so it is never reauthorised",
+  refused: "PayPal refused to reauthorise it",
+  pastAuthorisationPeriod: "it is past its 29 days and was never reauthorised",
+} as const;
+
 /** What the job needs. */
 export interface ReauthoriseDependencies {
   readonly db: Database["db"];
@@ -33,13 +42,13 @@ export interface ReauthoriseDependencies {
 
 /** What one run of the job did, by hold id. */
 export interface ReauthoriseReport {
-  /** Wallet holds reauthorised (`hold.reauthorised`). */
+  /** Holds reauthorised, wallet or card (`hold.reauthorised`). */
   readonly reauthorised: string[];
   /** Holds past their honour period that cannot be reauthorised (`hold.honour_period_over`). */
   readonly flagged: string[];
-  /** Wallet holds PayPal said were too soon to reauthorise: left for the next run. */
+  /** Holds PayPal said were too soon to reauthorise: left for the next run. */
   readonly tooSoon: string[];
-  /** Wallet holds whose reauthorisation PayPal refused for good (`hold.reauthorise_refused`). */
+  /** Holds whose reauthorisation PayPal refused for good (`hold.reauthorise_refused`). */
   readonly refused: string[];
   /** Holds PayPal could not be asked about this run (no answer): left for the next run. */
   readonly failed: string[];
@@ -48,27 +57,36 @@ export interface ReauthoriseReport {
 type HoldRow = typeof hold.$inferSelect;
 
 /**
- * The reauthorisation rule (plan 3.2, as U0's P5 (a) left it), run hourly: a
- * PayPal-account (wallet) hold past its three-day honour period and inside
+ * The reauthorisation rule (plan 3.2, as P5 (a), (b) and (c) left it), run
+ * hourly: a hold, wallet or card, past its three-day honour period and inside
  * its 29 days, whose case is not being discharged and which has not been
  * reauthorised, is reauthorised once ("A reauthorization is only allowed once
  * from Day 4 to Day 29", PayPal's answer to P5 (a)); captures and voids then
- * go against the new authorisation. A card hold past day 3 is flagged
- * (`hold.honour_period_over`) and never reauthorised: PayPal documents
- * reauthorisation for PayPal-account payments only. A wallet hold whose one
- * reauthorisation is spent or refused, or that is past its 29 days, is
- * flagged when its honour period is over in turn; so is a hold whose bill is
- * signed off but whose capture has not landed (never reauthorised: its
- * discharge is resumed hourly instead). Each hold is reviewed in one
- * transaction holding its case's lock across PayPal's answer, so a sign-off
- * and its discharge never interleave with a reauthorisation, and a run
- * repeated, or two at once, change nothing twice. One hold's failure is
- * reported and the run goes on; PayPal's too-soon refusal leaves the hold for
- * the next run.
+ * go against the new authorisation. A hold whose one reauthorisation is spent
+ * or refused, or that is past its 29 days, is flagged
+ * (`hold.honour_period_over`) when its honour period is over in turn; so is a
+ * hold whose bill is signed off but whose capture has not landed (never
+ * reauthorised: its discharge is resumed hourly instead). Each hold is
+ * reviewed in one transaction holding its case's lock across PayPal's answer,
+ * so a sign-off and its discharge never interleave with a reauthorisation,
+ * and a run repeated, or two at once, change nothing twice. One hold's
+ * failure is reported and the run goes on; PayPal's too-soon refusal leaves
+ * the hold for the next run.
  *
- * Unverified until P5 (b) (17 October 2026): the sandbox's answer to a
- * reauthorisation on day 4 or later. The code follows PayPal's documented
- * answer (a new authorisation id, `CREATED`).
+ * Proved in the sandbox on 17 October 2026, four and a half days after each
+ * hold was authorised. P5 (b): a wallet hold reauthorised as a new
+ * authorisation id, `CREATED`, its expiry still the original's 29 days, and a
+ * full final capture against the new id completed. P5 (c): a card hold
+ * reauthorised the same way (`6UE89269RV120640R` as `9KG47140A1181761A`,
+ * `CREATED`, expiring with the original), against PayPal's documentation; so
+ * card holds are reauthorised as wallet holds are.
+ *
+ * The risk, written down: PayPal's documentation still names reauthorisation
+ * for PayPal-account payments only, so a card hold's may one day be refused.
+ * A refusal changes nothing but the flag: `REAUTHORIZATION_TOO_SOON` leaves
+ * the hold for the next run, and any other refusal on the merits (such as
+ * `REAUTHORIZE_NOT_ALLOWED`) is recorded (`hold.reauthorise_refused`) and the
+ * hold flagged once its honour period is over, exactly as for a wallet hold.
  *
  * @param deps - The database, the PayPal client and the clock.
  * @returns What the run did.
@@ -159,9 +177,9 @@ async function reviewHold(
 }
 
 /**
- * Whether the rule may still reauthorise a hold: a wallet hold PayPal made
- * (never a seeded one, whose ids PayPal never issued), never reauthorised nor
- * refused, inside its 29 days.
+ * Whether the rule may still reauthorise a hold: one PayPal made, wallet or
+ * card (never a seeded one, whose ids PayPal never issued), never
+ * reauthorised nor refused, inside its 29 days.
  *
  * @param row - The hold.
  * @param now - The clock.
@@ -169,7 +187,6 @@ async function reviewHold(
  */
 function canReauthorise(row: HoldRow, now: Date): boolean {
   return (
-    row.paymentKind === "paypal" &&
     !isSeededPayPalId(row.paypalOrderId) &&
     row.reauthorisedAt === null &&
     row.reauthoriseRefusedAt === null &&
@@ -194,7 +211,7 @@ function honourPeriodOver(row: HoldRow, now: Date, billed: boolean): boolean {
 }
 
 /**
- * Reauthorises one wallet hold and records PayPal's answer, inside the
+ * Reauthorises one hold and records PayPal's answer, inside the
  * transaction holding its case's lock.
  *
  * @param tx - The open transaction.
@@ -334,16 +351,14 @@ async function flag(tx: Transaction, row: HoldRow, now: Date, billed: boolean): 
       holdId: row.id,
       paymentKind: row.paymentKind,
       reason: billed
-        ? "its bill is signed off and its capture has not landed"
-        : row.paymentKind === "card"
-          ? "a card hold is never reauthorised: PayPal documents reauthorisation for PayPal accounts only"
-          : row.reauthorisedAt
-            ? "reauthorised once, which is all PayPal allows; its new honour period is over"
-            : isSeededPayPalId(row.paypalOrderId)
-              ? "a seeded hold is never sent to PayPal, so it is never reauthorised"
-              : row.reauthoriseRefusedAt
-                ? "PayPal refused to reauthorise it"
-                : "it is past its 29 days and was never reauthorised",
+        ? HONOUR_PERIOD_OVER_REASON.billed
+        : row.reauthorisedAt
+          ? HONOUR_PERIOD_OVER_REASON.reauthorisedOnce
+          : isSeededPayPalId(row.paypalOrderId)
+            ? HONOUR_PERIOD_OVER_REASON.seeded
+            : row.reauthoriseRefusedAt
+              ? HONOUR_PERIOD_OVER_REASON.refused
+              : HONOUR_PERIOD_OVER_REASON.pastAuthorisationPeriod,
       honourPeriodFrom: (row.reauthorisedAt ?? row.authorisedAt!).toISOString(),
     },
   });

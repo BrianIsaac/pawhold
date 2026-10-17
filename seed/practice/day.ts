@@ -436,8 +436,8 @@ export async function seedPracticeDay(
  * Writes one of the day's cases as its stage has it, the way the showcase
  * case is written: rows the database checks as it checks U2's and U3's, every
  * event back-dated to the story and said to be seeded (D16), every PayPal id
- * beginning `SEEDED`. A hold is a card's, so the hourly rule flags it rather
- * than ever asking PayPal to reauthorise a seeded id.
+ * beginning `SEEDED`, so the hourly rule flags a hold once its honour period
+ * is over rather than ever asking PayPal to reauthorise a seeded id.
  *
  * @param tx - The transaction.
  * @param write - The practice, the list, the case and when its story starts.

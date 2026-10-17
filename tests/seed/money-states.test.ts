@@ -15,7 +15,7 @@ import {
 import { caseEstimateVersions } from "@/estimate/version";
 import { createJudgeSessionHandlers, startJudgeSession } from "@/judge/session";
 import { refundableCaptures } from "@/discharge/refund";
-import { reauthoriseHolds } from "@/jobs/reauthorise";
+import { HONOUR_PERIOD_MS, HONOUR_PERIOD_OVER_REASON, reauthoriseHolds } from "@/jobs/reauthorise";
 import { MoneyError } from "@/money/errors";
 import { refundCaptured } from "@/money/refunds";
 import { caseMoney } from "@/money/view";
@@ -94,7 +94,7 @@ describe("the showcase (plan 3.2: cases at every money state)", () => {
       Clover: [expect.stringMatching(/^Held £/)],
       Juno: ["Update waiting"],
       Bramble: ["Update declined", "Hold extended"],
-      Rufus: ["Held £1,714.00", "Honour period over"],
+      Rufus: ["Held £1,714.00", "Hold extended", "Honour period over"],
       Poppy: ["Captured £197.00"],
       Teddy: ["Released £430.00"],
       Luna: ["Refunded £20.00"],
@@ -382,6 +382,47 @@ describe("the showcase (plan 3.2: cases at every money state)", () => {
         expect(checkExplanation(kase.explanation, kase.finding!), kase.patientName).toBeNull();
       }
     }
+  });
+
+  it("tells Rufus's card hold as the hourly rule does: extended on day 4, flagged once that honour period ended", async () => {
+    const rufus = caseOf("Rufus");
+    const events = await db
+      .select()
+      .from(auditEvent)
+      .where(eq(auditEvent.caseId, rufus))
+      .orderBy(asc(auditEvent.id));
+    const [row] = await db.select().from(hold).where(eq(hold.caseId, rufus));
+
+    expect(events.map((event) => event.action).slice(-3)).toEqual([
+      "hold.authorised",
+      "hold.reauthorised",
+      "hold.honour_period_over",
+    ]);
+    const [authorised, reauthorised, flagged] = events.slice(-3);
+    expect(row).toMatchObject({ paymentKind: "card", status: "authorised" });
+    expect(row!.authorizationId).not.toBe(row!.originalAuthorizationId);
+    expect(row!.reauthorisedAt).toEqual(reauthorised!.occurredAt);
+    expect(reauthorised).toMatchObject({
+      paypalAuthorizationId: row!.authorizationId,
+      detail: {
+        previousAuthorizationId: row!.originalAuthorizationId,
+        authorisedAt: authorised!.occurredAt.toISOString(),
+      },
+    });
+    expect(reauthorised!.occurredAt.getTime() - authorised!.occurredAt.getTime()).toBeGreaterThan(
+      HONOUR_PERIOD_MS,
+    );
+    expect(flagged).toMatchObject({
+      paypalAuthorizationId: row!.authorizationId,
+      detail: {
+        paymentKind: "card",
+        reason: HONOUR_PERIOD_OVER_REASON.reauthorisedOnce,
+        honourPeriodFrom: reauthorised!.occurredAt.toISOString(),
+      },
+    });
+    expect(
+      flagged!.occurredAt.getTime() - reauthorised!.occurredAt.getTime(),
+    ).toBeGreaterThanOrEqual(HONOUR_PERIOD_MS);
   });
 
   it("never sends a seeded hold to PayPal: the hourly rule over the practice for the session's week asks PayPal nothing", async () => {

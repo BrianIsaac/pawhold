@@ -41,7 +41,7 @@ export const SHOWCASE_CASES_BY_STATE: Readonly<Record<ShowcaseState, readonly st
   held_card: ["Willow", "Biscuit", "Clover"],
   update_awaiting_owner: ["Juno"],
   update_declined: [SHOWCASE_CASE.patientName],
-  hold_extended: [SHOWCASE_CASE.patientName],
+  hold_extended: [SHOWCASE_CASE.patientName, "Rufus"],
   honour_period_over: ["Rufus"],
   captured: ["Poppy"],
   released: ["Teddy"],
