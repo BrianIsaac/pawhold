@@ -1,12 +1,13 @@
 import { asc, eq } from "drizzle-orm";
 import { beforeEach, describe, expect, it } from "vitest";
 
-import { auditEvent, bill, capture, refund } from "@/db/schema";
+import { auditEvent, bill, capture, hold, refund } from "@/db/schema";
 import {
   type EstimateVersionView,
   loadEstimateVersion,
   makeEstimateVersion,
 } from "@/estimate/version";
+import { reauthoriseHolds } from "@/jobs/reauthorise";
 import {
   type BillLineInput,
   discharge,
@@ -327,6 +328,114 @@ describe("discharge of a two-hold case (plan 3.2; U7's acceptance as U3 can hold
     expect(result).toMatchObject({ capturedPence: 12_000, unpaidPence: 32_000 });
     const expired = (await eventsSince()).find((event) => event.action === "hold.expired");
     expect(expired).toMatchObject({ paypalDebugId: "70c28ae654da" });
+  });
+});
+
+describe("discharge of reauthorised holds (U3b; PayPal's CANNOT_BE_VOIDED)", () => {
+  const DAY_4 = new Date("2026-10-16T10:00:00Z");
+  let first: EstimateVersionView;
+  let update: EstimateVersionView;
+
+  beforeEach(async () => {
+    first = await held();
+    update = await held(DENTAL_UPDATE_LINES);
+    paypal.clock.now = DAY_4;
+    const report = await reauthoriseHolds({
+      db,
+      paypal: paypal.client(),
+      now: DAY_4,
+      practiceId: fixture.practiceId,
+    });
+    expect(report.reauthorised.sort()).toEqual([first.id, update.id].sort());
+  });
+
+  /**
+   * A hold's row, with its two authorisations.
+   *
+   * @param holdId - The hold.
+   * @returns The row.
+   */
+  async function row(holdId: string) {
+    const [found] = await db.select().from(hold).where(eq(hold.id, holdId));
+    return found!;
+  }
+
+  it("captures against the new authorisation and voids what was not captured through the original parent", async () => {
+    const before = (await eventsSince()).at(-1)!.id;
+    const kept = await row(first.id);
+    const released = await row(update.id);
+
+    const result = await discharge(deps(), {
+      ...fixture,
+      actor: "vet",
+      lines: [done(update, "GA-DENT")],
+    });
+
+    expect(result.state).toBe("released");
+    expect(result.holds.map((one) => [one.status, one.capturedPence, one.releasedPence])).toEqual([
+      ["captured", 32_000, 45_300],
+      ["voided", 0, 15_500],
+    ]);
+    expect(paypal.posts(/\/capture$/).map((post) => post.path)).toEqual([
+      `/v2/payments/authorizations/${kept.authorizationId}/capture`,
+    ]);
+    const voids = paypal.posts(/\/void$/);
+    expect(voids.map((post) => post.path)).toEqual([
+      `/v2/payments/authorizations/${released.originalAuthorizationId}/void`,
+    ]);
+    expect(voids[0]!.headers["paypal-request-id"]).toBe(
+      paypalRequestId({ caseId: fixture.caseId, holdId: update.id, step: "void.parent" }),
+    );
+    expect(paypal.authorizations.get(released.originalAuthorizationId!)!.status).toBe("VOIDED");
+    expect(paypal.authorizations.get(released.authorizationId!)!.status).toBe("VOIDED");
+
+    const events = await eventsSince(before);
+    expect(events.map((event) => event.action)).toEqual([
+      "bill.signed_off",
+      "hold.captured",
+      "hold.voided",
+    ]);
+    expect(events.at(-1)).toMatchObject({
+      paypalAuthorizationId: released.originalAuthorizationId,
+      moneyStateAfter: "released",
+      detail: {
+        holdId: update.id,
+        closedBy: "void",
+        releasedPence: 15_500,
+        reauthorizationId: released.authorizationId,
+      },
+    });
+  });
+
+  it("records a refused void of the original parent naming the parent and its reauthorisation, and leaves the hold to resume", async () => {
+    const released = await row(update.id);
+    paypal.inject({
+      method: "POST",
+      path: /\/void$/,
+      status: 422,
+      body: {
+        name: "UNPROCESSABLE_ENTITY",
+        message: "The requested action could not be performed.",
+        debug_id: "refused-parent",
+        details: [{ issue: "AUTHORIZATION_VOIDED" }],
+      },
+    });
+
+    const refused = await refusal(
+      discharge(deps(), { ...fixture, actor: "vet", lines: [done(update, "GA-DENT")] }),
+    );
+
+    expect(refused.reason).toBe("paypal_refused");
+    expect((await row(update.id)).status).toBe("authorised");
+    const event = (await eventsSince()).find((one) => one.action === "hold.void_refused");
+    expect(event).toMatchObject({
+      paypalAuthorizationId: released.originalAuthorizationId,
+      paypalDebugId: "refused-parent",
+      detail: {
+        issues: ["AUTHORIZATION_VOIDED"],
+        reauthorizationId: released.authorizationId,
+      },
+    });
   });
 });
 

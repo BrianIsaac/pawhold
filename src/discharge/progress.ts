@@ -207,9 +207,13 @@ export async function dischargeProgress(
       release,
       refused:
         held.status === "authorised" &&
+        // A capture's refusal names the authorisation captures go against; a
+        // void's, a reauthorised hold's original parent.
         events.some(
           (event) =>
-            REFUSALS.includes(event.action) && event.paypalAuthorizationId === held.authorizationId,
+            REFUSALS.includes(event.action) &&
+            (event.paypalAuthorizationId === held.authorizationId ||
+              event.paypalAuthorizationId === held.originalAuthorizationId),
         ),
       expired: held.status === "expired",
     };

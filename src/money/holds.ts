@@ -668,6 +668,58 @@ export function holdRequestId(caseId: string, holdId: string, step: string): str
   return paypalRequestId({ caseId, holdId, step });
 }
 
+/** What a void of an authorised hold is sent to, and by which `PayPal-Request-Id`. */
+export interface VoidTarget {
+  /** The authorisation voided: the order's own, the original parent of any reauthorisation. */
+  readonly authorizationId: string;
+  /** The reauthorisation captures go against, released with its parent; null when never reauthorised. */
+  readonly reauthorizationId: string | null;
+  readonly requestId: string;
+}
+
+/**
+ * The authorisation a void of an authorised hold goes against. Captures go
+ * against a reauthorisation's new id, but a void does not: "A reauthorization
+ * cannot be voided. Please void the original parent authorization." (PayPal's
+ * `CANNOT_BE_VOIDED`, Payments v2 schema, read 29 October 2026), and voiding
+ * the parent voids its reauthorisation with it (U0's P5 (c)). A hold is
+ * reauthorised when its authorisation is not the order's own: the schema
+ * keeps both ids on every authorised hold and refuses a `reauthorised_at`
+ * whose ids are the same (`hold_reauthorised_new_authorisation`). A void
+ * through the parent takes a request id of its own (`<step>.parent`), so a
+ * refusal PayPal kept for the reauthorisation's id is never replayed for it.
+ *
+ * @param held - The authorised hold.
+ * @param step - The void's step, such as `void`.
+ * @returns The authorisation to void, its reauthorisation and the request id.
+ * @throws MoneyError when the hold holds no authorisation.
+ */
+export function voidTarget(
+  held: Pick<HoldView, "id" | "caseId" | "authorizationId" | "originalAuthorizationId">,
+  step: string,
+): VoidTarget {
+  if (held.authorizationId === null || held.originalAuthorizationId === null) {
+    throw new MoneyError("wrong_state", `hold ${held.id} holds no authorisation to void`);
+  }
+  const reauthorised = held.authorizationId !== held.originalAuthorizationId;
+  return {
+    authorizationId: held.originalAuthorizationId,
+    reauthorizationId: reauthorised ? held.authorizationId : null,
+    requestId: holdRequestId(held.caseId, held.id, reauthorised ? `${step}.parent` : step),
+  };
+}
+
+/**
+ * The audit detail naming a void's reauthorisation, beside the parent its
+ * event's PayPal authorisation names, so the timeline reads which was voided.
+ *
+ * @param target - The void's target.
+ * @returns `reauthorizationId`, or nothing for a hold never reauthorised.
+ */
+export function reauthorisationDetail(target: VoidTarget): { reauthorizationId?: string } {
+  return target.reauthorizationId ? { reauthorizationId: target.reauthorizationId } : {};
+}
+
 /**
  * The order's description, as the owner sees it on PayPal's page.
  *
@@ -688,6 +740,7 @@ function orderDescription(kase: LockedCase, isUpdate: boolean): string {
  * @param by - Who asked.
  * @param action - The event's action.
  * @param paypal - The PayPal ids the step was about.
+ * @param detail - More the event's detail names, beside the refusal's reason and issues.
  * @returns The event, waiting for the refusal.
  */
 export function refusedEvent(
@@ -695,6 +748,7 @@ export function refusedEvent(
   by: z.output<typeof actor>,
   action: string,
   paypal: NonNullable<AuditEventInput["paypal"]>,
+  detail: Record<string, string> = {},
 ): (refusal: MoneyError) => AuditEventInput {
   return (refusal) => ({
     practiceId: kase.practiceId,
@@ -702,7 +756,7 @@ export function refusedEvent(
     actor: by,
     action,
     paypal: { ...paypal, ...(refusal.debugId ? { debugId: refusal.debugId } : {}) },
-    detail: { reason: refusal.message, issues: [...refusal.issues] },
+    detail: { reason: refusal.message, issues: [...refusal.issues], ...detail },
   });
 }
 

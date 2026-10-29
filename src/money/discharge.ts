@@ -25,7 +25,9 @@ import {
   holdRequestId,
   type MoneyDependencies,
   parse,
+  reauthorisationDetail,
   refusedEvent,
+  voidTarget,
 } from "./holds";
 import { type LockedCase, lockCase, type MoneyState, moveCase, nextState } from "./state";
 import { caseHolds, caseMoney, type HoldView } from "./view";
@@ -559,7 +561,8 @@ async function recordExpired(
 /**
  * Voids a hold that will not be captured again and records it, with what it
  * released (its amount less its captures, computed: PayPal's voided
- * authorisation keeps its original amount, U0's P4).
+ * authorisation keeps its original amount, U0's P4). A reauthorised hold is
+ * voided through its original parent ({@link voidTarget}).
  *
  * @param deps - The database and the PayPal client.
  * @param practiceId - The practice.
@@ -577,19 +580,19 @@ async function voidStep(
   if (target.capturedPence >= target.amount.pence) {
     throw new MoneyError("wrong_state", `hold ${target.id} is fully captured: it is never voided`);
   }
+  const voiding = voidTarget(target, "void");
   await asking(
     deps.db,
-    refusedEvent({ id: caseId, practiceId }, "system", "hold.void_refused", {
-      orderId: target.paypalOrderId,
-      authorizationId: target.authorizationId!,
-    }),
+    refusedEvent(
+      { id: caseId, practiceId },
+      "system",
+      "hold.void_refused",
+      { orderId: target.paypalOrderId, authorizationId: voiding.authorizationId },
+      reauthorisationDetail(voiding),
+    ),
     () =>
       askPayPal("void the hold", () =>
-        voidAuthorization(
-          deps.paypal,
-          target.authorizationId!,
-          holdRequestId(caseId, target.id, "void"),
-        ),
+        voidAuthorization(deps.paypal, voiding.authorizationId, voiding.requestId),
       ),
   );
   await deps.db.transaction(async (tx) => {
@@ -614,11 +617,12 @@ async function voidStep(
       moneyStateBefore: kase.moneyState,
       moneyStateAfter: to,
       amount: { pence: releasedPence, currency: target.amount.currency },
-      paypal: { orderId: target.paypalOrderId, authorizationId: target.authorizationId! },
+      paypal: { orderId: target.paypalOrderId, authorizationId: voiding.authorizationId },
       detail: {
         holdId: target.id,
         closedBy: target.capturedPence > 0 ? "non_final_capture_and_void" : "void",
         releasedPence,
+        ...reauthorisationDetail(voiding),
       },
     });
   });
