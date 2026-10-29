@@ -7,7 +7,7 @@ import { auditEvent, bill, hold, practice, session } from "@/db/schema";
 import { currencyCode } from "@/money/currency";
 import { dischargedState } from "@/money/discharge";
 import { askPayPal, MoneyError } from "@/money/errors";
-import { holdRequestId } from "@/money/holds";
+import { holdRequestId, reauthorisationDetail, voidTarget } from "@/money/holds";
 import { lockCase, moveCase } from "@/money/state";
 import { caseHolds } from "@/money/view";
 import { type PayPalClient, PayPalError } from "@/paypal/client";
@@ -301,7 +301,7 @@ type Released =
  * clean-up writes no flag for it, U20's decision 4).
  *
  * @param paypal - The PayPal client.
- * @param authorizationId - The authorisation.
+ * @param authorizationId - The authorisation voided, and read back after a refusal: a reauthorised hold's original parent ({@link voidTarget}).
  * @param requestId - The void's `PayPal-Request-Id`.
  * @param step - The void, in words, for a refusal's message.
  * @param now - The clock the expiration is read against.
@@ -359,7 +359,9 @@ function expirationOf(read: Authorization): Date | null {
 
 /**
  * Voids an authorised hold at PayPal and records it closed, as a discharge's
- * void is recorded (`hold.voided`, the case moved as discharge moves it).
+ * void is recorded (`hold.voided`, the case moved as discharge moves it). A
+ * reauthorised hold is voided, and read back, through its original parent
+ * ({@link voidTarget}), and its event names the reauthorisation too.
  * When PayPal refuses because the authorisation is voided there already, it
  * is recorded voided all the same; when it refuses because the
  * authorisation has expired, the hold is recorded expired as a discharge
@@ -379,11 +381,11 @@ async function releaseAuthorised(
   row: HoldRow,
   now: Date,
 ): Promise<Released["as"] | null> {
-  const authorizationId = row.authorizationId!;
+  const target = voidTarget(row, "void.session_end");
   const released = await voidOrFindReleased(
     paypal,
-    authorizationId,
-    holdRequestId(row.caseId, row.id, "void.session_end"),
+    target.authorizationId,
+    target.requestId,
     "void the hold",
     now,
   );
@@ -409,12 +411,17 @@ async function releaseAuthorised(
       moneyStateBefore: kase.moneyState,
       moneyStateAfter: to,
       amount: { pence: releasedPence, currency: currencyCode.parse(row.currencyCode) },
-      paypal: { orderId: row.paypalOrderId, authorizationId, ...refusalIds(released) },
+      paypal: {
+        orderId: row.paypalOrderId,
+        authorizationId: target.authorizationId,
+        ...refusalIds(released),
+      },
       detail: {
         holdId: row.id,
         closedBy: "session_end",
         reason: released.as === "expired" ? EXPIRED_AT_PAYPAL : SESSION_ENDED,
         releasedPence,
+        ...reauthorisationDetail(target),
         ...refusalIssues(released),
       },
     });

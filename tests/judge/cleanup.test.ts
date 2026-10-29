@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import { auditEvent, hold, patientCase, practice, session } from "@/db/schema";
 import { caseEstimateVersions } from "@/estimate/version";
 import { runHourly } from "@/jobs/hourly";
+import { reauthoriseHolds } from "@/jobs/reauthorise";
 import { pruneJudgeSessions } from "@/judge/cleanup";
 import { SESSION_LIFETIME_MS, startJudgeSession } from "@/judge/session";
 import { signOffBill } from "@/money/discharge";
@@ -12,6 +13,7 @@ import { createOwnerHandlers } from "@/owner/handlers";
 import { ownerLink } from "@/owner/link";
 import { resolveOwnerLink } from "@/owner/resolve";
 import { authorizeOrder } from "@/paypal/orders";
+import { paypalRequestId } from "@/paypal/request-id";
 
 import { seedFictionalPractice } from "../../seed/practice";
 import { connectTestDatabase } from "../support/database";
@@ -119,6 +121,44 @@ async function judgeAuthorisedAt(practiceId: string, patientName: string, at: Da
   double.clock.now = now;
   const [row] = await db.select().from(hold).where(eq(hold.id, authorised.holdId));
   return { ...authorised, authorisation: double.authorizations.get(row!.authorizationId!)! };
+}
+
+/**
+ * The judge authorises a seeded estimate `daysAgo` days before `now`, and
+ * the hourly reauthorisation rule, run on this practice only, reauthorises
+ * it on day 5, as U3b's rule did the October demo holds; PayPal's clock is
+ * then moved to `now`.
+ *
+ * @param practiceId - The practice.
+ * @param patientName - The case awaiting its owner.
+ * @param now - The clean-up's clock.
+ * @param daysAgo - How long before `now` PayPal authorised.
+ * @returns The case, the hold's id, its original parent and its reauthorisation.
+ */
+async function judgeReauthorised(
+  practiceId: string,
+  patientName: string,
+  now: Date,
+  daysAgo: number,
+) {
+  const authorised = new Date(now.getTime() - daysAgo * DAY_MS);
+  const reauthorisedAt = new Date(authorised.getTime() + 4 * DAY_MS);
+  const otis = await judgeAuthorisedAt(practiceId, patientName, authorised, reauthorisedAt);
+  const report = await reauthoriseHolds({
+    db,
+    paypal: double.client(),
+    now: reauthorisedAt,
+    practiceId,
+  });
+  expect(report.reauthorised).toEqual([otis.holdId]);
+  double.clock.now = now;
+  const [row] = await db.select().from(hold).where(eq(hold.id, otis.holdId));
+  return {
+    caseId: otis.caseId,
+    holdId: otis.holdId,
+    parent: row!.originalAuthorizationId!,
+    reauthorisation: row!.authorizationId!,
+  };
 }
 
 /**
@@ -529,6 +569,120 @@ describe(
           closedBy: "session_end",
           reason: expect.stringMatching(/expired.*unknown to pawhold$/),
           issues: ["AUTHORIZATION_EXPIRED"],
+        }),
+      });
+    });
+
+    it("closes a reauthorised hold voided on the first run, through its original parent, the audit naming the parent and its reauthorisation", async () => {
+      const now = new Date();
+      const old = await judgeSession(now, 8);
+      const otis = await judgeReauthorised(old.practiceId, "Otis", now, 7);
+      const scope = { db, paypal: double.client(), now, practiceIds: [old.practiceId] };
+
+      const report = await pruneJudgeSessions(scope);
+
+      expect(report).toEqual({
+        pruned: [old.sessionId],
+        voided: [otis.holdId],
+        expired: [],
+        waiting: [],
+      });
+      const voids = double.posts(/\/void$/);
+      expect(voids.map((post) => post.path)).toEqual([
+        `/v2/payments/authorizations/${otis.parent}/void`,
+      ]);
+      expect(voids[0]!.headers["paypal-request-id"]).toBe(
+        paypalRequestId({
+          caseId: otis.caseId,
+          holdId: otis.holdId,
+          step: "void.session_end.parent",
+        }),
+      );
+      expect(double.authorizations.get(otis.parent)!.status).toBe("VOIDED");
+      expect(double.authorizations.get(otis.reauthorisation)!.status).toBe("VOIDED");
+      const [after] = await db.select().from(hold).where(eq(hold.id, otis.holdId));
+      expect(after).toMatchObject({
+        status: "voided",
+        authorizationId: otis.reauthorisation,
+        originalAuthorizationId: otis.parent,
+      });
+      const [otisCase] = await db.select().from(patientCase).where(eq(patientCase.id, otis.caseId));
+      expect(otisCase?.moneyState).toBe("released");
+
+      const closing = (
+        await db
+          .select()
+          .from(auditEvent)
+          .where(eq(auditEvent.caseId, otis.caseId))
+          .orderBy(asc(auditEvent.id))
+      ).filter((event) => (event.detail as { holdId?: string }).holdId === otis.holdId);
+      expect(closing.map((event) => event.action)).toEqual([
+        "hold.ordered",
+        "hold.authorised",
+        "hold.reauthorised",
+        "hold.voided",
+      ]);
+      expect(closing.at(-1)).toMatchObject({
+        actor: "system",
+        moneyStateBefore: "held",
+        moneyStateAfter: "released",
+        amountPence: 101_000,
+        paypalAuthorizationId: otis.parent,
+        detail: {
+          holdId: otis.holdId,
+          closedBy: "session_end",
+          reason: "the judge's session ended after seven days",
+          releasedPence: 101_000,
+          reauthorizationId: otis.reauthorisation,
+        },
+      });
+
+      const asked = double.requests.length;
+      expect(await pruneJudgeSessions(scope)).toEqual({
+        pruned: [],
+        voided: [],
+        expired: [],
+        waiting: [],
+      });
+      expect(double.requests.length).toBe(asked);
+    });
+
+    it("reads back the original parent of a reauthorised hold whose void PayPal refuses, and records its expiry naming both", async () => {
+      const now = new Date();
+      const old = await judgeSession(now, 31);
+      const otis = await judgeReauthorised(old.practiceId, "Otis", now, 30);
+
+      const report = await pruneJudgeSessions({
+        db,
+        paypal: double.client(),
+        now,
+        practiceIds: [old.practiceId],
+      });
+
+      expect(report).toEqual({
+        pruned: [old.sessionId],
+        voided: [],
+        expired: [otis.holdId],
+        waiting: [],
+      });
+      const asked = double.requests.filter((request) =>
+        request.path.startsWith("/v2/payments/authorizations/"),
+      );
+      expect(asked.slice(-2).map((request) => `${request.method} ${request.path}`)).toEqual([
+        `POST /v2/payments/authorizations/${otis.parent}/void`,
+        `GET /v2/payments/authorizations/${otis.parent}`,
+      ]);
+      const [expired] = await db
+        .select()
+        .from(auditEvent)
+        .where(and(eq(auditEvent.caseId, otis.caseId), eq(auditEvent.action, "hold.expired")));
+      expect(expired).toMatchObject({
+        paypalAuthorizationId: otis.parent,
+        paypalDebugId: "double422",
+        detail: expect.objectContaining({
+          closedBy: "session_end",
+          issues: ["AUTHORIZATION_EXPIRED"],
+          reauthorizationId: otis.reauthorisation,
         }),
       });
     });
