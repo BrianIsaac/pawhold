@@ -273,6 +273,8 @@ async function releaseHolds(
       console.error("pawhold: the clean-up could not release a hold", {
         holdId: one.id,
         error: error.message,
+        issues: error.issues,
+        debugId: error.debugId,
       });
       settled = false;
     }

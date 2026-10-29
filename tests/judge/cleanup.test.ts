@@ -423,13 +423,19 @@ describe(
     );
 
     it.each([
-      ["CAPTURED", "past its 29 days", 30],
-      ["PARTIALLY_CAPTURED", "past its 29 days", 30],
-      ["CREATED", "inside its 29 days", 0],
-      ["PENDING_LATER", "past its 29 days, a status PayPal's schema does not list", 30],
+      ["CAPTURED", "past its 29 days", 30, "PREVIOUSLY_CAPTURED", "a7b0de7cb97ad"],
+      ["PARTIALLY_CAPTURED", "past its 29 days", 30, "AUTHORIZATION_EXPIRED", "double422"],
+      ["CREATED", "inside its 29 days", 0, "AUTHORIZATION_STILL_HELD", "g"],
+      [
+        "PENDING_LATER",
+        "past its 29 days, a status PayPal's schema does not list",
+        30,
+        "AUTHORIZATION_EXPIRED",
+        "double422",
+      ],
     ] as const)(
       "keeps a hold PayPal refuses to void whose authorisation reads %s, %s, and the session with it",
-      async (readBack, _when, daysAgo) => {
+      async (readBack, _when, daysAgo, issue, debugId) => {
         const now = new Date();
         const old = await judgeSession(now, 8);
         const otis = await judgeAuthorisedAt(
@@ -465,11 +471,15 @@ describe(
         expect(await standing([old.sessionId])).toEqual([old.sessionId]);
         const [after] = await db.select().from(hold).where(eq(hold.id, otis.holdId));
         expect(after?.status).toBe("authorised");
+        // The refusal's issue name and PayPal's debug id are logged beside the
+        // message, since the message alone never says why PayPal refused.
         expect(logged).toHaveBeenCalledWith("pawhold: the clean-up could not release a hold", {
           holdId: otis.holdId,
           error: expect.stringContaining(
             `(PayPal reads authorisation ${otis.authorisation.id} ${readBack}, expiring `,
           ),
+          issues: [issue],
+          debugId,
         });
         logged.mockRestore();
         const closing = (
