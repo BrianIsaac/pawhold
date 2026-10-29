@@ -7,6 +7,8 @@ import { reauthoriseHolds } from "@/jobs/reauthorise";
 import { discharge, signOffBill } from "@/money/discharge";
 import { authoriseHold, orderHold, sendEstimate } from "@/money/holds";
 import { caseMoney } from "@/money/view";
+import { PayPalError } from "@/paypal/client";
+import { voidAuthorization } from "@/paypal/payments";
 import { paypalRequestId } from "@/paypal/request-id";
 
 import { connectTestDatabase } from "../support/database";
@@ -155,6 +157,40 @@ describe("the reauthorisation job (plan 3.2; P5 (a), (b) and (c): once per hold,
       `/v2/payments/authorizations/${row.authorizationId}/capture`,
     );
   });
+
+  it.each(["paypal", "card"] as const)(
+    "a reauthorised %s hold is voided through its original parent: PayPal refuses the reauthorisation's own id CANNOT_BE_VOIDED",
+    async (kind) => {
+      holdId = await heldBy(kind);
+      await runAt(day(4));
+      const row = await stored();
+      const client = paypal.client();
+
+      const refused = await voidAuthorization(client, row.authorizationId!, "void-the-new").then(
+        () => null,
+        (error: unknown) => error,
+      );
+
+      expect(refused).toBeInstanceOf(PayPalError);
+      expect(refused).toMatchObject({
+        status: 422,
+        details: [
+          {
+            issue: "CANNOT_BE_VOIDED",
+            description:
+              "A reauthorization cannot be voided. Please void the original parent authorization.",
+          },
+        ],
+      });
+      expect(paypal.authorizations.get(row.originalAuthorizationId!)!.status).toBe("CREATED");
+      expect(paypal.authorizations.get(row.authorizationId!)!.status).toBe("CREATED");
+
+      await voidAuthorization(client, row.originalAuthorizationId!, "void-the-parent");
+
+      expect(paypal.authorizations.get(row.originalAuthorizationId!)!.status).toBe("VOIDED");
+      expect(paypal.authorizations.get(row.authorizationId!)!.status).toBe("VOIDED");
+    },
+  );
 
   it("keeps PayPal's own answer for a card hold, as P5 (c) recorded it: the new id, its time and the original's 29 days", async () => {
     holdId = await heldBy("card");

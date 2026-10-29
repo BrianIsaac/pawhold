@@ -25,6 +25,11 @@ import { recordedAnswer } from "./recorded";
  *   with the original, for a wallet hold as P5 (b) recorded and for a card
  *   hold as P5 (c) did; a second one is refused `REAUTHORIZE_NOT_ALLOWED`
  *   (PayPal allows one, P5 (a)'s answer; the issue name is this double's);
+ * - a void of a reauthorisation's id is refused 422 `CANNOT_BE_VOIDED`, as
+ *   Render's hourly log showed for the reauthorised demo holds on 29 October
+ *   2026, with the description PayPal's published Payments v2 schema gives
+ *   the issue; a void of its original parent voids both, the parent and its
+ *   reauthorisation reading `VOIDED` after (P5 (c)'s clean-up);
  * - `PayPal-Mock-Response` `AUTHORIZATION_EXPIRED` on a capture is refused as
  *   P5 (a) recorded it;
  * - a void of an authorisation past its `expiration_time` (or read `EXPIRED`)
@@ -77,6 +82,8 @@ export interface DoubleAuthorization {
   status: "CREATED" | "PARTIALLY_CAPTURED" | "CAPTURED" | "VOIDED" | "EXPIRED";
   capturedPence: number;
   reauthorisedAs: string | null;
+  /** The original parent authorisation, when this one is its reauthorisation. */
+  reauthorisationOf: string | null;
 }
 
 /** A capture the double holds. */
@@ -355,6 +362,7 @@ export function createPayPalDouble(options: { liveClock?: boolean } = {}): PayPa
           status: "CREATED",
           capturedPence: 0,
           reauthorisedAs: null,
+          reauthorisationOf: null,
         };
         authorizations.set(held.id, held);
         made.authorizationId = held.id;
@@ -419,16 +427,25 @@ export function createPayPalDouble(options: { liveClock?: boolean } = {}): PayPa
         return { status: 201, body: captureBody(taken, held.currency) };
       }
       if (action === "/void") {
-        if (held.status === "CAPTURED") {
+        if (held.reauthorisationOf) {
+          return unprocessable(
+            "CANNOT_BE_VOIDED",
+            "A reauthorization cannot be voided. Please void the original parent authorization.",
+          );
+        }
+        // A reauthorised parent's money stands on its reauthorisation.
+        const standing = held.reauthorisedAs ? authorizations.get(held.reauthorisedAs)! : held;
+        if (standing.status === "CAPTURED") {
           return { status: 422, body: paypalFixture("api/void-422-previously-captured.json") };
         }
-        if (held.status === "VOIDED") {
+        if (held.status === "VOIDED" || standing.status === "VOIDED") {
           return unprocessable("AUTHORIZATION_VOIDED", "The authorization has been voided.");
         }
         if (held.status === "EXPIRED" || clock.now >= held.expiresAt) {
           return unprocessable("AUTHORIZATION_EXPIRED", "The authorization has expired.");
         }
         held.status = "VOIDED";
+        standing.status = "VOIDED";
         return { status: 200, body: authorizationBody(held, true) };
       }
       if (action === "/reauthorize") {
@@ -451,6 +468,7 @@ export function createPayPalDouble(options: { liveClock?: boolean } = {}): PayPa
           status: "CREATED",
           capturedPence: 0,
           reauthorisedAs: null,
+          reauthorisationOf: held.id,
         };
         authorizations.set(renewed.id, renewed);
         held.reauthorisedAs = renewed.id;
