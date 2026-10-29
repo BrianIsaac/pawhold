@@ -27,6 +27,11 @@ import { recordedAnswer } from "./recorded";
  *   (PayPal allows one, P5 (a)'s answer; the issue name is this double's);
  * - `PayPal-Mock-Response` `AUTHORIZATION_EXPIRED` on a capture is refused as
  *   P5 (a) recorded it;
+ * - a void of an authorisation past its `expiration_time` (or read `EXPIRED`)
+ *   is refused 422 `UNPROCESSABLE_ENTITY`, as Render's hourly log showed for
+ *   the October demo holds from 28 October 2026 (the log keeps PayPal's
+ *   message only, so the issue name is this double's); the authorisation
+ *   reads back as it stood;
  * - a POST with a `PayPal-Request-Id` already answered with a success is
  *   answered the same again and acts once.
  *
@@ -68,7 +73,8 @@ export interface DoubleAuthorization {
   readonly kind: "paypal" | "card";
   readonly createdAt: Date;
   readonly expiresAt: Date;
-  status: "CREATED" | "PARTIALLY_CAPTURED" | "CAPTURED" | "VOIDED";
+  /** `EXPIRED` is not in PayPal's published schema: a test sets it to read an expiry that way. */
+  status: "CREATED" | "PARTIALLY_CAPTURED" | "CAPTURED" | "VOIDED" | "EXPIRED";
   capturedPence: number;
   reauthorisedAs: string | null;
 }
@@ -418,6 +424,9 @@ export function createPayPalDouble(options: { liveClock?: boolean } = {}): PayPa
         }
         if (held.status === "VOIDED") {
           return unprocessable("AUTHORIZATION_VOIDED", "The authorization has been voided.");
+        }
+        if (held.status === "EXPIRED" || clock.now >= held.expiresAt) {
+          return unprocessable("AUTHORIZATION_EXPIRED", "The authorization has expired.");
         }
         held.status = "VOIDED";
         return { status: 200, body: authorizationBody(held, true) };
