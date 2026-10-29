@@ -18,7 +18,7 @@ services:
     # whether Render sets it at build time is not documented on the pages read.
     buildCommand: NODE_ENV=development corepack pnpm install --frozen-lockfile && corepack pnpm build
     preDeployCommand: corepack pnpm db:migrate
-    startCommand: corepack pnpm start
+    startCommand: node_modules/.bin/next start
     healthCheckPath: /api/health
     envVars:
       - key: COREPACK_ENABLE_DOWNLOAD_PROMPT
@@ -64,7 +64,7 @@ services:
     branch: main
     schedule: "0 * * * *"
     buildCommand: corepack pnpm install --frozen-lockfile
-    startCommand: corepack pnpm cron:hourly
+    startCommand: node_modules/.bin/tsx scripts/cron-hourly.ts
     envVars:
       - key: COREPACK_ENABLE_DOWNLOAD_PROMPT
         value: "0"
