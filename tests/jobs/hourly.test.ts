@@ -1,19 +1,31 @@
 import { describe, expect, it } from "vitest";
 
-import { runHourly } from "@/jobs/hourly";
+import { type HourlyParts, runHourly } from "@/jobs/hourly";
+import { reauthoriseHolds } from "@/jobs/reauthorise";
 import type { CleanupReport } from "@/judge/cleanup";
 import { sweepSchedule, type SweepReport } from "@/schedule/agent";
 
 import { connectTestDatabase } from "../support/database";
+import { makeDentalCase } from "../support/money";
 import { startPayPalDouble } from "../support/paypal-double";
 import { startSeededDay } from "../support/schedule";
 
 const database = connectTestDatabase();
 const paypal = startPayPalDouble();
 
-// A clock before every hold and webhook the other files make, so this run
-// touches none of theirs.
+// A clock before every webhook the other files make, so this run touches
+// none of theirs. Holds are not kept behind it: the clean-up's tests
+// authorise holds thirty days before the wall clock, so the reauthorisation
+// rule is run on a practice of this file's own instead (`ownReauthorisation`).
 const BEFORE_EVERYTHING = new Date("2026-10-01T00:00:00Z");
+
+// The real reauthorisation rule, over one practice this file makes and never
+// gives a hold: every other file's holds are out of its reach whatever their
+// dates, as the last test scopes the schedule agent's sweep.
+async function ownReauthorisation(): Promise<HourlyParts["reauthorisation"]> {
+  const { practiceId } = await makeDentalCase(database.db);
+  return (deps) => reauthoriseHolds({ ...deps, practiceId });
+}
 
 const NOTHING_SWEPT: SweepReport = {
   held: [],
@@ -44,7 +56,11 @@ describe("the hourly job (plan 7.3: the reauthorisation rule; U3's webhook sweep
       db: database.db,
       paypal: paypal.client(),
       now: BEFORE_EVERYTHING,
-      parts: { schedule: quietSchedule, sessions: quietSessions },
+      parts: {
+        reauthorisation: await ownReauthorisation(),
+        schedule: quietSchedule,
+        sessions: quietSessions,
+      },
     });
 
     expect(report).toEqual({
@@ -84,6 +100,7 @@ describe("the hourly job (plan 7.3: the reauthorisation rule; U3's webhook sweep
       paypal: paypal.client(),
       now: BEFORE_EVERYTHING,
       parts: {
+        reauthorisation: await ownReauthorisation(),
         schedule: () => Promise.reject(new Error("the sweep broke")),
         sessions: quietSessions,
       },
