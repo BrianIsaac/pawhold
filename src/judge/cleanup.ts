@@ -29,6 +29,19 @@ const UNRECORDED = ["ordered", "withdrawn", "declined"] as const;
 /** Why the clean-up closes a hold, on its `hold.voided`. */
 const SESSION_ENDED = "the judge's session ended after seven days";
 
+/** Why the clean-up closes a hold whose authorisation PayPal had let expire, on its `hold.expired`. */
+const EXPIRED_AT_PAYPAL =
+  "PayPal refused the void: the authorisation had run its 29 days and expired, and PayPal had released the money itself";
+
+/**
+ * The statuses an authorisation past its `expiration_time` may read back in
+ * once PayPal refuses its void: `CREATED`, the status it was made in, and
+ * `EXPIRED`, which PayPal's published schema does not list (read 29 October
+ * 2026) but which says no more than the passed expiration does. A capture's
+ * status took money no void gives back, and any other status is not read.
+ */
+const EXPIRES_FROM: ReadonlySet<string> = new Set(["CREATED", "EXPIRED"]);
+
 const dependencies = z.object({
   practiceIds: z.array(z.uuid()).optional(),
 });
@@ -47,8 +60,10 @@ export interface CleanupDependencies {
 export interface CleanupReport {
   /** The sessions pruned. */
   readonly pruned: string[];
-  /** The holds voided at PayPal, or found closed there, and recorded closed. */
+  /** The holds voided at PayPal, or found voided there, and recorded voided. */
   readonly voided: string[];
+  /** The holds whose authorisation PayPal had let expire, recorded expired. */
+  readonly expired: string[];
   /** Practices whose expired sessions wait for a later run: PayPal could not be asked about a hold. */
   readonly waiting: string[];
 }
@@ -77,7 +92,7 @@ export interface CleanupReport {
 export async function pruneJudgeSessions(deps: CleanupDependencies): Promise<CleanupReport> {
   const { practiceIds } = dependencies.parse({ practiceIds: deps.practiceIds });
   const now = deps.now ?? new Date();
-  const report: CleanupReport = { pruned: [], voided: [], waiting: [] };
+  const report: CleanupReport = { pruned: [], voided: [], expired: [], waiting: [] };
   const ended = await deps.db
     .selectDistinct({ practiceId: session.practiceId })
     .from(session)
@@ -114,17 +129,19 @@ export async function pruneJudgeSessions(deps: CleanupDependencies): Promise<Cle
       .from(session)
       .where(and(eq(session.practiceId, practiceId), gt(session.expiresAt, now)))
       .limit(1);
-    let holdsVoided = 0;
+    const closed = { voided: 0, expired: 0 };
     if (!live) {
-      const released = await releaseHolds(deps, practiceId);
+      const released = await releaseHolds(deps, practiceId, now);
       report.voided.push(...released.voided);
-      holdsVoided = released.voided.length;
+      report.expired.push(...released.expired);
+      closed.voided = released.voided.length;
+      closed.expired = released.expired.length;
       if (!released.settled) {
         report.waiting.push(practiceId);
         continue;
       }
     }
-    report.pruned.push(...(await pruneSessions(deps.db, practiceId, now, holdsVoided)));
+    report.pruned.push(...(await pruneSessions(deps.db, practiceId, now, closed)));
   }
   return report;
 }
@@ -199,12 +216,14 @@ function liveSession(
  *
  * @param deps - The database and the PayPal client.
  * @param practiceId - The practice.
- * @returns The holds closed, and whether every hold is settled.
+ * @param now - The clock.
+ * @returns The holds closed, by how, and whether every hold is settled.
  */
 async function releaseHolds(
   deps: CleanupDependencies,
   practiceId: string,
-): Promise<{ voided: string[]; settled: boolean }> {
+  now: Date,
+): Promise<{ voided: string[]; expired: string[]; settled: boolean }> {
   const holds = (
     await deps.db
       .select()
@@ -215,10 +234,10 @@ async function releaseHolds(
       .orderBy(asc(hold.createdAt))
   ).filter((one) => !isSeededPayPalId(one.paypalOrderId));
   if (holds.length === 0) {
-    return { voided: [], settled: true };
+    return { voided: [], expired: [], settled: true };
   }
   if (!deps.paypal) {
-    return { voided: [], settled: false };
+    return { voided: [], expired: [], settled: false };
   }
   const billed = new Set(
     (
@@ -229,6 +248,7 @@ async function releaseHolds(
     ).map((one) => one.caseId),
   );
   const voided: string[] = [];
+  const expired: string[] = [];
   let settled = true;
   for (const one of holds) {
     if (one.status === "authorised" && billed.has(one.caseId)) {
@@ -239,10 +259,12 @@ async function releaseHolds(
     try {
       const closed =
         one.status === "authorised"
-          ? await releaseAuthorised(deps.db, deps.paypal, one)
-          : await releaseUnrecorded(deps.db, deps.paypal, one);
-      if (closed) {
+          ? await releaseAuthorised(deps.db, deps.paypal, one, now)
+          : await releaseUnrecorded(deps.db, deps.paypal, one, now);
+      if (closed === "voided") {
         voided.push(one.id);
+      } else if (closed === "expired") {
+        expired.push(one.id);
       }
     } catch (error) {
       if (!(error instanceof MoneyError)) {
@@ -255,37 +277,45 @@ async function releaseHolds(
       settled = false;
     }
   }
-  return { voided, settled };
+  return { voided, expired, settled };
 }
 
 type HoldRow = typeof hold.$inferSelect;
 
+/** How an authorisation the clean-up released stands closed at PayPal. */
+type Released =
+  { readonly as: "voided" } | { readonly as: "expired"; readonly refusal: MoneyError };
+
 /**
- * Voids an authorised hold at PayPal and records it closed, as a discharge's
- * void is recorded (`hold.voided`, the case moved as discharge moves it).
- * When PayPal refuses because the authorisation is voided there already, it
- * is recorded closed all the same.
+ * Voids an authorisation, or finds it closed at PayPal already. When PayPal
+ * refuses the void, the authorisation is read back: `VOIDED` (voided before,
+ * by a void whose answer was lost) is released as voided; one past its
+ * `expiration_time` (its 29 days run out, PayPal having released the money
+ * itself) as expired, read in `CREATED` or `EXPIRED` ({@link EXPIRES_FROM}).
+ * Anything else leaves the refusal standing, its message naming what PayPal
+ * read back: `CAPTURED` and `PARTIALLY_CAPTURED` took money no void gives
+ * back, `CREATED` inside its 29 days still holds it, and any other status
+ * PayPal's published schema does not list is not known to be closed (the
+ * clean-up writes no flag for it, U20's decision 4).
  *
- * @param db - The database.
  * @param paypal - The PayPal client.
- * @param row - The hold.
- * @returns True when the hold was closed.
- * @throws MoneyError when PayPal could not be reached, or refused for another reason.
+ * @param authorizationId - The authorisation.
+ * @param requestId - The void's `PayPal-Request-Id`.
+ * @param step - The void, in words, for a refusal's message.
+ * @param now - The clock the expiration is read against.
+ * @returns How the authorisation stands closed.
+ * @throws MoneyError when PayPal could not be reached, or refused with the authorisation not closed.
  */
-async function releaseAuthorised(
-  db: Database["db"],
+async function voidOrFindReleased(
   paypal: PayPalClient,
-  row: HoldRow,
-): Promise<boolean> {
-  const authorizationId = row.authorizationId!;
+  authorizationId: string,
+  requestId: string,
+  step: string,
+  now: Date,
+): Promise<Released> {
   try {
-    await askPayPal("void the hold", () =>
-      voidAuthorization(
-        paypal,
-        authorizationId,
-        holdRequestId(row.caseId, row.id, "void.session_end"),
-      ),
-    );
+    await askPayPal(step, () => voidAuthorization(paypal, authorizationId, requestId));
+    return { as: "voided" };
   } catch (error) {
     if (!(error instanceof MoneyError) || error.reason !== "paypal_refused") {
       throw error;
@@ -293,20 +323,78 @@ async function releaseAuthorised(
     const read = await askPayPal("read the authorisation", () =>
       getAuthorization(paypal, authorizationId),
     );
-    if (read.status !== "VOIDED") {
-      throw error;
+    if (read.status === "VOIDED") {
+      return { as: "voided" };
     }
+    const expiresAt = expirationOf(read);
+    if (EXPIRES_FROM.has(read.status) && expiresAt && expiresAt <= now) {
+      return { as: "expired", refusal: error };
+    }
+    throw new MoneyError(
+      error.reason,
+      `${error.message} (PayPal reads authorisation ${authorizationId} ${read.status}, expiring ${read.expiration_time ?? "at no time given"})`,
+      error.detail,
+    );
   }
+}
+
+/**
+ * When an authorisation PayPal read back expires, by its own `expiration_time`.
+ *
+ * @param read - The authorisation.
+ * @returns The instant, or null when PayPal gave none or one that does not parse.
+ */
+function expirationOf(read: Authorization): Date | null {
+  if (!read.expiration_time) {
+    return null;
+  }
+  try {
+    return parsePayPalTime(read.expiration_time);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Voids an authorised hold at PayPal and records it closed, as a discharge's
+ * void is recorded (`hold.voided`, the case moved as discharge moves it).
+ * When PayPal refuses because the authorisation is voided there already, it
+ * is recorded voided all the same; when it refuses because the
+ * authorisation has expired, the hold is recorded expired as a discharge
+ * records one (`hold.expired`), the case moved the same way, since PayPal
+ * has released the money.
+ *
+ * @param db - The database.
+ * @param paypal - The PayPal client.
+ * @param row - The hold.
+ * @param now - The clock.
+ * @returns How the hold was closed, or null when another run closed it first.
+ * @throws MoneyError when PayPal could not be reached, or refused with the authorisation not closed.
+ */
+async function releaseAuthorised(
+  db: Database["db"],
+  paypal: PayPalClient,
+  row: HoldRow,
+  now: Date,
+): Promise<Released["as"] | null> {
+  const authorizationId = row.authorizationId!;
+  const released = await voidOrFindReleased(
+    paypal,
+    authorizationId,
+    holdRequestId(row.caseId, row.id, "void.session_end"),
+    "void the hold",
+    now,
+  );
 
   return db.transaction(async (tx) => {
     const kase = await lockCase(tx, row.practiceId, row.caseId);
     const [closed] = await tx
       .update(hold)
-      .set({ status: "voided", closedAt: new Date(), updatedAt: new Date() })
+      .set({ status: released.as, closedAt: new Date(), updatedAt: new Date() })
       .where(and(eq(hold.id, row.id), eq(hold.status, "authorised")))
       .returning();
     if (!closed) {
-      return false;
+      return null;
     }
     const to = await dischargedState(tx, kase);
     await moveCase(tx, row.caseId, to);
@@ -315,38 +403,68 @@ async function releaseAuthorised(
       practiceId: row.practiceId,
       caseId: row.caseId,
       actor: "system",
-      action: "hold.voided",
+      action: released.as === "expired" ? "hold.expired" : "hold.voided",
       moneyStateBefore: kase.moneyState,
       moneyStateAfter: to,
       amount: { pence: releasedPence, currency: currencyCode.parse(row.currencyCode) },
-      paypal: { orderId: row.paypalOrderId, authorizationId },
+      paypal: { orderId: row.paypalOrderId, authorizationId, ...refusalIds(released) },
       detail: {
         holdId: row.id,
         closedBy: "session_end",
-        reason: SESSION_ENDED,
+        reason: released.as === "expired" ? EXPIRED_AT_PAYPAL : SESSION_ENDED,
         releasedPence,
+        ...refusalIssues(released),
       },
     });
-    return true;
+    return released.as;
   });
+}
+
+/**
+ * PayPal's `debug_id` for an expiry found by a refused void, for the audit
+ * event's PayPal ids.
+ *
+ * @param released - How the authorisation stands closed.
+ * @returns The `debugId`, or nothing.
+ */
+function refusalIds(released: Released): { debugId?: string } {
+  return released.as === "expired" && released.refusal.debugId
+    ? { debugId: released.refusal.debugId }
+    : {};
+}
+
+/**
+ * PayPal's issue names for an expiry found by a refused void, for the audit
+ * event's detail, as a discharge's `hold.expired` carries them.
+ *
+ * @param released - How the authorisation stands closed.
+ * @returns The `issues`, or nothing.
+ */
+function refusalIssues(released: Released): { issues?: string[] } {
+  return released.as === "expired" ? { issues: [...released.refusal.issues] } : {};
 }
 
 /**
  * Reads the order of a hold pawhold never saw authorised and voids any
  * authorisation PayPal holds on it (U3's decision 17), recording the
- * authorisation on the hold, closed, as U3's late authorisation is.
+ * authorisation on the hold, closed, as U3's late authorisation is. A void
+ * PayPal refuses is read back as {@link voidOrFindReleased} reads it, and
+ * the hold is recorded as its recorded authorisation stands closed: voided,
+ * or expired.
  *
  * @param db - The database.
  * @param paypal - The PayPal client.
  * @param row - The hold.
- * @returns True when an authorisation was found and voided.
- * @throws MoneyError when PayPal could not be reached or refused.
+ * @param now - The clock.
+ * @returns How the hold was closed, or null when PayPal held nothing on its order.
+ * @throws MoneyError when PayPal could not be reached, or refused with an authorisation not closed.
  */
 async function releaseUnrecorded(
   db: Database["db"],
   paypal: PayPalClient,
   row: HoldRow,
-): Promise<boolean> {
+  now: Date,
+): Promise<Released["as"] | null> {
   let order;
   try {
     order = await askPayPal("read the order", () => getOrder(paypal, row.paypalOrderId));
@@ -357,7 +475,7 @@ async function releaseUnrecorded(
       error.detail.cause instanceof PayPalError &&
       error.detail.cause.status === 404
     ) {
-      return false;
+      return null;
     }
     throw error;
   }
@@ -366,17 +484,21 @@ async function releaseUnrecorded(
     .filter((found) => HOLDING.has(found.status));
   const [authorisation] = holding;
   if (!authorisation) {
-    return false;
+    return null;
   }
+  const closures: Released[] = [];
   for (const [index, found] of holding.entries()) {
-    await askPayPal("void the authorisation", () =>
-      voidAuthorization(
+    closures.push(
+      await voidOrFindReleased(
         paypal,
         found.id,
         holdRequestId(row.caseId, row.id, `void.session_end.${index + 1}`),
+        "void the authorisation",
+        now,
       ),
     );
   }
+  const released = closures[0]!;
 
   return db.transaction(async (tx) => {
     await lockCase(tx, row.practiceId, row.caseId);
@@ -386,7 +508,7 @@ async function releaseUnrecorded(
     const [closed] = await tx
       .update(hold)
       .set({
-        status: "voided",
+        status: released.as,
         authorizationId: authorisation.id,
         originalAuthorizationId: authorisation.id,
         paymentKind: paymentKindOf(order) ?? "paypal",
@@ -400,23 +522,28 @@ async function releaseUnrecorded(
       .where(and(eq(hold.id, row.id), inArray(hold.status, [...UNRECORDED])))
       .returning();
     if (!closed) {
-      return false;
+      return null;
     }
     await appendAuditEvent(tx, {
       practiceId: row.practiceId,
       caseId: row.caseId,
       actor: "system",
-      action: "hold.voided",
+      action: released.as === "expired" ? "hold.expired" : "hold.voided",
       amount: { pence: row.amountPence, currency: currencyCode.parse(row.currencyCode) },
-      paypal: { orderId: row.paypalOrderId, authorizationId: authorisation.id },
+      paypal: {
+        orderId: row.paypalOrderId,
+        authorizationId: authorisation.id,
+        ...refusalIds(released),
+      },
       detail: {
         holdId: row.id,
         closedBy: "session_end",
-        reason: `${SESSION_ENDED}; PayPal held the ${row.status} hold's order unknown to pawhold`,
+        reason: `${released.as === "expired" ? EXPIRED_AT_PAYPAL : SESSION_ENDED}; PayPal held the ${row.status} hold's order unknown to pawhold`,
         releasedPence: row.amountPence,
+        ...refusalIssues(released),
       },
     });
-    return true;
+    return released.as;
   });
 }
 
@@ -427,14 +554,16 @@ async function releaseUnrecorded(
  * @param db - The database.
  * @param practiceId - The practice.
  * @param now - The clock.
- * @param holdsVoided - How many holds were released for it this run.
+ * @param closed - How many holds were released for it this run, by how.
+ * @param closed.voided - The holds voided, or found voided.
+ * @param closed.expired - The holds found expired.
  * @returns The sessions pruned.
  */
 async function pruneSessions(
   db: Database["db"],
   practiceId: string,
   now: Date,
-  holdsVoided: number,
+  closed: { voided: number; expired: number },
 ): Promise<string[]> {
   return db.transaction(async (tx) => {
     const gone = await tx
@@ -451,7 +580,8 @@ async function pruneSessions(
           door: one.door,
           startedAt: one.createdAt.toISOString(),
           expiredAt: one.expiresAt.toISOString(),
-          holdsVoided,
+          holdsVoided: closed.voided,
+          holdsExpired: closed.expired,
         },
       });
     }

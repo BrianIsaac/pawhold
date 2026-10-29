@@ -31,7 +31,12 @@ const quietSchedule = async (): Promise<SweepReport> => NOTHING_SWEPT;
 // The judge-session clean-up prunes any practice's ended sessions, whatever
 // the clock: every run here is given a part that prunes nothing of the other
 // files'; tests/judge/cleanup.test.ts runs the real one on practices of its own.
-const quietSessions = async (): Promise<CleanupReport> => ({ pruned: [], voided: [], waiting: [] });
+const quietSessions = async (): Promise<CleanupReport> => ({
+  pruned: [],
+  voided: [],
+  expired: [],
+  waiting: [],
+});
 
 describe("the hourly job (plan 7.3: the reauthorisation rule; U3's webhook sweep; U8a's schedule agent)", () => {
   it("runs the reauthorisation rule, the webhook sweep and the schedule agent, and reports what each did", async () => {
@@ -48,7 +53,7 @@ describe("the hourly job (plan 7.3: the reauthorisation rule; U3's webhook sweep
       discharges: { resumed: [], failed: [] },
       webhooks: { reconciled: 0, flagged: 0, pending: 0, failed: 0 },
       schedule: NOTHING_SWEPT,
-      sessions: { pruned: [], voided: [], waiting: [] },
+      sessions: { pruned: [], voided: [], expired: [], waiting: [] },
       sessionsPruned: 0,
       errors: [],
     });
