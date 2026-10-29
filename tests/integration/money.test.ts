@@ -135,8 +135,9 @@ describe.skipIf(!configured)("the money lifecycle against PayPal's sandbox (U3, 
               (unit) => unit.payments?.authorizations?.map((found) => found.id) ?? [],
             ) ?? [])
           : [];
+      // The original parent first: a reauthorisation is voided only through it (CANNOT_BE_VOIDED).
       const ids = [
-        ...new Set([one.authorizationId, one.originalAuthorizationId, ...unrecorded]),
+        ...new Set([one.originalAuthorizationId, one.authorizationId, ...unrecorded]),
       ].filter((id): id is string => id !== null);
       for (const id of ids) {
         const read = await getAuthorization(paypal, id);

@@ -61,8 +61,9 @@ type HoldRow = typeof hold.$inferSelect;
  * hourly: a hold, wallet or card, past its three-day honour period and inside
  * its 29 days, whose case is not being discharged and which has not been
  * reauthorised, is reauthorised once ("A reauthorization is only allowed once
- * from Day 4 to Day 29", PayPal's answer to P5 (a)); captures and voids then
- * go against the new authorisation. A hold whose one reauthorisation is spent
+ * from Day 4 to Day 29", PayPal's answer to P5 (a)); captures then go against
+ * the new authorisation, and voids against the original parent
+ * (`voidTarget`). A hold whose one reauthorisation is spent
  * or refused, or that is past its 29 days, is flagged
  * (`hold.honour_period_over`) when its honour period is over in turn; so is a
  * hold whose bill is signed off but whose capture has not landed (never

@@ -237,9 +237,12 @@ export async function voidAuthorization(
 
 /**
  * Reauthorises an authorisation for its amount, or the amount given. PayPal
- * answers with a new authorisation, which later captures and voids go
- * against ("Perform any subsequent capture against the new authorization ID,
- * not the original", /payment-methods/auth-honor, read 12 October 2026).
+ * answers with a new authorisation, which later captures go against
+ * ("Perform any subsequent capture against the new authorization ID, not the
+ * original", /payment-methods/auth-honor, read 12 October 2026). A void does
+ * not: "A reauthorization cannot be voided. Please void the original parent
+ * authorization." (`CANNOT_BE_VOIDED`, the Payments v2 schema, read 29
+ * October 2026); `voidTarget` in `src/money/holds.ts` names it.
  *
  * @param client - A sandbox client.
  * @param authorizationId - The authorisation's id.

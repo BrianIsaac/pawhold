@@ -510,9 +510,9 @@ export const hold = pgTable(
     currencyCode: char("currency_code", { length: 3 }).notNull(),
     status: holdStatus("status").notNull().default("ordered"),
     paypalOrderId: text("paypal_order_id").notNull(),
-    /** The authorisation captures and voids go against: the reauthorised one after a reauthorisation. */
+    /** The authorisation captures go against: the reauthorised one after a reauthorisation. */
     authorizationId: text("authorization_id"),
-    /** The order's own authorisation; the honour period and the 29 days count from it. */
+    /** The order's own authorisation; the honour period and the 29 days count from it, and a void goes against it. */
     originalAuthorizationId: text("original_authorization_id"),
     paymentKind: paymentKind("payment_kind"),
     /** PayPal's `create_time` of the original authorisation. */
